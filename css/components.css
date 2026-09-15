@@ -538,3 +538,45 @@
   .toast-container { left: 16px; right: 16px; bottom: 16px; }
   .toast { font-size: 0.9rem; padding: 12px 16px; }
 }
+
+/* Advanced Gaming Badges CSS */
+.role-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  display: inline-block;
+  border: 1px solid transparent;
+}
+.badge-admin {
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+  color: white;
+  border-color: #60a5fa;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+.badge-vip {
+  background: linear-gradient(135deg, #7e22ce, #c084fc);
+  color: white;
+  border-color: #d8b4fe;
+  box-shadow: 0 0 8px rgba(192, 132, 252, 0.5);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.badge-manager {
+  background: linear-gradient(135deg, #b91c1c, #ef4444);
+  color: white;
+  border-color: #f87171;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+.badge-guest {
+  background: linear-gradient(135deg, #4b5563, #9ca3af);
+  color: white;
+  border-color: #d1d5db;
+}
+.badge-student {
+  background: linear-gradient(135deg, #047857, #10b981);
+  color: white;
+  border-color: #34d399;
+}
