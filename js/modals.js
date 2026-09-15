@@ -602,10 +602,14 @@ async function submitImport() {
     if (bulkRes && bulkRes.success) {
       showToast(`✓ تم استيراد ${questions.length} أسئلة بنجاح!`);
       closeModal();
-      await refreshAndRenderAdmin();
+      refreshAndRenderAdmin().catch(console.error);
       return;
     }
-  } catch { /* bulk not supported, fall through */ }
+  } catch (err) {
+    console.error("Bulk import error:", err);
+    // If it was a network error but the request reached the server, 
+    // falling through might duplicate. We rely on the proxy now.
+  }
 
   // Fallback: add questions one by one using addQuestion
   let successCount = 0;
