@@ -9,7 +9,7 @@
 // ==========================================
 async function startQuiz(materialId, quizId, isReviewMode = false) {
   if (!quizId) {
-    showToast('This quiz has not been set up yet. Contact your instructor.', 'error');
+    showToast('هذا الاختبار غير مجهز بعد. تواصل مع المعلم.', 'error');
     return;
   }
 
@@ -75,7 +75,7 @@ async function startQuiz(materialId, quizId, isReviewMode = false) {
 
     if (!questions.length) {
       hideLoading();
-      showToast('No questions in this quiz yet.', 'error');
+      showToast('لا توجد أسئلة في هذا الاختبار بعد.', 'error');
       return;
     }
 
@@ -106,7 +106,7 @@ async function startQuiz(materialId, quizId, isReviewMode = false) {
     if (timeLimitSecs > 0 || isReviewMode) startQuizTimer();
 
   } catch (err) {
-    showToast('Error loading quiz', 'error');
+    showToast('خطأ في تحميل الاختبار', 'error');
     console.error(err);
   } finally {
     hideLoading();
@@ -133,7 +133,10 @@ function startQuizTimer() {
         showToast('⏰ انتهى الوقت! جاري تسليم الاختبار...', 'error');
         submitQuiz();
       } else {
-        // Just stop quietly in review mode
+        showToast('⏰ انتهى الوقت المخصص للسؤال', 'error');
+        if (!quiz.answerConfirmed) {
+          nextQuestion(true); // force advance with no answer
+        }
       }
     }
   }, 1000);
@@ -168,8 +171,8 @@ function renderQuizQuestion() {
   if (!quiz || !quiz.questions.length) {
     $('quizContent').innerHTML = `
       <div class="glass text-center" style="padding: 60px;">
-        <p>No questions in this quiz.</p>
-        <button class="btn btn-primary mt-4" onclick="navigateTo('dashboard')">Back to Dashboard</button>
+        <p>لا توجد أسئلة في هذا الاختبار بعد.</p>
+        <button class="btn btn-primary mt-4" onclick="navigateTo('dashboard')">العودة للوحة التحكم</button>
       </div>`;
     return;
   }
@@ -321,7 +324,7 @@ function prevQuestion() {
   renderQuizQuestion();
 }
 
-function nextQuestion() {
+function nextQuestion(forceAdvance = false) {
   const quiz = state.currentQuiz;
   const q = quiz.questions[quiz.currentIndex];
 
@@ -329,28 +332,34 @@ function nextQuestion() {
     let answer = null;
     let isCorrect = false;
 
-    if (q.type === 'mcq' || q.type === 'true_false') {
-      const selected = document.querySelector('.option-item.selected');
-      if (!selected) { showToast('يرجى اختيار إجابة أولاً', 'error'); return; }
-      answer = parseInt(selected.dataset.index);
-      isCorrect = answer === q.correct_answer;
-    } else if (q.type === 'essay') {
-      answer = $('essayAnswer').value.trim();
-      if (!answer) { showToast('يرجى كتابة إجابة أولاً', 'error'); return; }
-      isCorrect = null;
-    } else if (q.type === 'matching') {
-      const pairs = q.options || [];
-      answer = [];
-      let allCorrect = true;
-      let missing = false;
-      pairs.forEach((_, i) => {
-        const val = $(`match-${i}`).value;
-        if (val === '') { missing = true; }
-        answer.push({ left: i, right: parseInt(val) });
-        if (parseInt(val) !== i) allCorrect = false;
-      });
-      if (missing) { showToast('يرجى إكمال جميع المطابقات', 'error'); return; }
-      isCorrect = allCorrect;
+    if (!forceAdvance) {
+      if (q.type === 'mcq' || q.type === 'true_false') {
+        const selected = document.querySelector('.option-item.selected');
+        if (!selected) { showToast('يرجى اختيار إجابة أولاً', 'error'); return; }
+        answer = parseInt(selected.dataset.index);
+        isCorrect = answer === q.correct_answer;
+      } else if (q.type === 'essay') {
+        answer = $('essayAnswer').value.trim();
+        if (!answer) { showToast('يرجى كتابة إجابة أولاً', 'error'); return; }
+        isCorrect = null;
+      } else if (q.type === 'matching') {
+        const pairs = q.options || [];
+        answer = [];
+        let allCorrect = true;
+        let missing = false;
+        pairs.forEach((_, i) => {
+          const val = $(`match-${i}`).value;
+          if (val === '') { missing = true; }
+          answer.push({ left: i, right: parseInt(val) });
+          if (parseInt(val) !== i) allCorrect = false;
+        });
+        if (missing) { showToast('يرجى إكمال جميع المطابقات', 'error'); return; }
+        isCorrect = allCorrect;
+      }
+    } else {
+      // Force advanced without answer (timer ran out)
+      answer = q.type === 'matching' ? [] : null;
+      isCorrect = false;
     }
 
     quiz.answers[quiz.currentIndex] = {
@@ -378,12 +387,12 @@ function nextQuestion() {
 
     if (q.type === 'mcq' || q.type === 'true_false') {
       const selected = document.querySelector('.option-item.selected');
-      if (!selected) { showToast('Please select an answer', 'error'); return; }
+      if (!selected) { showToast('يرجى اختيار إجابة أولاً', 'error'); return; }
       answer = parseInt(selected.dataset.index);
       isCorrect = answer === q.correct_answer;
     } else if (q.type === 'essay') {
       answer = $('essayAnswer').value.trim();
-      if (!answer) { showToast('Please write an answer', 'error'); return; }
+      if (!answer) { showToast('يرجى كتابة إجابة أولاً', 'error'); return; }
       isCorrect = null; // pending manual grading
     } else if (q.type === 'matching') {
       const pairs = q.options || [];
@@ -459,18 +468,18 @@ async function submitQuiz() {
     const rgb        = isPending ? '245,158,11' : isCorrect ? '16,185,129' : '239,68,68';
     const sColor     = isPending ? 'var(--warning)' : isCorrect ? 'var(--success)' : 'var(--danger)';
     const statusIcon = isPending ? ICONS.clock : isCorrect ? ICONS.checkCircle : ICONS.alert;
-    const statusText = isPending ? 'Pending' : isCorrect ? 'Correct ✓' : 'Wrong ✗';
+    const statusText = isPending ? 'قيد المراجعة' : isCorrect ? 'صحيحة ✓' : 'خاطئة ✗';
 
     // Build display text for the student's answer and the correct answer
     let myAnswer = '—';
     let correctAnswer = '';
     if (q.type === 'mcq' || q.type === 'true_false') {
-      myAnswer      = Array.isArray(q.options) ? (q.options[ans?.answer] ?? `Option ${ans?.answer}`) : String(ans?.answer ?? '—');
-      correctAnswer = Array.isArray(q.options) ? (q.options[q.correct_answer] ?? `Option ${q.correct_answer}`) : String(q.correct_answer);
+      myAnswer      = Array.isArray(q.options) ? (q.options[ans?.answer] ?? `الخيار ${ans?.answer}`) : String(ans?.answer ?? '—');
+      correctAnswer = Array.isArray(q.options) ? (q.options[q.correct_answer] ?? `الخيار ${q.correct_answer}`) : String(q.correct_answer);
     } else if (q.type === 'essay') {
-      myAnswer = ans?.answer || '(no answer submitted)';
+      myAnswer = ans?.answer || '(لم يتم تقديم إجابة)';
     } else if (q.type === 'matching') {
-      myAnswer = 'Matching submitted';
+      myAnswer = 'تم تقديم المطابقة';
     }
 
     reviewHtml += `
@@ -490,23 +499,23 @@ async function submitQuiz() {
         <div style="font-size:0.87rem; display:flex; flex-direction:column; gap:5px;">
           ${q.type !== 'essay' && q.type !== 'matching' ? `
             <div>
-              <span style="color:var(--text-muted);">Your answer: </span>
+              <span style="color:var(--text-muted);">إجابتك: </span>
               <strong style="color:${sColor};">${myAnswer}</strong>
             </div>` : ''}
 
           ${!isCorrect && !isPending && q.type !== 'matching' ? `
             <div>
-              <span style="color:var(--text-muted);">Correct answer: </span>
+              <span style="color:var(--text-muted);">الإجابة الصحيحة: </span>
               <strong style="color:var(--success);">${correctAnswer}</strong>
             </div>` : ''}
 
           ${q.type === 'essay' ? `
             <div>
-              <span style="color:var(--text-muted);">Your answer: </span>
+              <span style="color:var(--text-muted);">إجابتك: </span>
               <span style="font-style:italic;">${myAnswer}</span>
             </div>
             <div style="color:var(--warning); font-size:0.82rem; display:flex; align-items:center; gap:4px; margin-top:2px;">
-              ${ICONS.clock} Essay — awaiting manual grading
+              ${ICONS.clock} مقالي — بانتظار التقييم اليدوي
             </div>` : ''}
 
           ${q.explanation && !isPending ? `
@@ -515,7 +524,7 @@ async function submitQuiz() {
                         border-left:3px solid var(--primary);
                         border-radius:0 8px 8px 0;
                         font-size:0.84rem; line-height:1.65; color:var(--text-muted);">
-              💡 <strong style="color:var(--primary);">Explanation:</strong> ${q.explanation}
+              💡 <strong style="color:var(--primary);">التعليل:</strong> ${q.explanation}
             </div>` : ''}
         </div>
       </div>`;
@@ -528,25 +537,28 @@ async function submitQuiz() {
         <div style="font-size:3rem; margin-bottom:12px;">
           ${hasEssay ? '📝' : pct >= 70 ? '🎉' : pct >= 50 ? '📊' : '💪'}
         </div>
-        <h2 style="margin-bottom:8px;">Quiz Submitted!</h2>
-        ${hasEssay
-          ? '<p style="color:var(--text-muted);">Essay answers are awaiting manual grading.<br>Your score will be updated once reviewed.</p>'
-          : `<div style="font-size:2.8rem; font-weight:900; color:${color}; margin:12px 0; line-height:1.1;">
-               ${quiz.score}<span style="font-size:1.3rem; font-weight:500; color:var(--text-muted);">/${quiz.maxScore}</span>
-             </div>
-             <div style="font-size:1rem; font-weight:700; color:${color};">${pct}%</div>`}
+        <h2 style="margin-bottom:8px;">${quiz.isReviewMode ? 'اكتملت المراجعة!' : 'تم تسليم الاختبار!'}</h2>
+        ${quiz.isReviewMode
+          ? '<p style="color:var(--text-muted);">لقد أكملت مراجعة جميع أسئلة هذا الاختبار.</p>'
+          : hasEssay
+            ? '<p style="color:var(--text-muted);">الأسئلة المقالية في انتظار التقييم اليدوي.<br>سيتم تحديث درجاتك بعد التقييم.</p>'
+            : `<div style="font-size:2.8rem; font-weight:900; color:${color}; margin:12px 0; line-height:1.1;">
+                 ${quiz.score}<span style="font-size:1.3rem; font-weight:500; color:var(--text-muted);">/${quiz.maxScore}</span>
+               </div>
+               <div style="font-size:1rem; font-weight:700; color:${color};">${pct}%</div>`
+        }
       </div>
 
-      <h3 style="margin-bottom:16px; font-size:1.05rem;">📋 Answer Review</h3>
+      <h3 style="margin-bottom:16px; font-size:1.05rem;">📋 مراجعة الإجابات</h3>
       ${reviewHtml}
 
       <button class="btn btn-primary w-full" style="margin-top:8px;" onclick="navigateTo('dashboard')">
-        Return to Dashboard
+        العودة للوحة التحكم
       </button>
     </div>`;
 
-  // Save to backend
-  if (!MOCK_MODE) {
+  // Save to backend ONLY in Exam Mode
+  if (!MOCK_MODE && !quiz.isReviewMode) {
     try {
       await API.post('submitQuiz', {
         username: state.user.username,
@@ -562,5 +574,5 @@ async function submitQuiz() {
   }
 
   if (!hasEssay) createConfetti();
-  showToast('Quiz submitted successfully!');
+  showToast(quiz.isReviewMode ? 'اكتملت المراجعة!' : 'تم تسليم الاختبار بنجاح!', 'success');
 }

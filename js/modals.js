@@ -43,7 +43,13 @@ function showModal(type, id = null) {
     content = `
       <h3 style="margin-bottom: 20px;">${isEdit ? 'تعديل الدرس' : 'إضافة درس جديد'}</h3>
       <input type="hidden" id="lessonId" value="${isEdit ? data.lesson_id : ''}">
-      <input type="hidden" id="lessonUnitId" value="${isEdit ? data.unit_id : id}">
+      <div class="input-group">
+        <label>الوحدة المستهدفة (اختياري)</label>
+        <select id="lessonUnitId">
+          <option value="">-- بدون وحدة (درس مستقل) --</option>
+          ${state.units.map(u => `<option value="${u.unit_id}" ${((isEdit && data.unit_id === u.unit_id) || (!isEdit && id === u.unit_id)) ? 'selected' : ''}>${u.unit_name}</option>`).join('')}
+        </select>
+      </div>
       <div class="input-group">
         <label>رقم الدرس</label>
         <input type="number" id="lessonNumber" value="${isEdit ? data.lesson_number : ''}" placeholder="مثال: 1">
@@ -61,21 +67,21 @@ function showModal(type, id = null) {
     content = `
       <h3 style="margin-bottom: 20px;">${isEdit ? 'تعديل المحتوى' : 'إضافة محتوى'}</h3>
       <input type="hidden" id="materialId" value="${isEdit ? data.material_id : ''}">
-      ${(!isEdit && (!id || id === 'undefined')) ? `
-        <div class="input-group">
-          <label>الدرس المستهدف (مطلوب)</label>
-          <select id="materialLessonIdSelect">
-            <option value="">-- اختر الدرس --</option>
-            ${state.units.map(u => `
-              <optgroup label="${u.unit_name}">
-                ${(state.lessons[u.unit_id] || []).map(l => `<option value="${l.lesson_id}">${l.lesson_name}</option>`).join('')}
-              </optgroup>
-            `).join('')}
-          </select>
-        </div>
-      ` : `
-        <input type="hidden" id="materialLessonId" value="${isEdit ? data.lesson_id : id}">
-      `}
+      <div class="input-group">
+        <label>الموقع المستهدف (اختياري)</label>
+        <select id="materialLessonIdSelect">
+          <option value="">-- خارج الدروس والوحدات (مستقل) --</option>
+          ${state.units.map(u => `
+            <optgroup label="${u.unit_name}">
+              <option value="unit_${u.unit_id}" ${((isEdit && data.lesson_id === `unit_${u.unit_id}`) || (!isEdit && id === `unit_${u.unit_id}`)) ? 'selected' : ''}>-- داخل الوحدة مباشرة --</option>
+              ${(state.lessons[u.unit_id] || []).map(l => `<option value="${l.lesson_id}" ${((isEdit && data.lesson_id === l.lesson_id) || (!isEdit && id === l.lesson_id)) ? 'selected' : ''}>الدرس: ${l.lesson_name}</option>`).join('')}
+            </optgroup>
+          `).join('')}
+          <optgroup label="دروس مستقلة">
+            ${(state.lessons[''] || []).map(l => `<option value="${l.lesson_id}" ${((isEdit && data.lesson_id === l.lesson_id) || (!isEdit && id === l.lesson_id)) ? 'selected' : ''}>الدرس: ${l.lesson_name}</option>`).join('')}
+          </optgroup>
+        </select>
+      </div>
       <div class="input-group">
         <label>العنوان</label>
         <input type="text" id="materialTitle" value="${isEdit ? data.title : ''}" placeholder="مثال: شرائح العرض">
@@ -190,15 +196,39 @@ function showModal(type, id = null) {
   } else if (type === 'importQuiz') {
     // Build quiz options from loaded state
     let quizOptions = '<option value="">-- اختر الاختبار المستهدف --</option>';
-    for (const unit of (state.units || [])) {
-      for (const lesson of (state.lessons[unit.unit_id] || [])) {
-        for (const mat of (state.materials[lesson.lesson_id] || [])) {
-          if (mat.type === 'quiz') {
-            const quiz = state.quizzes[mat.material_id];
-            if (quiz) {
-              quizOptions += `<option value="${quiz.quiz_id}" data-material="${mat.material_id}">${mat.title} (${unit.unit_name} → ${lesson.lesson_name})</option>`;
+    
+    for (const mat of state.allMaterials) {
+      if (mat.type === 'quiz') {
+        const quiz = state.quizzes[mat.material_id];
+        if (quiz) {
+          let unitName = '';
+          let lessonName = '';
+          if (mat.lesson_id) {
+            if (mat.lesson_id.startsWith('unit_')) {
+              const unitId = mat.lesson_id.replace('unit_', '');
+              const unit = state.units.find(u => u.unit_id === unitId);
+              if (unit) unitName = unit.unit_name + ' (مباشرة)';
+            } else {
+              for (const u of state.units) {
+                if (state.lessons[u.unit_id]) {
+                  const lesson = state.lessons[u.unit_id].find(l => l.lesson_id === mat.lesson_id);
+                  if (lesson) { unitName = u.unit_name; lessonName = lesson.lesson_name; break; }
+                }
+              }
+              if (!lessonName && state.lessons['']) {
+                const lesson = state.lessons[''].find(l => l.lesson_id === mat.lesson_id);
+                if (lesson) lessonName = 'مستقل: ' + lesson.lesson_name;
+              }
             }
           }
+          
+          let locationStr = '';
+          if (unitName && lessonName) locationStr = `${unitName} → ${lessonName}`;
+          else if (unitName) locationStr = unitName;
+          else if (lessonName) locationStr = lessonName;
+          else locationStr = 'مستقل';
+          
+          quizOptions += `<option value="${quiz.quiz_id}" data-material="${mat.material_id}">${mat.title} (${locationStr})</option>`;
         }
       }
     }
@@ -219,6 +249,44 @@ function showModal(type, id = null) {
         <input type="file" id="importFile" accept=".json,application/json"
           style="padding:10px; border-radius:10px; border:2px dashed var(--border); width:100%; cursor:pointer;"
           onchange="handleImportFile(event)">
+      </div>
+
+      <div class="glass" style="padding:12px; margin-bottom:16px; background:rgba(0,0,0,0.02); font-size:0.85rem;">
+        <h4 style="margin-bottom:8px; display:flex; align-items:center; gap:6px;">${ICONS.info} دليل الصيغة (Syntax Guide)</h4>
+        <pre id="jsonSyntaxGuide" style="direction:ltr; text-align:left; font-family:monospace; white-space:pre-wrap; background:#1e1e1e; color:#d4d4d4; padding:12px; border-radius:8px; overflow-x:auto; user-select:all; cursor:copy; font-size: 0.75rem;">
+[
+  {
+    "type": "mcq",
+    "question_text": "What is 2+2?",
+    "options": ["3", "4", "5", "6"],
+    "correct_answer": 1,
+    "points": 1,
+    "explanation": "Because 2+2=4"
+  },
+  {
+    "type": "true_false",
+    "question_text": "Is the sky blue?",
+    "options": ["True", "False"],
+    "correct_answer": 0,
+    "points": 1
+  },
+  {
+    "type": "essay",
+    "question_text": "Explain quantum physics",
+    "points": 5
+  },
+  {
+    "type": "matching",
+    "question_text": "Match the following",
+    "options": [
+      {"left": "Apple", "right": "Red"},
+      {"left": "Banana", "right": "Yellow"}
+    ],
+    "points": 2
+  }
+]
+        </pre>
+        <button class="btn btn-secondary mt-2 w-full" style="padding: 6px;" onclick="copySyntaxGuide()">${ICONS.copy} انسخ الصيغة</button>
       </div>
 
       <div class="input-group">
@@ -295,7 +363,13 @@ async function submitMaterial() {
   if (!lessonId || lessonId === 'undefined') {
     lessonId = $('materialLessonIdSelect')?.value;
   }
-  if (!lessonId) { showToast('يرجى اختيار الدرس', 'error'); return; }
+  
+  // Optional: parse out 'unit_' prefix if added directly to unit
+  if (lessonId && lessonId.startsWith('unit_')) {
+    // Backend expects lesson_id for standard hierarchy, but we can store 'unit_xxx' to denote it belongs to a unit without a lesson.
+    // Ensure getMaterials can handle this in the backend, or we map it properly.
+    // For this simple schema, we just store it as the lesson_id field.
+  }
 
   const title = $('materialTitle').value.trim();
   const type = $('materialType').value;
@@ -304,7 +378,7 @@ async function submitMaterial() {
   if (!title) { showToast('يرجى ملء العنوان', 'error'); return; }
 
   if (!MOCK_MODE) {
-    const res = await API.post('addMaterial', { lesson_id: lessonId, title, type, content: rawContent });
+    const res = await API.post('addMaterial', { lesson_id: lessonId || '', title, type, content: rawContent });
     if (type === 'quiz' && res.success) {
       const quizRes = await API.post('addQuiz', { material_id: res.material_id, title, description: '' });
       if (quizRes.success) {

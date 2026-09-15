@@ -51,24 +51,14 @@ async function handleLogin(e) {
 function setupNavigation() {
   $('navbar').classList.remove('hidden');
   
-  const roleLabels = {
-    admin: 'مدير النظام',
-    student: 'طالب',
-    guest: 'ضيف',
-    vip: 'الأب الروحي',
-    manager: 'المدير'
-  };
-
-  const roleLabel = roleLabels[state.user.role] || state.user.role;
-  const badgeClass = `badge-${state.user.role}`;
-  const avatarHtml = state.user.avatar_url 
-    ? `<img src="${state.user.avatar_url}" id="navAvatar" class="user-avatar" alt="Avatar">`
+  const avatarHtml = state.user.avatar 
+    ? `<img src="${state.user.avatar}" id="navAvatar" class="avatar" alt="Avatar" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">`
     : `<div class="avatar" id="navAvatar">${state.user.name.charAt(0).toUpperCase()}</div>`;
 
   $('navUsername').innerHTML = `
     <div style="display:flex; flex-direction:column; align-items:flex-end;">
       <span>${state.user.name}</span>
-      <div class="role-badge ${badgeClass}">${roleLabel}</div>
+      <div style="margin-top: 4px;">${getRoleBadgeSVG(state.user.role)}</div>
     </div>
   `;
   const existingAvatar = document.getElementById('navAvatar');

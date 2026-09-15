@@ -8,9 +8,30 @@
 function $(id) { return document.getElementById(id); }
 
 function translateRole(role) {
-  if (role === 'admin') return 'مدير';
+  if (role === 'admin') return 'مدير النظام';
+  if (role === 'manager') return 'المدير';
+  if (role === 'vip') return 'الأب الروحي';
+  if (role === 'guest') return 'ضيف';
   if (role === 'student') return 'طالب';
   return role;
+}
+
+function getRoleBadgeSVG(role) {
+  const badgeMap = {
+    'admin': { color: 'linear-gradient(135deg, #ef4444, #991b1b)', label: 'مدير النظام', icon: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>' },
+    'vip': { color: 'linear-gradient(135deg, #f59e0b, #b45309)', label: 'الأب الروحي', icon: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>' },
+    'manager': { color: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', label: 'المدير', icon: '<circle cx="12" cy="8" r="5"/><path d="M3 21v-2a7 7 0 0 1 14 0v2"/>' },
+    'guest': { color: 'linear-gradient(135deg, #8b5cf6, #5b21b6)', label: 'ضيف', icon: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>' },
+    'student': { color: 'linear-gradient(135deg, #10b981, #047857)', label: 'طالب', icon: '<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>' }
+  };
+  
+  const b = badgeMap[role] || badgeMap['student'];
+  return `
+    <div style="display:inline-flex; align-items:center; gap:6px; background:${b.color}; color:white; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1);">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${b.icon}</svg>
+      <span>${b.label}</span>
+    </div>
+  `;
 }
 
 function showToast(message, type = 'success') {
@@ -98,10 +119,13 @@ function getDriveDownloadUrl(urlOrId) {
   return `https://drive.google.com/uc?export=download&id=${id}`;
 }
 
-/**
- * Returns a Google Drive "open" URL from any Drive URL/ID.
- */
-function getDriveOpenUrl(urlOrId) {
-  const id = extractDriveFileId(urlOrId) || urlOrId;
-  return `https://drive.google.com/file/d/${id}/view`;
+function copySyntaxGuide() {
+  const code = document.getElementById('jsonSyntaxGuide')?.innerText;
+  if (!code) return;
+  navigator.clipboard.writeText(code).then(() => {
+    showToast('تم نسخ دليل الصيغة إلى الحافظة', 'success');
+  }).catch(err => {
+    showToast('فشل في نسخ النص', 'error');
+  });
 }
+

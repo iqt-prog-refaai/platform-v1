@@ -7,9 +7,18 @@
 // BUG FIX: Quiz card only shows start button when quiz exists
 // ============================================
 
-async function renderMaterialViewer(lessonId) {
+async function renderMaterialViewer(lessonId, specificMaterialId = null) {
   const container = $('materialContent');
-  const mats = state.materials[lessonId] || [];
+  
+  let mats = [];
+  if (specificMaterialId) {
+    // If we're opening a specific standalone material
+    const found = state.allMaterials.find(m => m.material_id === specificMaterialId);
+    if (found) mats = [found];
+  } else {
+    // Otherwise open all materials in the lesson
+    mats = state.materials[lessonId] || [];
+  }
 
   if (!mats.length) {
     container.innerHTML = '<div class="text-center" style="padding: 60px;"><p>لا يوجد محتوى لهذا الدرس بعد.</p></div>';
@@ -192,15 +201,17 @@ async function renderQuizMaterial(mat, isCompleted) {
     ${headerHtml}
     <div class="text-center" style="padding: 60px;">
       <p style="margin-bottom: 20px; color: var(--text-muted);">اختبر معلوماتك بهذا الاختبار</p>
-      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}')">
-          ${ICONS.quiz} بدء الاختبار
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom: 16px;">
+        <button class="btn btn-primary" onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', false)">
+          ${ICONS.quiz} وضع الامتحان
         </button>
-        ${lastAttempt
-          ? `<button class="btn btn-secondary" onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}')">
-               إعادة المحاولة
-             </button>`
-          : ''}
+        <button class="btn btn-secondary" onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', true)">
+          ${ICONS.eye} وضع المراجعة
+        </button>
+      </div>
+      <div style="font-size: 0.85rem; color: var(--text-muted); max-width: 400px; margin: 0 auto;">
+        <strong>وضع الامتحان:</strong> وقت محدد لكل الاختبار، سيتم تسجيل درجتك في سجلك.<br>
+        <strong>وضع المراجعة:</strong> 60 ثانية لكل سؤال، يتم إظهار الإجابة الصحيحة فوراً، لا يتم تسجيل الدرجة.
       </div>
     </div>
     <hr style="margin: 32px 0; border: none; border-top: 1px solid var(--border);">

@@ -71,25 +71,44 @@ async function loadStudentData() {
     if (unitsRes.success)    state.units    = unitsRes.units;
     if (progressRes.success) state.progress = progressRes.progress;
 
-    // Step 2 — all lessons in parallel (one request per unit)
-    const lessonResults = await Promise.all(
-      state.units.map(unit => API.get('getLessons', { unitId: unit.unit_id }))
-    );
+    // Load all materials once to cover standalone materials, unit-materials, and lesson-materials
+    const allMaterialsRes = await API.get('getAllMaterials');
+    if (allMaterialsRes.success) {
+      state.allMaterials = allMaterialsRes.materials;
+    } else {
+      state.allMaterials = [];
+    }
+
+    // Step 2 — all lessons. We can get them by querying getLessons with empty unitId to get standalone lessons
+    // Or we can just get all lessons if the API supported it.
+    // Wait, getLessons(unitId) filters by unitId. If unitId is empty, it returns standalone lessons.
+    const lessonPromises = state.units.map(unit => API.get('getLessons', { unitId: unit.unit_id }));
+    lessonPromises.push(API.get('getLessons', { unitId: '' })); // Fetch standalone lessons
+    
+    const lessonResults = await Promise.all(lessonPromises);
+    
     lessonResults.forEach((res, i) => {
-      if (res.success) state.lessons[state.units[i].unit_id] = res.lessons;
+      if (res.success) {
+        if (i < state.units.length) {
+          state.lessons[state.units[i].unit_id] = res.lessons;
+        } else {
+          state.lessons[''] = res.lessons; // standalone lessons
+        }
+      }
     });
 
-    // Step 3 — all materials in parallel (one request per lesson)
-    const allLessons = Object.values(state.lessons).flat();
-    const materialResults = await Promise.all(
-      allLessons.map(lesson => API.get('getMaterials', { lessonId: lesson.lesson_id }))
-    );
-    materialResults.forEach((res, i) => {
-      if (res.success) state.materials[allLessons[i].lesson_id] = res.materials;
+    // Populate materials grouped by lesson_id
+    state.materials = {};
+    state.allMaterials.forEach(m => {
+      const lid = m.lesson_id || '';
+      if (!state.materials[lid]) state.materials[lid] = [];
+      state.materials[lid].push(m);
     });
 
-    // Step 4 — build flat list used by admin content + profile quiz history
-    state.allMaterials = Object.values(state.materials).flat();
+    // Sort materials within each lesson_id by order_index
+    for (const lid in state.materials) {
+      state.materials[lid].sort((a,b) => a.order_index - b.order_index);
+    }
 
   } catch(err) {
     console.error('خطأ في تحميل البيانات:', err);
@@ -130,6 +149,7 @@ function renderDashboard() {
 
   container.innerHTML = state.units.map(unit => {
     const lessons = state.lessons[unit.unit_id] || [];
+    const unitMaterials = state.materials[`unit_${unit.unit_id}`] || [];
     const isExpanded = unit.unit_id === state.progress?.current_unit_id;
 
     return `
@@ -144,6 +164,21 @@ function renderDashboard() {
           </div>
         </div>
         <div class="lessons-container" id="lessons-${unit.unit_id}" style="display: ${isExpanded ? 'grid' : 'none'};">
+          ${unitMaterials.map(mat => {
+            const isCompleted = state.progress?.completed_materials?.includes(mat.material_id);
+            return `
+              <div class="lesson-item ${isCompleted ? 'completed' : ''}" onclick="openMaterialDirectly('${mat.material_id}', 'unit_${unit.unit_id}')" style="background: rgba(99,102,241,0.02); border: 1px solid rgba(99,102,241,0.1);">
+                <div class="lesson-icon ${isCompleted ? 'completed' : ''}">
+                  ${isCompleted ? ICONS.check : (mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file)}
+                </div>
+                <div class="lesson-info">
+                  <div class="lesson-title">${mat.title}</div>
+                  <div class="lesson-meta">محتوى مستقل في الوحدة</div>
+                </div>
+                ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
+              </div>
+            `;
+          }).join('')}
           ${lessons.map(lesson => {
             const isCompleted = state.progress?.completed_lessons?.includes(lesson.lesson_id);
             const isActive = lesson.lesson_id === state.progress?.current_lesson_id;
@@ -166,6 +201,59 @@ function renderDashboard() {
       </div>
     `;
   }).join('');
+
+  // Add Standalone lessons
+  const standaloneLessons = state.lessons[''] || [];
+  const standaloneMaterials = state.materials[''] || [];
+  
+  if (standaloneLessons.length > 0 || standaloneMaterials.length > 0) {
+    container.innerHTML += `
+      <div class="glass unit-card glass-hover" style="margin-top: 24px; border-top: 4px solid var(--secondary);">
+        <div class="unit-header" onclick="toggleUnit('standalone')">
+          <div>
+            <h2 class="unit-title" style="color: var(--secondary);">محتوى مستقل</h2>
+          </div>
+          <div class="unit-toggle rotated" id="toggle-standalone">
+            ${ICONS.chevronDown}
+          </div>
+        </div>
+        <div class="lessons-container" id="lessons-standalone" style="display: grid;">
+          ${standaloneMaterials.map(mat => {
+            const isCompleted = state.progress?.completed_materials?.includes(mat.material_id);
+            return `
+              <div class="lesson-item ${isCompleted ? 'completed' : ''}" onclick="openMaterialDirectly('${mat.material_id}', '')" style="background: rgba(139,92,246,0.02); border: 1px solid rgba(139,92,246,0.1);">
+                <div class="lesson-icon ${isCompleted ? 'completed' : ''}">
+                  ${isCompleted ? ICONS.check : (mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file)}
+                </div>
+                <div class="lesson-info">
+                  <div class="lesson-title">${mat.title}</div>
+                  <div class="lesson-meta">محتوى مستقل</div>
+                </div>
+                ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
+              </div>
+            `;
+          }).join('')}
+          ${standaloneLessons.map(lesson => {
+            const isCompleted = state.progress?.completed_lessons?.includes(lesson.lesson_id);
+            const isActive = lesson.lesson_id === state.progress?.current_lesson_id;
+            const mats = state.materials[lesson.lesson_id] || [];
+            return `
+              <div class="lesson-item ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}" onclick="openLesson('${lesson.lesson_id}')">
+                <div class="lesson-icon ${isCompleted ? 'completed' : ''}">
+                  ${isCompleted ? ICONS.check : lesson.lesson_number}
+                </div>
+                <div class="lesson-info">
+                  <div class="lesson-title">${lesson.lesson_name}</div>
+                  <div class="lesson-meta">${mats.length} محتوى</div>
+                </div>
+                ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
 }
 
 function toggleUnit(unitId) {
@@ -200,5 +288,20 @@ function openLesson(lessonId) {
   }
 
   renderMaterialViewer(lessonId);
+  navigateTo('material');
+}
+
+function openMaterialDirectly(materialId, fakeLessonId) {
+  // We mock a lesson environment for this standalone material
+  state.currentLesson = fakeLessonId;
+  if (!state.progress) {
+    state.progress = { username: state.user.username, completed_lessons: [], completed_materials: [] };
+  }
+  
+  if (!MOCK_MODE) {
+    API.post('updateStudentProgress', state.progress);
+  }
+
+  renderMaterialViewer(fakeLessonId, materialId);
   navigateTo('material');
 }

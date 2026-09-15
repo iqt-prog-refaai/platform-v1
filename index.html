@@ -120,6 +120,13 @@
     <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
       <h3 style="margin-bottom: 16px;">إعدادات الحساب</h3>
       <div class="input-group" style="max-width: 400px;">
+        <label>الاسم بالكامل (يظهر للمعلمين فقط)</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="profileFullName" placeholder="أدخل اسمك بالكامل">
+          <button class="btn btn-secondary" onclick="updateFullName()">تحديث</button>
+        </div>
+      </div>
+      <div class="input-group" style="max-width: 400px; margin-top: 16px;">
         <label>اسم المستخدم (يجب أن يكون حروف وأرقام إنجليزية فقط)</label>
         <div style="display:flex; gap:8px;">
           <input type="text" id="profileUsername" pattern="[a-zA-Z0-9_]+" style="direction:ltr;">
@@ -156,9 +163,9 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
         الاختبارات
       </div>
-      <div class="admin-nav-item" onclick="showAdminSection('students')">
+      <div class="admin-nav-item" onclick="showAdminSection('users')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-        الطلاب
+        المستخدمين
       </div>
       <div class="admin-nav-item" onclick="showAdminSection('grading')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>

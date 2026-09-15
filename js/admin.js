@@ -20,7 +20,7 @@ async function renderAdmin() {
     case 'overview':  renderAdminOverview(container);          break;
     case 'content':   await renderAdminContent(container);     break;
     case 'quizzes':   await renderAdminQuizzes(container);     break;
-    case 'students':  await renderAdminStudents(container);    break;
+    case 'users':     await renderAdminUsers(container);       break;
     case 'grading':   await renderAdminGrading(container);     break;
   }
 }
@@ -92,17 +92,17 @@ async function renderAdminContent(container) {
     </div>
 
     <div style="margin-bottom: 32px;">
-      <h3 style="margin-bottom: 16px; color: var(--text-muted);">الوحدات</h3>
+      <h3 style="margin-bottom: 16px; color: var(--text-muted);">المحتوى</h3>
       ${state.units.map(unit => `
-        <div class="glass" style="padding: 20px; margin-bottom: 12px;">
+        <div class="glass" style="padding: 20px; margin-bottom: 12px; border-right: 4px solid var(--primary);">
           <div class="flex justify-between items-center">
             <div>
               <span class="unit-number">الوحدة ${unit.unit_number}</span>
               <h4 style="margin-top: 4px;">${unit.unit_name}</h4>
             </div>
             <div class="flex gap-2">
-              <button class="btn btn-secondary" style="padding: 8px;" onclick='showModal("editUnit", ${JSON.stringify(unit).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
-              <button class="btn btn-secondary" style="padding: 8px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'unit', id: '${unit.unit_id}', name: '${unit.unit_name}'})" title="حذف">${ICONS.trash}</button>
+              <button class="btn btn-secondary" style="padding: 8px;" onclick='showModal("editUnit", ${JSON.stringify(unit).replace(/'/g, "&#39;")})' title="تعديل الوحدة">${ICONS.edit}</button>
+              <button class="btn btn-secondary" style="padding: 8px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'unit', id: '${unit.unit_id}', name: '${unit.unit_name}'})" title="حذف الوحدة">${ICONS.trash}</button>
               <button class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;"
                 onclick="showModal('addLesson', '${unit.unit_id}')">
                 ${ICONS.plus} درس
@@ -110,9 +110,18 @@ async function renderAdminContent(container) {
             </div>
           </div>
           <div style="margin-top: 16px; padding-right: 16px;">
+            ${(state.materials[`unit_${unit.unit_id}`] || []).map(mat => `
+              <div class="flex justify-between items-center" style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.04); background: rgba(99,102,241,0.02); border-right: 2px solid var(--primary);">
+                <span>محتوى مستقل في الوحدة: ${mat.title}</span>
+                <div class="flex gap-2">
+                  <button class="btn btn-secondary" style="padding: 6px;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+                  <button class="btn btn-secondary" style="padding: 6px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
+                </div>
+              </div>
+            `).join('')}
             ${(state.lessons[unit.unit_id] || []).map(lesson => `
               <div class="flex justify-between items-center" style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.04);">
-                <span>${lesson.lesson_number}. ${lesson.lesson_name}</span>
+                <span>الدرس ${lesson.lesson_number}: ${lesson.lesson_name}</span>
                 <div class="flex gap-2">
                   <button class="btn btn-secondary" style="padding: 6px;" onclick='showModal("editLesson", ${JSON.stringify(lesson).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                   <button class="btn btn-secondary" style="padding: 6px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'lesson', id: '${lesson.lesson_id}', name: '${lesson.lesson_name}'})" title="حذف">${ICONS.trash}</button>
@@ -126,6 +135,42 @@ async function renderAdminContent(container) {
           </div>
         </div>
       `).join('')}
+
+      <!-- Standalone lessons (no unit) -->
+      ${(state.lessons[''] || []).length ? `
+        <div class="glass" style="padding: 20px; margin-bottom: 12px; border-right: 4px solid var(--secondary);">
+          <h4 style="margin-bottom: 12px; color: var(--text-muted);">دروس مستقلة</h4>
+          ${(state.lessons[''] || []).map(lesson => `
+            <div class="flex justify-between items-center" style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.04);">
+              <span>الدرس ${lesson.lesson_number}: ${lesson.lesson_name}</span>
+              <div class="flex gap-2">
+                <button class="btn btn-secondary" style="padding: 6px;" onclick='showModal("editLesson", ${JSON.stringify(lesson).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+                <button class="btn btn-secondary" style="padding: 6px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'lesson', id: '${lesson.lesson_id}', name: '${lesson.lesson_name}'})" title="حذف">${ICONS.trash}</button>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;"
+                  onclick="showModal('addMaterial', '${lesson.lesson_id}')">
+                  ${ICONS.plus} محتوى
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      <!-- Standalone materials (no unit and no lesson) -->
+      ${(state.materials[''] || []).length ? `
+        <div class="glass" style="padding: 20px; margin-bottom: 12px; border-right: 4px solid #8b5cf6;">
+          <h4 style="margin-bottom: 12px; color: var(--text-muted);">محتوى مستقل تماماً</h4>
+          ${(state.materials[''] || []).map(mat => `
+            <div class="flex justify-between items-center" style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.04);">
+              <span>${mat.title} <span style="font-size: 0.8rem; color: var(--text-muted);">(${mat.type})</span></span>
+              <div class="flex gap-2">
+                <button class="btn btn-secondary" style="padding: 6px;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+                <button class="btn btn-secondary" style="padding: 6px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
     </div>
 
     <div>
@@ -170,15 +215,34 @@ async function renderAdminQuizzes(container) {
     <div id="quizList"><div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل الاختبارات...</div></div>
   `;
 
-  // Collect all quiz-type materials across all units/lessons
+  // Collect all quiz-type materials across all units/lessons/standalone
   const quizMaterials = [];
-  for (const unit of state.units) {
-    for (const lesson of (state.lessons[unit.unit_id] || [])) {
-      for (const mat of (state.materials[lesson.lesson_id] || [])) {
-        if (mat.type === 'quiz') {
-          quizMaterials.push({ mat, unit, lesson });
+  
+  // From state.allMaterials directly is safer since we already flattened it
+  for (const mat of state.allMaterials) {
+    if (mat.type === 'quiz') {
+      let unit = null;
+      let lesson = null;
+      
+      // Find the unit and lesson this material belongs to
+      if (mat.lesson_id) {
+        if (mat.lesson_id.startsWith('unit_')) {
+          const unitId = mat.lesson_id.replace('unit_', '');
+          unit = state.units.find(u => u.unit_id === unitId);
+        } else {
+          for (const u of state.units) {
+            if (state.lessons[u.unit_id]) {
+              lesson = state.lessons[u.unit_id].find(l => l.lesson_id === mat.lesson_id);
+              if (lesson) { unit = u; break; }
+            }
+          }
+          if (!lesson && state.lessons['']) {
+            lesson = state.lessons[''].find(l => l.lesson_id === mat.lesson_id);
+          }
         }
       }
+      
+      quizMaterials.push({ mat, unit, lesson });
     }
   }
 
@@ -212,7 +276,7 @@ async function renderAdminQuizzes(container) {
           <div>
             <h4 style="margin-bottom:4px;">${mat.title}</h4>
             <p style="color: var(--text-muted); font-size: 0.85rem; margin:0;">
-              ${unit.unit_name} → ${lesson.lesson_name}
+              ${unit && lesson ? `${unit.unit_name} → ${lesson.lesson_name}` : (unit ? `${unit.unit_name} (مباشرة)` : (lesson ? `درس مستقل: ${lesson.lesson_name}` : 'مستقل'))}
               ${quiz
                 ? `<span style="color: var(--success); margin-right: 6px;">✓ Ready</span>${timerBadge}`
                 : `<span style="color: var(--warning); margin-right: 8px;">⚠ No quiz record yet</span>`}
@@ -281,33 +345,111 @@ async function createQuizForMaterial(materialId, title) {
 }
 
 // ==========================================
-// STUDENTS
+// USERS
 // ==========================================
-async function renderAdminStudents(container) {
-  container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل الطلاب...</div>';
+async function renderAdminUsers(container) {
+  container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل المستخدمين...</div>';
 
-  let students = [];
+  let users = [];
   if (MOCK_MODE) {
-    students = [{ name: 'طالب تجريبي', username: 'student', role: 'student' }];
+    users = [{ name: 'طالب تجريبي', username: 'student', role: 'student' }];
   } else {
-    const res = await API.get('getAllStudents');
-    if (res.success) students = res.students;
+    const res = await API.get('getAllUsers'); // now returns all users
+    if (res.success) users = res.users;
   }
 
-  container.innerHTML = `
-    <h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">الطلاب</h2>
-    <div id="studentsList">
-      ${students.map(s => `
-        <div class="glass student-card">
-          <div class="student-info">
-            <h3>${s.name}</h3>
-            <p>@${s.username}</p>
-          </div>
-          <button class="btn btn-secondary" onclick="viewStudentDetails('${s.username}')">عرض التفاصيل</button>
+  // Determine what they can see based on role
+  const isManager = state.user.role === 'manager';
+  const isVIP = state.user.role === 'vip';
+  const isAdmin = state.user.role === 'admin';
+
+  let html = `<h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة المستخدمين</h2>`;
+  
+  if (isManager) {
+    // Manager only sees total students
+    const studentCount = users.filter(u => u.role === 'student').length;
+    html += `
+      <div class="glass text-center" style="padding:40px;">
+        <h3 style="margin-bottom: 16px;">إحصائيات الطلاب</h3>
+        <div style="font-size: 3rem; font-weight: 800; color: var(--primary);">${studentCount}</div>
+        <div style="color: var(--text-muted);">إجمالي عدد الطلاب المسجلين</div>
+      </div>
+    `;
+    container.innerHTML = html;
+    return;
+  }
+
+  // Admin and VIP can see users. Admin can add users.
+  if (isAdmin) {
+    html += `
+      <div class="glass" style="padding: 24px; margin-bottom: 24px;">
+        <h3 style="margin-bottom: 16px;">إضافة مستخدم جديد</h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:12px;">
+          <input type="text" id="newUserName" placeholder="الاسم الظاهر" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px;">
+          <input type="text" id="newUserFull" placeholder="الاسم بالكامل" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px;">
+          <input type="text" id="newUserUsername" placeholder="اسم المستخدم" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px; direction:ltr;" pattern="[a-zA-Z0-9_]+">
+          <input type="password" id="newUserPassword" placeholder="كلمة المرور" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px;">
+          <select id="newUserRole" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px;">
+            <option value="student">طالب</option>
+            <option value="guest">ضيف</option>
+            <option value="manager">المدير</option>
+            <option value="vip">الأب الروحي</option>
+            <option value="admin">مدير النظام</option>
+          </select>
         </div>
-      `).join('')}
-    </div>
-  `;
+        <button class="btn btn-primary" onclick="adminAddUser()">إضافة مستخدم</button>
+      </div>
+    `;
+  }
+
+  html += `<div id="studentsList">`;
+  
+  users.forEach(s => {
+    html += `
+      <div class="glass student-card flex justify-between items-center" style="margin-bottom:12px;">
+        <div class="student-info flex items-center gap-4">
+          <div class="avatar" style="width:40px; height:40px; font-size:1.2rem;">
+             ${s.avatar ? `<img src="${s.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : s.name.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <h3 style="margin:0;">${s.name} ${s.full_name ? `<span style="font-size:0.8rem;color:var(--text-muted);font-weight:normal;">(${s.full_name})</span>` : ''}</h3>
+            <p style="margin:0; font-size:0.85rem; color:var(--text-muted);">@${s.username}</p>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap: 12px;">
+          ${getRoleBadgeSVG(s.role)}
+          ${s.role === 'student' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size:0.85rem;" onclick="viewStudentDetails('${s.username}')">عرض السجل</button>` : ''}
+        </div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+async function adminAddUser() {
+  const name = $('newUserName').value.trim();
+  const full_name = $('newUserFull').value.trim();
+  const username = $('newUserUsername').value.trim();
+  const password = $('newUserPassword').value;
+  const role = $('newUserRole').value;
+
+  if (!name || !username || !password) return showToast('يرجى ملء الحقول الأساسية', 'error');
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) return showToast('اسم المستخدم: حروف وأرقام إنجليزية فقط', 'error');
+
+  showLoading();
+  try {
+    const res = await API.post('addUser', { name, full_name, username, password, role });
+    if (res.success) {
+      showToast('تمت إضافة المستخدم بنجاح');
+      await refreshAndRenderAdmin();
+    } else {
+      showToast(res.message || 'فشل إضافة المستخدم', 'error');
+    }
+  } catch(e) {
+    showToast('حدث خطأ', 'error');
+  }
+  hideLoading();
 }
 
 async function viewStudentDetails(username) {

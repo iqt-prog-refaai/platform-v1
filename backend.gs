@@ -42,6 +42,9 @@ function doGet(e) {
       case 'getAllStudents':
         result = getAllStudents();
         break;
+      case 'getAllUsers':
+        result = getAllUsers();
+        break;
       case 'getStudentDetails':
         result = getStudentDetails(e.parameter.username);
         break;
@@ -97,6 +100,12 @@ function doPost(e) {
       case 'editItem':
         result = editItem(data);
         break;
+      case 'addUser':
+        result = addUser(data);
+        break;
+      case 'updateUser':
+        result = updateUser(data);
+        break;
     }
   } catch(err) {
     result = { success: false, message: err.toString() };
@@ -114,7 +123,7 @@ function getSheet(name) {
     sheet = ss.insertSheet(name);
     // Set headers based on sheet name
     const headers = {
-      'credits': ['name', 'username', 'password', 'role'],
+      'credits': ['name', 'username', 'password', 'role', 'full_name', 'avatar'],
       'units': ['unit_id', 'unit_number', 'unit_name', 'created_at'],
       'lessons': ['lesson_id', 'unit_id', 'lesson_number', 'lesson_name', 'created_at'],
       'materials': ['material_id', 'lesson_id', 'title', 'type', 'content', 'order_index', 'created_at'],
@@ -138,10 +147,82 @@ function handleLogin(username, password) {
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][1] === username && data[i][2] === password) {
-      return { success: true, user: { name: data[i][0], username: data[i][1], role: data[i][3] } };
+      return { 
+        success: true, 
+        user: { 
+          name: data[i][0], 
+          username: data[i][1], 
+          role: data[i][3],
+          full_name: data[i][4] || '',
+          avatar: data[i][5] || ''
+        } 
+      };
     }
   }
   return { success: false, message: 'Invalid credentials' };
+}
+
+// ====== USER MANAGEMENT ======
+function addUser(data) {
+  const sheet = getSheet('credits');
+  const allData = sheet.getDataRange().getValues();
+  // Check if username exists
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][1] === data.username) {
+      return { success: false, message: 'Username already exists' };
+    }
+  }
+  sheet.appendRow([
+    data.name,
+    data.username,
+    data.password,
+    data.role || 'student',
+    data.full_name || '',
+    data.avatar || ''
+  ]);
+  return { success: true };
+}
+
+function updateUser(data) {
+  const sheet = getSheet('credits');
+  const allData = sheet.getDataRange().getValues();
+  // If changing username, check uniqueness
+  if (data.new_username && data.new_username !== data.username) {
+    for (let i = 1; i < allData.length; i++) {
+      if (allData[i][1] === data.new_username) {
+        return { success: false, message: 'Username already exists' };
+      }
+    }
+  }
+  
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][1] === data.username) {
+      if (data.new_username) sheet.getRange(i + 1, 2).setValue(data.new_username);
+      if (data.password) sheet.getRange(i + 1, 3).setValue(data.password);
+      if (data.name) sheet.getRange(i + 1, 1).setValue(data.name);
+      if (data.role) sheet.getRange(i + 1, 4).setValue(data.role);
+      if (data.full_name !== undefined) sheet.getRange(i + 1, 5).setValue(data.full_name);
+      if (data.avatar !== undefined) sheet.getRange(i + 1, 6).setValue(data.avatar);
+      return { success: true, new_username: data.new_username || data.username };
+    }
+  }
+  return { success: false, message: 'User not found' };
+}
+
+function getAllUsers() {
+  const sheet = getSheet('credits');
+  const data = sheet.getDataRange().getValues();
+  const users = [];
+  for (let i = 1; i < data.length; i++) {
+    users.push({ 
+      name: data[i][0], 
+      username: data[i][1], 
+      role: data[i][3],
+      full_name: data[i][4] || '',
+      avatar: data[i][5] || ''
+    });
+  }
+  return { success: true, users };
 }
 
 // ====== UNITS ======
@@ -168,7 +249,9 @@ function getLessons(unitId) {
   const data = sheet.getDataRange().getValues();
   const lessons = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][1] === unitId) {
+    // If unitId is passed as undefined/null or empty string, match accordingly.
+    // E.g., for standalone lessons, unitId will be '' and it should match data[i][1] === ''
+    if ((data[i][1] || '') === (unitId || '')) {
       lessons.push({ lesson_id: data[i][0], unit_id: data[i][1], lesson_number: data[i][2], lesson_name: data[i][3] });
     }
   }
@@ -178,7 +261,7 @@ function getLessons(unitId) {
 function addLesson(data) {
   const sheet = getSheet('lessons');
   const id = generateId();
-  sheet.appendRow([id, data.unit_id, data.lesson_number, data.lesson_name, new Date().toISOString()]);
+  sheet.appendRow([id, data.unit_id || '', data.lesson_number, data.lesson_name, new Date().toISOString()]);
   return { success: true, lesson_id: id };
 }
 
@@ -188,7 +271,7 @@ function getMaterials(lessonId) {
   const data = sheet.getDataRange().getValues();
   const materials = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][1] === lessonId) {
+    if ((data[i][1] || '') === (lessonId || '')) {
       materials.push({ 
         material_id: data[i][0], 
         lesson_id: data[i][1], 
@@ -370,6 +453,12 @@ function deleteItem(data) {
         const quizIds = deleteRowsByCol('quizzes', 0, 1, mId); // material_id is col 1
         quizIds.forEach(qId => deleteRowsByCol('questions', 0, 1, qId)); // quiz_id is col 1
       });
+    });
+    // Also delete materials that were directly inside the unit
+    const directMaterialIds = deleteRowsByCol('materials', 0, 1, `unit_${id}`);
+    directMaterialIds.forEach(mId => {
+      const quizIds = deleteRowsByCol('quizzes', 0, 1, mId);
+      quizIds.forEach(qId => deleteRowsByCol('questions', 0, 1, qId));
     });
   } else if (type === 'lesson') {
     deleteRowsByCol('lessons', 0, 0, id);

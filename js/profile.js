@@ -5,8 +5,19 @@
 
 async function renderProfile() {
   $('profileName').textContent = state.user.name;
-  $('profileRole').textContent = translateRole(state.user.role);
-  $('profileAvatar').textContent = state.user.name.charAt(0).toUpperCase();
+  
+  // Use SVG Badge
+  $('profileRoleBadge').innerHTML = getRoleBadgeSVG(state.user.role);
+  
+  if (state.user.avatar) {
+    $('profileAvatar').innerHTML = `<img src="${state.user.avatar}" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+  } else {
+    $('profileAvatar').textContent = state.user.name.charAt(0).toUpperCase();
+  }
+  
+  // Pre-fill fields
+  $('profileFullName').value = state.user.full_name || '';
+  $('profileUsername').value = state.user.username || '';
 
   const historyContainer = $('quizHistory');
   historyContainer.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل السجل...</div>';
@@ -84,4 +95,112 @@ async function renderProfile() {
     historyContainer.innerHTML = '<p style="color:var(--danger);">خطأ في تحميل السجل.</p>';
     console.error(err);
   }
+}
+
+async function updateFullName() {
+  const newName = $('profileFullName').value.trim();
+  if (!newName) return showToast('يرجى إدخال الاسم', 'error');
+  
+  showLoading();
+  try {
+    const res = await API.post('updateUser', {
+      username: state.user.username,
+      full_name: newName
+    });
+    if (res.success) {
+      state.user.full_name = newName;
+      localStorage.setItem('iqt_user', JSON.stringify(state.user));
+      showToast('تم تحديث الاسم بنجاح');
+    } else {
+      showToast(res.message || 'فشل التحديث', 'error');
+    }
+  } catch(e) {
+    showToast('حدث خطأ', 'error');
+  }
+  hideLoading();
+}
+
+async function updateUsername() {
+  const newUsername = $('profileUsername').value.trim();
+  if (!newUsername) return showToast('يرجى إدخال اسم المستخدم', 'error');
+  if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) return showToast('اسم المستخدم يجب أن يحتوي على حروف إنجليزية وأرقام فقط', 'error');
+  
+  showLoading();
+  try {
+    const res = await API.post('updateUser', {
+      username: state.user.username,
+      new_username: newUsername
+    });
+    if (res.success) {
+      state.user.username = newUsername;
+      localStorage.setItem('iqt_user', JSON.stringify(state.user));
+      showToast('تم تحديث اسم المستخدم بنجاح');
+    } else {
+      showToast(res.message || 'اسم المستخدم مستخدم بالفعل', 'error');
+    }
+  } catch(e) {
+    showToast('حدث خطأ', 'error');
+  }
+  hideLoading();
+}
+
+async function updatePassword() {
+  const newPassword = $('profilePassword').value.trim();
+  if (!newPassword) return showToast('يرجى إدخال كلمة المرور', 'error');
+  if (newPassword.length < 6) return showToast('كلمة المرور يجب أن تكون 6 أحرف على الأقل', 'error');
+
+  showLoading();
+  try {
+    const res = await API.post('updateUser', {
+      username: state.user.username,
+      password: newPassword
+    });
+    if (res.success) {
+      showToast('تم تحديث كلمة المرور بنجاح');
+      $('profilePassword').value = '';
+    } else {
+      showToast(res.message || 'فشل التحديث', 'error');
+    }
+  } catch(e) {
+    showToast('حدث خطأ', 'error');
+  }
+  hideLoading();
+}
+
+function handleAvatarUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const base64 = e.target.result;
+    
+    // Optimistic UI update
+    $('profileAvatar').innerHTML = `<img src="${base64}" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+    
+    showLoading();
+    try {
+      const res = await API.post('updateUser', {
+        username: state.user.username,
+        avatar: base64
+      });
+      if (res.success) {
+        state.user.avatar = base64;
+        localStorage.setItem('iqt_user', JSON.stringify(state.user));
+        // Update nav avatar
+        if ($('navAvatar')) {
+          $('navAvatar').innerHTML = `<img src="${base64}" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+        }
+        showToast('تم تحديث الصورة بنجاح');
+      } else {
+        showToast(res.message || 'فشل التحديث', 'error');
+        renderProfile(); // Revert on fail
+      }
+    } catch(err) {
+      showToast('حدث خطأ', 'error');
+      renderProfile();
+    }
+    hideLoading();
+  };
+  reader.readAsDataURL(file);
 }
