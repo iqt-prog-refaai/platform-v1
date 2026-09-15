@@ -388,11 +388,9 @@ async function submitMaterial() {
 
   if (!MOCK_MODE) {
     const res = await API.post('addMaterial', { lesson_id: lessonId || '', title, type, content: rawContent });
-    if (type === 'quiz' && res.success) {
-      const quizRes = await API.post('addQuiz', { material_id: res.material_id, title, description: '' });
-      if (quizRes.success) {
-        state.quizzes[res.material_id] = { quiz_id: quizRes.quiz_id, material_id: res.material_id, title };
-      }
+    if (!res || !res.success) {
+      showToast('خطأ: ' + (res?.message || 'فشل في إضافة المحتوى'), 'error');
+      return;
     }
   }
   showToast('تمت إضافة المحتوى!');
