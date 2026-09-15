@@ -208,26 +208,18 @@ function renderDashboard() {
   
   if (standaloneLessons.length > 0 || standaloneMaterials.length > 0) {
     container.innerHTML += `
-      <div class="glass unit-card glass-hover" style="margin-top: 24px; border-top: 4px solid var(--secondary);">
-        <div class="unit-header" onclick="toggleUnit('standalone')">
-          <div>
-            <h2 class="unit-title" style="color: var(--secondary);">محتوى مستقل</h2>
-          </div>
-          <div class="unit-toggle rotated" id="toggle-standalone">
-            ${ICONS.chevronDown}
-          </div>
-        </div>
-        <div class="lessons-container" id="lessons-standalone" style="display: grid;">
+      <div style="margin-top: 16px;">
+        <div class="lessons-container" style="display: grid;">
           ${standaloneMaterials.map(mat => {
             const isCompleted = state.progress?.completed_materials?.includes(mat.material_id);
             return `
-              <div class="lesson-item ${isCompleted ? 'completed' : ''}" onclick="openMaterialDirectly('${mat.material_id}', '')" style="background: rgba(139,92,246,0.02); border: 1px solid rgba(139,92,246,0.1);">
+              <div class="glass lesson-item ${isCompleted ? 'completed' : ''}" onclick="openMaterialDirectly('${mat.material_id}', '')" style="padding:16px; margin-bottom:12px; background:var(--bg-glass);">
                 <div class="lesson-icon ${isCompleted ? 'completed' : ''}">
                   ${isCompleted ? ICONS.check : (mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file)}
                 </div>
                 <div class="lesson-info">
-                  <div class="lesson-title">${mat.title}</div>
-                  <div class="lesson-meta">محتوى مستقل</div>
+                  <div class="lesson-title" style="font-size:1.1rem; margin-bottom:4px;">${mat.title}</div>
+                  <div class="lesson-meta">${mat.type === 'quiz' ? 'اختبار' : 'محتوى'}</div>
                 </div>
                 ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
               </div>
@@ -238,12 +230,12 @@ function renderDashboard() {
             const isActive = lesson.lesson_id === state.progress?.current_lesson_id;
             const mats = state.materials[lesson.lesson_id] || [];
             return `
-              <div class="lesson-item ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}" onclick="openLesson('${lesson.lesson_id}')">
+              <div class="glass lesson-item ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}" onclick="openLesson('${lesson.lesson_id}')" style="padding:16px; margin-bottom:12px; background:var(--bg-glass);">
                 <div class="lesson-icon ${isCompleted ? 'completed' : ''}">
                   ${isCompleted ? ICONS.check : lesson.lesson_number}
                 </div>
                 <div class="lesson-info">
-                  <div class="lesson-title">${lesson.lesson_name}</div>
+                  <div class="lesson-title" style="font-size:1.1rem; margin-bottom:4px;">${lesson.lesson_name}</div>
                   <div class="lesson-meta">${mats.length} محتوى</div>
                 </div>
                 ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}

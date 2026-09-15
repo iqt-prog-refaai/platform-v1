@@ -197,21 +197,42 @@ async function renderQuizMaterial(mat, isCompleted) {
     `;
   }
 
+  let settings = {};
+  if (mat.content) {
+    try {
+      settings = JSON.parse(mat.content);
+    } catch(e) {}
+  }
+
+  const isReviewMode = !!settings.is_review_mode;
+
+  let actionHtml = '';
+  if (isReviewMode) {
+    actionHtml = `
+      <button class="btn btn-primary" onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', true)">
+        ${ICONS.eye} بدء الاختبار (وضع المراجعة)
+      </button>
+      <div style="font-size: 0.85rem; color: var(--text-muted); max-width: 400px; margin: 16px auto 0;">
+        <strong>وضع المراجعة:</strong> يتم إظهار الإجابة الصحيحة فوراً، ولا يتم تسجيل الدرجة.
+      </div>
+    `;
+  } else {
+    actionHtml = `
+      <button class="btn btn-primary" onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', false)">
+        ${ICONS.quiz} بدء الامتحان
+      </button>
+      <div style="font-size: 0.85rem; color: var(--text-muted); max-width: 400px; margin: 16px auto 0;">
+        <strong>وضع الامتحان:</strong> وقت محدد لكل الاختبار، سيتم تسجيل درجتك في سجلك.
+      </div>
+    `;
+  }
+
   return `
     ${headerHtml}
     <div class="text-center" style="padding: 60px;">
       <p style="margin-bottom: 20px; color: var(--text-muted);">اختبر معلوماتك بهذا الاختبار</p>
-      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom: 16px;">
-        <button class="btn btn-primary" onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', false)">
-          ${ICONS.quiz} وضع الامتحان
-        </button>
-        <button class="btn btn-secondary" onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', true)">
-          ${ICONS.eye} وضع المراجعة
-        </button>
-      </div>
-      <div style="font-size: 0.85rem; color: var(--text-muted); max-width: 400px; margin: 0 auto;">
-        <strong>وضع الامتحان:</strong> وقت محدد لكل الاختبار، سيتم تسجيل درجتك في سجلك.<br>
-        <strong>وضع المراجعة:</strong> 60 ثانية لكل سؤال، يتم إظهار الإجابة الصحيحة فوراً، لا يتم تسجيل الدرجة.
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; margin-bottom: 16px;">
+        ${actionHtml}
       </div>
     </div>
     <hr style="margin: 32px 0; border: none; border-top: 1px solid var(--border);">

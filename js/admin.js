@@ -264,10 +264,24 @@ async function renderAdminQuizzes(container) {
 
   for (const { mat, unit, lesson } of quizMaterials) {
     const quiz = state.quizzes[mat.material_id];
-    const timerBadge = quiz?.time_limit > 0
+    let settings = {};
+    if (mat.content) {
+      try { settings = JSON.parse(mat.content); } catch(e) {}
+    }
+    const timeLimit = settings.time_limit || 0;
+    const isReview = settings.is_review_mode || false;
+
+    const timerBadge = timeLimit > 0
       ? `<span style="font-size:0.78rem; color:var(--primary); background:rgba(99,102,241,0.1);
                       padding:2px 8px; border-radius:10px; margin-right:6px;">
-           ⏱ ${quiz.time_limit} دقيقة
+           ⏱ ${timeLimit} دقيقة
+         </span>`
+      : '';
+      
+    const reviewBadge = isReview 
+      ? `<span style="font-size:0.78rem; color:var(--warning); background:rgba(245,158,11,0.1);
+                      padding:2px 8px; border-radius:10px; margin-right:6px;">
+           ${ICONS.eye} وضع المراجعة
          </span>`
       : '';
     html += `
@@ -278,7 +292,7 @@ async function renderAdminQuizzes(container) {
             <p style="color: var(--text-muted); font-size: 0.85rem; margin:0;">
               ${unit && lesson ? `${unit.unit_name} → ${lesson.lesson_name}` : (unit ? `${unit.unit_name} (مباشرة)` : (lesson ? `درس مستقل: ${lesson.lesson_name}` : 'مستقل'))}
               ${quiz
-                ? `<span style="color: var(--success); margin-right: 6px;">✓ جاهز</span>${timerBadge}`
+                ? `<span style="color: var(--success); margin-right: 6px;">✓ جاهز</span>${timerBadge}${reviewBadge}`
                 : `<span style="color: var(--warning); margin-right: 8px;">⚠ لا يوجد سجل اختبار بعد</span>`}
             </p>
           </div>
@@ -300,10 +314,14 @@ async function renderAdminQuizzes(container) {
               </button>
               <button class="btn btn-success" style="padding: 8px 16px; font-size: 0.85rem; background: var(--success); color: white; border-color: var(--success);"
                 onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', true)">
-                ▶ مراجعة (مع الطلبة)
+                ▶ معاينة الاختبار
               </button>
               <button class="btn btn-secondary" style="padding: 8px; font-size: 0.85rem;" title="إعدادات الاختبار"
-                onclick='showModal("editQuizSettings", ${JSON.stringify({quiz_id: quiz.quiz_id, material_id: mat.material_id, title: mat.title, time_limit: quiz.time_limit || 0}).replace(/'/g, "&#39;")})'>
+                onclick='showModal("editQuizSettings", ${JSON.stringify({
+                  material_id: mat.material_id, 
+                  title: mat.title, 
+                  settings: (function(){ try { return JSON.parse(mat.content || "{}"); } catch(e){ return {}; } })() 
+                }).replace(/'/g, "&#39;")})'>
                 ⚙
               </button>
             ` : ''}
@@ -354,8 +372,8 @@ async function renderAdminUsers(container) {
   if (MOCK_MODE) {
     users = [{ name: 'طالب تجريبي', username: 'student', role: 'student' }];
   } else {
-    const res = await API.get('getAllUsers'); // now returns all users
-    if (res.success) users = res.users;
+    const res = await API.get('getAllStudents');
+    if (res.success) users = res.students || [];
   }
 
   // Determine what they can see based on role
@@ -365,16 +383,17 @@ async function renderAdminUsers(container) {
 
   let html = `<h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة المستخدمين</h2>`;
   
+  // Show stats card for everyone with access to this tab
+  const studentCount = users.filter(u => u.role === 'student').length;
+  html += `
+    <div class="glass text-center" style="padding: 24px; margin-bottom: 24px;">
+      <h3 style="margin-bottom: 12px; font-size: 1.1rem; color: var(--text-muted);">إحصائيات الطلاب</h3>
+      <div style="font-size: 2.5rem; font-weight: 800; color: var(--primary);">${studentCount}</div>
+      <div style="color: var(--text-muted); font-size: 0.9rem;">إجمالي عدد الطلاب المسجلين</div>
+    </div>
+  `;
+
   if (isManager) {
-    // Manager only sees total students
-    const studentCount = users.filter(u => u.role === 'student').length;
-    html += `
-      <div class="glass text-center" style="padding:40px;">
-        <h3 style="margin-bottom: 16px;">إحصائيات الطلاب</h3>
-        <div style="font-size: 3rem; font-weight: 800; color: var(--primary);">${studentCount}</div>
-        <div style="color: var(--text-muted);">إجمالي عدد الطلاب المسجلين</div>
-      </div>
-    `;
     container.innerHTML = html;
     return;
   }

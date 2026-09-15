@@ -174,23 +174,32 @@ function showModal(type, id = null) {
       </div>
     `;
   } else if (type === 'editQuizSettings') {
-    // id = { quiz_id, material_id, title, time_limit }
+    // id = { material_id, title, settings }
     const qz = id;
+    const settings = qz.settings || {};
     content = `
-      <h3 style="margin-bottom: 4px;">Quiz Settings</h3>
-      <p style="color:var(--text-muted); margin-bottom:20px; font-size:0.85rem;">${qz.title || 'Quiz'}</p>
-      <input type="hidden" id="quizSettingsId" value="${qz.quiz_id}">
+      <h3 style="margin-bottom: 4px;">إعدادات الاختبار</h3>
+      <p style="color:var(--text-muted); margin-bottom:20px; font-size:0.85rem;">${qz.title || 'الاختبار'}</p>
       <input type="hidden" id="quizSettingsMaterialId" value="${qz.material_id}">
       <div class="input-group">
-        <label>Time Limit (minutes) &nbsp;<span style="color:var(--text-muted); font-weight:400; font-size:0.85rem;">0 = no limit</span></label>
-        <input type="number" id="quizTimeLimit" value="${qz.time_limit || 0}" min="0" max="180" step="1">
+        <label>الوقت المحدد (بالدقائق) &nbsp;<span style="color:var(--text-muted); font-weight:400; font-size:0.85rem;">0 = مفتوح</span></label>
+        <input type="number" id="quizTimeLimit" value="${settings.time_limit || 0}" min="0" max="180" step="1">
         <p style="margin-top:6px; font-size:0.82rem; color:var(--text-muted); line-height:1.6;">
-          Students will see a live countdown timer. When it reaches 0 the quiz is automatically submitted.
+          سيظهر للطلاب عداد تنازلي، وعند الانتهاء سيتم تسليم الاختبار تلقائياً.
+        </p>
+      </div>
+      <div class="input-group" style="margin-top: 16px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="quizReviewMode" ${settings.is_review_mode ? 'checked' : ''} style="width:18px;height:18px;">
+          <strong>فرض وضع المراجعة (بدون تقييم)</strong>
+        </label>
+        <p style="margin-top:6px; font-size:0.82rem; color:var(--text-muted); line-height:1.6;">
+          إذا تم التفعيل، سيُجبر الطالب على أداء الاختبار في وضع المراجعة فقط (تظهر الإجابة الصحيحة فوراً ولا تسجل الدرجة).
         </p>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-primary" onclick="submitQuizSettings()">Save Settings</button>
-        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitQuizSettings()">حفظ الإعدادات</button>
+        <button class="btn btn-secondary" onclick="closeModal()">إلغاء</button>
       </div>
     `;
   } else if (type === 'importQuiz') {
@@ -720,25 +729,37 @@ async function submitEditQuestion() {
 // FORM SUBMISSIONS - QUIZ SETTINGS
 // ==========================================
 async function submitQuizSettings() {
-  const quizId     = $('quizSettingsId').value;
   const materialId = $('quizSettingsMaterialId').value;
   const timeLimit  = Math.max(0, parseInt($('quizTimeLimit').value) || 0);
+  const isReviewMode = $('quizReviewMode').checked;
+
+  const settingsStr = JSON.stringify({
+    time_limit: timeLimit,
+    is_review_mode: isReviewMode
+  });
 
   if (!MOCK_MODE) {
     await API.post('editItem', {
-      itemType: 'quiz',
-      id: quizId,
-      updates: { time_limit: timeLimit }
+      itemType: 'material',
+      id: materialId,
+      updates: { 4: settingsStr } // Column 4 is 'content'
     });
   }
 
-  // Update local cache so the timer is available immediately when student starts
+  // Update local cache
+  const mat = state.allMaterials.find(m => m.material_id === materialId);
+  if (mat) {
+    mat.content = settingsStr;
+  }
+  
   if (state.quizzes[materialId]) {
     state.quizzes[materialId].time_limit = timeLimit;
+    state.quizzes[materialId].is_review_mode = isReviewMode;
   }
 
-  showToast(timeLimit > 0 ? `⏱ Timer set to ${timeLimit} minute${timeLimit !== 1 ? 's' : ''}!` : 'Timer disabled');
+  showToast('تم حفظ إعدادات الاختبار بنجاح');
   closeModal();
+  if (typeof refreshAndRenderAdmin === 'function') await refreshAndRenderAdmin();
 }
 
 // ==========================================

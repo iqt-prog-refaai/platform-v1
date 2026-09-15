@@ -79,12 +79,21 @@ async function startQuiz(materialId, quizId, isReviewMode = false) {
       return;
     }
 
-    // Get time limit (minutes → seconds) from cached quiz record
+    // Get time limit (minutes → seconds) from cached quiz record or material content
     const quizRecord = state.quizzes[materialId];
-    const timeLimitSecs =
-      quizRecord?.time_limit && parseInt(quizRecord.time_limit) > 0
-        ? parseInt(quizRecord.time_limit) * 60
-        : 0;
+    const mat = state.allMaterials.find(m => m.material_id === materialId);
+    let timeLimitMins = quizRecord?.time_limit ? parseInt(quizRecord.time_limit) : 0;
+    
+    if (mat && mat.content) {
+      try {
+        const settings = JSON.parse(mat.content);
+        if (settings.time_limit !== undefined) {
+          timeLimitMins = parseInt(settings.time_limit);
+        }
+      } catch(e) {}
+    }
+
+    const timeLimitSecs = timeLimitMins > 0 ? timeLimitMins * 60 : 0;
 
     state.currentQuiz = {
       materialId,
