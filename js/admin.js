@@ -16,11 +16,29 @@ function showAdminSection(section) {
 
 async function renderAdmin() {
   const container = $('adminContent');
+  
+  // Hide specific admin sidebar items for VIP and Manager
+  if (state.user && state.user.role !== 'admin') {
+    if ($('adminNav-overview')) $('adminNav-overview').style.display = 'none';
+    if ($('adminNav-content')) $('adminNav-content').style.display = 'none';
+    if ($('adminNav-quizzes')) $('adminNav-quizzes').style.display = 'none';
+    if ($('adminNav-grading')) $('adminNav-grading').style.display = 'none';
+    
+    // Force to 'students' if they are on a hidden section
+    if (state.adminSection !== 'students' && state.adminSection !== 'users') {
+      state.adminSection = 'students';
+      document.querySelectorAll('.admin-nav-item').forEach(el => el.classList.remove('active'));
+      if ($('adminNav-students')) $('adminNav-students').classList.add('active');
+    }
+  }
+
   switch(state.adminSection) {
     case 'overview':  renderAdminOverview(container);          break;
     case 'content':   await renderAdminContent(container);     break;
     case 'quizzes':   await renderAdminQuizzes(container);     break;
-    case 'users':     await renderAdminUsers(container);       break;
+    case 'users':     
+    case 'students':  // Fallback map in case section name gets mixed up
+      await renderAdminUsers(container);       break;
     case 'grading':   await renderAdminGrading(container);     break;
   }
 }

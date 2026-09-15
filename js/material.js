@@ -294,6 +294,12 @@ function renderArticleMaterial(mat, isCompleted) {
 // MARK COMPLETE
 // ==========================================
 async function markComplete(materialId) {
+  if (state.user.role !== 'student') {
+    showToast('تم المشاهدة (لا يتم تسجيل التقدم لغير الطلاب)');
+    renderMaterialViewer(state.currentLesson);
+    return;
+  }
+
   if (!state.progress) {
     state.progress = {
       username: state.user.username,

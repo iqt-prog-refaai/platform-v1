@@ -918,23 +918,23 @@ body {
   <div class="admin-grid">
     <div class="glass admin-sidebar">
       <h3 style="margin-bottom: 20px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">لوحة الإدارة</h3>
-      <div class="admin-nav-item active" onclick="showAdminSection('overview')">
+      <div id="adminNav-overview" class="admin-nav-item active" onclick="showAdminSection('overview')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
         نظرة عامة
       </div>
-      <div class="admin-nav-item" onclick="showAdminSection('content')">
+      <div id="adminNav-content" class="admin-nav-item" onclick="showAdminSection('content')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
         المحتوى
       </div>
-      <div class="admin-nav-item" onclick="showAdminSection('quizzes')">
+      <div id="adminNav-quizzes" class="admin-nav-item" onclick="showAdminSection('quizzes')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
         الاختبارات
       </div>
-      <div class="admin-nav-item" onclick="showAdminSection('students')">
+      <div id="adminNav-students" class="admin-nav-item" onclick="showAdminSection('students')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-        الطلاب
+        المستخدمين
       </div>
-      <div class="admin-nav-item" onclick="showAdminSection('grading')">
+      <div id="adminNav-grading" class="admin-nav-item" onclick="showAdminSection('grading')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
         التصحيح
       </div>
@@ -1082,9 +1082,12 @@ function formatDate(dateStr) {
 // ROUTER
 // ==========================================
 function navigateTo(page) {
+  state.currentPage = page;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   $(`page-${page}`).classList.add('active');
   window.location.hash = page;
+
+  if (state.user) setupNavigation(); // Refresh active state of links
 
   if (page === 'dashboard') renderDashboard();
   if (page === 'profile') renderProfile();
@@ -1106,6 +1109,12 @@ async function handleLogin(e) {
     if (MOCK_MODE) {
       if (username === 'admin' && password === 'admin') {
         result = { success: true, user: { name: 'مدير المنصة', username: 'admin', role: 'admin' } };
+      } else if (username === 'vip') {
+        result = { success: true, user: { name: 'الأب الروحي', username: 'vip', role: 'vip' } };
+      } else if (username === 'manager') {
+        result = { success: true, user: { name: 'مدير', username: 'manager', role: 'manager' } };
+      } else if (username === 'guest') {
+        result = { success: true, user: { name: 'زائر', username: 'guest', role: 'guest' } };
       } else if (username === 'student' && password === 'student') {
         result = { success: true, user: { name: 'طالب تجريبي', username: 'student', role: 'student' } };
       } else {
@@ -1118,13 +1127,16 @@ async function handleLogin(e) {
     if (result.success) {
       state.user = result.user;
       localStorage.setItem('iqt_user', JSON.stringify(result.user));
+      
+      // Load data for all roles to view the dashboard properly
+      await loadStudentData();
+      
       setupNavigation();
       showToast(`مرحباً بعودتك، ${result.user.name}!`);
 
-      if (result.user.role === 'admin') {
+      if (['admin', 'vip', 'manager'].includes(result.user.role)) {
         navigateTo('admin');
       } else {
-        await loadStudentData();
         navigateTo('dashboard');
       }
     } else {
@@ -1144,18 +1156,19 @@ function setupNavigation() {
   $('navAvatar').textContent = state.user.name.charAt(0).toUpperCase();
 
   const links = $('navLinks');
-  links.innerHTML = '';
+  let html = '';
 
-  if (state.user.role === 'student') {
-    links.innerHTML = `
-      <a class="nav-link active" onclick="navigateTo('dashboard')">الرئيسية</a>
-      <a class="nav-link" onclick="navigateTo('profile')">الملف الشخصي</a>
-    `;
-  } else {
-    links.innerHTML = `
-      <a class="nav-link active" onclick="navigateTo('admin')">الإدارة</a>
-    `;
+  // All roles see Dashboard (الرئيسية) and Profile (الملف الشخصي)
+  html += `<a class="nav-link ${state.currentPage === 'dashboard' ? 'active' : ''}" onclick="navigateTo('dashboard')">الرئيسية</a>`;
+  
+  // Only Admin, VIP, and Manager see Admin (الإدارة)
+  if (['admin', 'vip', 'manager'].includes(state.user.role)) {
+    html += `<a class="nav-link ${state.currentPage === 'admin' ? 'active' : ''}" onclick="navigateTo('admin')">الإدارة</a>`;
   }
+  
+  html += `<a class="nav-link ${state.currentPage === 'profile' ? 'active' : ''}" onclick="navigateTo('profile')">الملف الشخصي</a>`;
+  
+  links.innerHTML = html;
 }
 
 function logout() {
@@ -1170,11 +1183,9 @@ async function checkAuth() {
   const saved = localStorage.getItem('iqt_user');
   if (saved) {
     state.user = JSON.parse(saved);
+    await loadStudentData(); // Load data for all roles to view platform
     setupNavigation();
-    if (state.user.role === 'student') {
-      await loadStudentData();
-    }
-    const hash = window.location.hash.replace('#', '') || 'dashboard';
+    const hash = window.location.hash.replace('#', '') || (['admin', 'vip', 'manager'].includes(state.user.role) ? 'admin' : 'dashboard');
     navigateTo(hash);
   }
   hideLoading();

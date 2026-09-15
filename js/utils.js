@@ -19,7 +19,7 @@ function translateRole(role) {
 function getRoleBadgeSVG(role) {
   const badgeMap = {
     'admin': { color: 'linear-gradient(135deg, #ef4444, #991b1b)', label: 'مدير النظام', icon: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>' },
-    'vip': { color: 'linear-gradient(135deg, #f59e0b, #b45309)', label: 'الأب الروحي', icon: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>' },
+    'vip': { color: 'linear-gradient(135deg, #d97706, #78350f)', label: 'الأب الروحي', icon: '<path d="M2 22h20L19 6l-5 5-2-7-2 7-5-5L2 22z"/>' },
     'manager': { color: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', label: 'المدير', icon: '<circle cx="12" cy="8" r="5"/><path d="M3 21v-2a7 7 0 0 1 14 0v2"/>' },
     'guest': { color: 'linear-gradient(135deg, #8b5cf6, #5b21b6)', label: 'ضيف', icon: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>' },
     'student': { color: 'linear-gradient(135deg, #10b981, #047857)', label: 'طالب', icon: '<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>' }

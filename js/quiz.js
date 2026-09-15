@@ -566,19 +566,23 @@ async function submitQuiz() {
       </button>
     </div>`;
 
-  // Save to backend ONLY in Exam Mode
+  // Save to backend ONLY in Exam Mode and ONLY for students
   if (!MOCK_MODE && !quiz.isReviewMode) {
-    try {
-      await API.post('submitQuiz', {
-        username: state.user.username,
-        quiz_id:  quiz.quizId,
-        material_id: quiz.materialId,
-        answers:  quiz.answers,
-        score:    quiz.score,
-        max_score: quiz.maxScore
-      });
-    } catch (err) {
-      console.error('Error submitting quiz:', err);
+    if (state.user.role === 'student') {
+      try {
+        await API.post('submitQuiz', {
+          username: state.user.username,
+          quiz_id:  quiz.quizId,
+          material_id: quiz.materialId,
+          answers:  quiz.answers,
+          score:    quiz.score,
+          max_score: quiz.maxScore
+        });
+      } catch (err) {
+        console.error('Error submitting quiz:', err);
+      }
+    } else {
+      setTimeout(() => showToast('أنت لست طالباً - لم يتم حفظ السجل', 'warning'), 1000);
     }
   }
 
