@@ -37,8 +37,10 @@
   <div class="nav-logo">IQT</div>
   <div class="nav-links" id="navLinks"></div>
   <div class="nav-user">
-    <span id="navUsername"></span>
-    <div class="avatar" id="navAvatar"></div>
+    <div style="display:flex; align-items:center; gap:8px; cursor:pointer;" onclick="navigateTo('profile')" title="الملف الشخصي">
+      <span id="navUsername"></span>
+      <div class="avatar" id="navAvatar"></div>
+    </div>
     <button class="btn btn-secondary" style="padding:8px 16px;font-size:0.85rem;" onclick="logout()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
       خروج
@@ -119,13 +121,6 @@
     
     <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
       <h3 style="margin-bottom: 16px;">إعدادات الحساب</h3>
-      <div class="input-group" style="max-width: 400px;">
-        <label>الاسم بالكامل (يظهر للمعلمين فقط)</label>
-        <div style="display:flex; gap:8px;">
-          <input type="text" id="profileFullName" placeholder="أدخل اسمك بالكامل">
-          <button class="btn btn-secondary" onclick="updateFullName()">تحديث</button>
-        </div>
-      </div>
       <div class="input-group" style="max-width: 400px; margin-top: 16px;">
         <label>اسم المستخدم (يجب أن يكون حروف وأرقام إنجليزية فقط)</label>
         <div style="display:flex; gap:8px;">

@@ -16,8 +16,7 @@ async function renderProfile() {
   }
   
   // Pre-fill fields
-  $('profileFullName').value = state.user.full_name || '';
-  $('profileUsername').value = state.user.username || '';
+  if ($('profileUsername')) $('profileUsername').value = state.user.username || '';
 
   const historyContainer = $('quizHistory');
   historyContainer.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل السجل...</div>';
@@ -97,28 +96,7 @@ async function renderProfile() {
   }
 }
 
-async function updateFullName() {
-  const newName = $('profileFullName').value.trim();
-  if (!newName) return showToast('يرجى إدخال الاسم', 'error');
-  
-  showLoading();
-  try {
-    const res = await API.post('updateUser', {
-      username: state.user.username,
-      full_name: newName
-    });
-    if (res.success) {
-      state.user.full_name = newName;
-      localStorage.setItem('iqt_user', JSON.stringify(state.user));
-      showToast('تم تحديث الاسم بنجاح');
-    } else {
-      showToast(res.message || 'فشل التحديث', 'error');
-    }
-  } catch(e) {
-    showToast('حدث خطأ', 'error');
-  }
-  hideLoading();
-}
+// Name cannot be updated by student directly anymore
 
 async function updateUsername() {
   const newUsername = $('profileUsername').value.trim();
@@ -172,35 +150,165 @@ function handleAvatarUpload(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = async function(e) {
-    const base64 = e.target.result;
+  reader.onload = function(e) {
+    const imgSrc = e.target.result;
     
-    // Optimistic UI update
-    $('profileAvatar').innerHTML = `<img src="${base64}" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
-    
-    showLoading();
-    try {
-      const res = await API.post('updateUser', {
-        username: state.user.username,
-        avatar: base64
-      });
-      if (res.success) {
-        state.user.avatar = base64;
-        localStorage.setItem('iqt_user', JSON.stringify(state.user));
-        // Update nav avatar
-        if ($('navAvatar')) {
-          $('navAvatar').innerHTML = `<img src="${base64}" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
-        }
-        showToast('تم تحديث الصورة بنجاح');
-      } else {
-        showToast(res.message || 'فشل التحديث', 'error');
-        renderProfile(); // Revert on fail
-      }
-    } catch(err) {
-      showToast('حدث خطأ', 'error');
-      renderProfile();
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'cropModal';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 400px; text-align: center;">
+        <h3 style="margin-bottom: 20px;">تحديد وتعديل الصورة</h3>
+        
+        <div style="position: relative; width: 250px; height: 250px; margin: 0 auto 20px; overflow: hidden; border-radius: 50%; border: 3px dashed var(--primary); background: #000; touch-action: none;" id="cropContainer">
+          <img id="cropImg" src="${imgSrc}" style="position: absolute; top: 0; left: 0; transform-origin: 0 0; cursor: grab;">
+        </div>
+        
+        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+          <span>🔍</span>
+          <input type="range" id="cropZoom" min="1" max="3" step="0.01" value="1" style="flex: 1;">
+          <span>+</span>
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+          <button class="btn btn-secondary w-full" onclick="document.getElementById('cropModal').remove()">إلغاء</button>
+          <button class="btn btn-primary w-full" id="cropSaveBtn">حفظ الصورة</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const img = modal.querySelector('#cropImg');
+    const container = modal.querySelector('#cropContainer');
+    const zoomSlider = modal.querySelector('#cropZoom');
+    const saveBtn = modal.querySelector('#cropSaveBtn');
+
+    let baseScale = 1;
+    let currentScale = 1;
+    let posX = 0;
+    let posY = 0;
+    let isDragging = false;
+    let startX, startY;
+
+    const handleLoad = function() {
+      const containerSize = 250;
+      const scaleX = containerSize / img.naturalWidth;
+      const scaleY = containerSize / img.naturalHeight;
+      baseScale = Math.max(scaleX, scaleY);
+      
+      currentScale = baseScale;
+      zoomSlider.min = baseScale;
+      zoomSlider.max = baseScale * 4;
+      zoomSlider.value = baseScale;
+      
+      posX = (containerSize - (img.naturalWidth * baseScale)) / 2;
+      posY = (containerSize - (img.naturalHeight * baseScale)) / 2;
+      
+      updateImageTransform();
+    };
+
+    if (img.complete) {
+      handleLoad();
+    } else {
+      img.onload = handleLoad;
     }
-    hideLoading();
+
+    function updateImageTransform() {
+      img.style.transform = `translate(${posX}px, ${posY}px) scale(${currentScale})`;
+    }
+
+    zoomSlider.addEventListener('input', function() {
+      const oldScale = currentScale;
+      currentScale = parseFloat(this.value);
+      
+      const containerSize = 250;
+      const centerX = containerSize / 2;
+      const centerY = containerSize / 2;
+
+      posX = centerX - (centerX - posX) * (currentScale / oldScale);
+      posY = centerY - (centerY - posY) * (currentScale / oldScale);
+
+      updateImageTransform();
+    });
+
+    const startDrag = (clientX, clientY) => {
+      isDragging = true;
+      startX = clientX - posX;
+      startY = clientY - posY;
+      img.style.cursor = 'grabbing';
+    };
+
+    const doDrag = (clientX, clientY) => {
+      if (!isDragging) return;
+      posX = clientX - startX;
+      posY = clientY - startY;
+      updateImageTransform();
+    };
+
+    const endDrag = () => {
+      isDragging = false;
+      img.style.cursor = 'grab';
+    };
+
+    container.addEventListener('mousedown', (e) => startDrag(e.clientX, e.clientY));
+    window.addEventListener('mousemove', (e) => doDrag(e.clientX, e.clientY));
+    window.addEventListener('mouseup', endDrag);
+
+    container.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        startDrag(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, {passive: true});
+    window.addEventListener('touchmove', (e) => {
+      if (isDragging && e.touches.length === 1) {
+        e.preventDefault(); 
+        doDrag(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, {passive: false});
+    window.addEventListener('touchend', endDrag);
+
+    saveBtn.onclick = async function() {
+      const canvas = document.createElement('canvas');
+      const MAX_SIZE = 250; 
+      canvas.width = MAX_SIZE;
+      canvas.height = MAX_SIZE;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, MAX_SIZE, MAX_SIZE);
+      ctx.drawImage(img, posX, posY, img.naturalWidth * currentScale, img.naturalHeight * currentScale);
+
+      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+
+      modal.remove();
+
+      // Optimistic UI update
+      $('profileAvatar').innerHTML = `<img src="${compressedBase64}" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+      
+      showLoading();
+      try {
+        const res = await API.post('updateUser', {
+          username: state.user.username,
+          avatar: compressedBase64
+        });
+        if (res.success) {
+          state.user.avatar = compressedBase64;
+          localStorage.setItem('iqt_user', JSON.stringify(state.user));
+          if ($('navAvatar')) {
+            $('navAvatar').innerHTML = `<img src="${compressedBase64}" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+          }
+          showToast('تم تحديث الصورة بنجاح');
+        } else {
+          showToast(res.message || 'فشل التحديث', 'error');
+          renderProfile(); 
+        }
+      } catch(err) {
+        showToast('حدث خطأ أثناء الاتصال بالخادم', 'error');
+        console.error(err);
+        renderProfile();
+      }
+      hideLoading();
+    };
   };
   reader.readAsDataURL(file);
 }
