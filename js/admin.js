@@ -331,7 +331,7 @@ async function renderAdminQuizzes(container) {
                 عرض الأسئلة
               </button>
               <button class="btn btn-success" style="padding: 8px 16px; font-size: 0.85rem; background: var(--success); color: white; border-color: var(--success);"
-                onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', true)">
+                onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', ${(() => { try { return !!JSON.parse(mat.content || '{}').is_review_mode; } catch(e){ return false; } })()})">
                 ▶ معاينة الاختبار
               </button>
               <button class="btn btn-secondary" style="padding: 8px; font-size: 0.85rem;" title="إعدادات الاختبار"
