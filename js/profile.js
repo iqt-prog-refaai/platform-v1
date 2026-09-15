@@ -11,8 +11,10 @@ async function renderProfile() {
   
   if (state.user.avatar) {
     $('profileAvatar').innerHTML = `<img src="${state.user.avatar}" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+    if ($('deleteAvatarBtn')) $('deleteAvatarBtn').style.display = 'inline-flex';
   } else {
     $('profileAvatar').textContent = state.user.name.charAt(0).toUpperCase();
+    if ($('deleteAvatarBtn')) $('deleteAvatarBtn').style.display = 'none';
   }
   
   // Pre-fill fields
@@ -311,4 +313,34 @@ function handleAvatarUpload(event) {
     };
   };
   reader.readAsDataURL(file);
+}
+
+async function deleteAvatar() {
+  if (!confirm('هل أنت متأكد من رغبتك في حذف الصورة الشخصية؟')) return;
+  
+  showLoading();
+  try {
+    const res = await API.post('updateUser', {
+      username: state.user.username,
+      avatar: ''
+    });
+    
+    if (res.success) {
+      state.user.avatar = '';
+      localStorage.setItem('iqt_user', JSON.stringify(state.user));
+      
+      if ($('navAvatar')) {
+        $('navAvatar').outerHTML = `<div class="avatar" id="navAvatar">${state.user.name.charAt(0).toUpperCase()}</div>`;
+      }
+      
+      renderProfile();
+      showToast('تم حذف الصورة بنجاح');
+    } else {
+      showToast(res.message || 'فشل الحذف', 'error');
+    }
+  } catch(err) {
+    showToast('حدث خطأ أثناء الاتصال بالخادم', 'error');
+    console.error(err);
+  }
+  hideLoading();
 }
