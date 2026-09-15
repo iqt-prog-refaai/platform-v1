@@ -103,10 +103,35 @@
   <h1 style="font-family: 'Space Grotesk', 'Tajawal', sans-serif; font-size: 2rem; margin-bottom: 24px;">ملفي الشخصي</h1>
   <div class="glass" style="padding: 32px; margin-bottom: 24px;">
     <div class="flex items-center gap-4 mb-4">
-      <div class="avatar" style="width: 64px; height: 64px; font-size: 1.5rem;" id="profileAvatar"></div>
+      <div id="profileAvatarContainer" style="position: relative;">
+        <!-- Avatar will be inserted here -->
+        <div class="avatar" style="width: 80px; height: 80px; font-size: 1.8rem;" id="profileAvatar"></div>
+        <button class="btn btn-primary" style="position: absolute; bottom: -10px; right: -10px; padding: 4px; border-radius: 50%;" onclick="$('avatarUploadInput').click()" title="تغيير الصورة">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        </button>
+        <input type="file" id="avatarUploadInput" style="display: none;" accept="image/*" onchange="handleAvatarUpload(event)">
+      </div>
       <div>
-        <h2 id="profileName">طالب</h2>
-        <p style="color: var(--text-muted);" id="profileRole">طالب</p>
+        <h2 id="profileName" style="margin:0;">طالب</h2>
+        <div id="profileRoleBadge" style="margin-top: 8px;"></div>
+      </div>
+    </div>
+    
+    <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
+      <h3 style="margin-bottom: 16px;">إعدادات الحساب</h3>
+      <div class="input-group" style="max-width: 400px;">
+        <label>اسم المستخدم (يجب أن يكون حروف وأرقام إنجليزية فقط)</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="profileUsername" pattern="[a-zA-Z0-9_]+" style="direction:ltr;">
+          <button class="btn btn-secondary" onclick="updateUsername()">تحديث</button>
+        </div>
+      </div>
+      <div class="input-group" style="max-width: 400px; margin-top: 16px;">
+        <label>تغيير كلمة المرور</label>
+        <div style="display:flex; gap:8px;">
+          <input type="password" id="profilePassword" placeholder="كلمة المرور الجديدة">
+          <button class="btn btn-secondary" onclick="updatePassword()">تحديث</button>
+        </div>
       </div>
     </div>
   </div>

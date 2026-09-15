@@ -50,20 +50,46 @@ async function handleLogin(e) {
 
 function setupNavigation() {
   $('navbar').classList.remove('hidden');
-  $('navUsername').textContent = state.user.name;
-  $('navAvatar').textContent = state.user.name.charAt(0).toUpperCase();
+  
+  const roleLabels = {
+    admin: 'مدير النظام',
+    student: 'طالب',
+    guest: 'ضيف',
+    vip: 'الأب الروحي',
+    manager: 'المدير'
+  };
+
+  const roleLabel = roleLabels[state.user.role] || state.user.role;
+  const badgeClass = `badge-${state.user.role}`;
+  const avatarHtml = state.user.avatar_url 
+    ? `<img src="${state.user.avatar_url}" id="navAvatar" class="user-avatar" alt="Avatar">`
+    : `<div class="avatar" id="navAvatar">${state.user.name.charAt(0).toUpperCase()}</div>`;
+
+  $('navUsername').innerHTML = `
+    <div style="display:flex; flex-direction:column; align-items:flex-end;">
+      <span>${state.user.name}</span>
+      <div class="role-badge ${badgeClass}">${roleLabel}</div>
+    </div>
+  `;
+  const existingAvatar = document.getElementById('navAvatar');
+  if (existingAvatar) {
+    existingAvatar.outerHTML = avatarHtml;
+  }
 
   const links = $('navLinks');
   links.innerHTML = '';
 
-  if (state.user.role === 'student') {
+  if (['student', 'guest'].includes(state.user.role)) {
     links.innerHTML = `
       <a class="nav-link active" onclick="navigateTo('dashboard')">الرئيسية</a>
       <a class="nav-link" onclick="navigateTo('profile')">الملف الشخصي</a>
     `;
   } else {
+    // Admin, VIP, Manager
     links.innerHTML = `
       <a class="nav-link active" onclick="navigateTo('admin')">الإدارة</a>
+      <a class="nav-link" onclick="navigateTo('dashboard')">استعراض المنصة</a>
+      <a class="nav-link" onclick="navigateTo('profile')">الملف الشخصي</a>
     `;
   }
 }
