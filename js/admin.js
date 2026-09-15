@@ -267,7 +267,7 @@ async function renderAdminQuizzes(container) {
     const timerBadge = quiz?.time_limit > 0
       ? `<span style="font-size:0.78rem; color:var(--primary); background:rgba(99,102,241,0.1);
                       padding:2px 8px; border-radius:10px; margin-right:6px;">
-           ⏱ ${quiz.time_limit} min
+           ⏱ ${quiz.time_limit} دقيقة
          </span>`
       : '';
     html += `
@@ -278,31 +278,31 @@ async function renderAdminQuizzes(container) {
             <p style="color: var(--text-muted); font-size: 0.85rem; margin:0;">
               ${unit && lesson ? `${unit.unit_name} → ${lesson.lesson_name}` : (unit ? `${unit.unit_name} (مباشرة)` : (lesson ? `درس مستقل: ${lesson.lesson_name}` : 'مستقل'))}
               ${quiz
-                ? `<span style="color: var(--success); margin-right: 6px;">✓ Ready</span>${timerBadge}`
-                : `<span style="color: var(--warning); margin-right: 8px;">⚠ No quiz record yet</span>`}
+                ? `<span style="color: var(--success); margin-right: 6px;">✓ جاهز</span>${timerBadge}`
+                : `<span style="color: var(--warning); margin-right: 8px;">⚠ لا يوجد سجل اختبار بعد</span>`}
             </p>
           </div>
           <div class="flex gap-2" style="flex-wrap:wrap; justify-content:flex-end;">
             ${!quiz ? `
               <button class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;"
                 onclick="createQuizForMaterial('${mat.material_id}', '${mat.title}')">
-                Create Quiz
+                إنشاء اختبار
               </button>
             ` : ''}
             ${quiz ? `
               <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.85rem;"
                 onclick="showModal('addQuestion', '${quiz.quiz_id}')">
-                ${ICONS.plus} Add Question
+                ${ICONS.plus} إضافة سؤال
               </button>
               <button class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;"
                 onclick="toggleQuizQuestions('${quiz.quiz_id}')">
-                View Questions
+                عرض الأسئلة
               </button>
               <button class="btn btn-success" style="padding: 8px 16px; font-size: 0.85rem; background: var(--success); color: white; border-color: var(--success);"
                 onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', true)">
                 ▶ مراجعة (مع الطلبة)
               </button>
-              <button class="btn btn-secondary" style="padding: 8px; font-size: 0.85rem;" title="Quiz Settings"
+              <button class="btn btn-secondary" style="padding: 8px; font-size: 0.85rem;" title="إعدادات الاختبار"
                 onclick='showModal("editQuizSettings", ${JSON.stringify({quiz_id: quiz.quiz_id, material_id: mat.material_id, title: mat.title, time_limit: quiz.time_limit || 0}).replace(/'/g, "&#39;")})'>
                 ⚙
               </button>
