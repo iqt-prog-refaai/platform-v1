@@ -5,6 +5,7 @@
 
 const API = {
   async get(action, params = {}) {
+    params._t = Date.now(); // Cache buster
     const query = new URLSearchParams({ action, ...params }).toString();
     
     if (CONFIG.API_URL.startsWith('http')) {
@@ -17,13 +18,21 @@ const API = {
       
       if (proxyRes) {
         if (proxyRes.status !== 404) {
-          return await proxyRes.json();
+          try {
+            return await proxyRes.json();
+          } catch(e) {
+            return { success: false, message: 'Server returned invalid response' };
+          }
         }
       }
     }
 
-    const res = await fetch(`${CONFIG.API_URL}?${query}`);
-    return await res.json();
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?${query}`);
+      return await res.json();
+    } catch (e) {
+      return { success: false, message: 'Network or parsing error' };
+    }
   },
 
   async post(action, data = {}) {
@@ -45,15 +54,23 @@ const API = {
         if (proxyRes.status !== 404) {
           // We reached the proxy, so DO NOT fall through to direct call.
           // This prevents double-execution on the backend if GAS returns a 500.
-          return await proxyRes.json();
+          try {
+            return await proxyRes.json();
+          } catch(e) {
+            return { success: false, message: 'Server returned invalid response (possibly 500)' };
+          }
         }
       }
     }
 
-    const res = await fetch(CONFIG.API_URL, {
-      method: 'POST',
-      body: payload
-    });
-    return await res.json();
+    try {
+      const res = await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        body: payload
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false, message: 'Network or parsing error' };
+    }
   }
 };

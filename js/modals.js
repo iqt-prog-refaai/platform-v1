@@ -743,11 +743,21 @@ async function submitQuizSettings() {
   });
 
   if (!MOCK_MODE) {
-    await API.post('editItem', {
-      itemType: 'material',
-      id: materialId,
-      updates: { 4: settingsStr } // Column 4 is 'content'
-    });
+    try {
+      const res = await API.post('editItem', {
+        itemType: 'material',
+        id: materialId,
+        updates: { 4: settingsStr } // Column 4 is 'content'
+      });
+      if (!res || !res.success) {
+        showToast('خطأ: ' + (res?.message || 'فشل في حفظ الإعدادات'), 'error');
+        return;
+      }
+    } catch(err) {
+      console.error('Quiz settings error:', err);
+      showToast('خطأ في الاتصال بالخادم!', 'error');
+      return;
+    }
   }
 
   // Update local cache
