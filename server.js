@@ -18,7 +18,7 @@ app.get('/api/health', (req, res) => {
 // Optional proxy to Google Apps Script backend to prevent any browser CORS/mixed-content issues
 app.all('/api/gas', async (req, res) => {
   try {
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwLjgKqj_e2eaMBLhSBruACOh4zDnH54Qjq04nYpkXhBhNGdMiDvNeuXzmCAULhGgEF/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxN3hqIWJMscT1C0K3KeiNtfo_OMpXpB8NDX23vbZ9CWPGIyk4TsfGZNHPQqrPjbsoeGg/exec';
     let targetUrl = GAS_URL;
     const query = new URLSearchParams(req.query).toString();
     if (query) {

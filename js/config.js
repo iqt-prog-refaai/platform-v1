@@ -4,7 +4,7 @@
 // ============================================
 
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbxN3hqIWJMscT1C0K3KeiNtfo_OMpXpB8NDX23vbZ9CWPGIyk4TsfGZNHPQqrPjbsoeGg/exec',
+  API_URL: '/api/gas',
   SHEET_ID: '1OnvFNlJlMGrxv6UCZAZmT2cJr1SG8j2AjRHOYWWWe7U'
 };
 
