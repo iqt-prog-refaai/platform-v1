@@ -35,6 +35,7 @@ app.all('/api/gas', async (req, res) => {
 
     const response = await fetch(targetUrl, options);
     const data = await response.text();
+    res.set('Content-Type', 'application/json');
     res.status(response.status).send(data);
   } catch (err) {
     console.error('GAS proxy error:', err);

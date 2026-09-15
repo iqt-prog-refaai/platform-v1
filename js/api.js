@@ -6,15 +6,46 @@
 const API = {
   async get(action, params = {}) {
     const query = new URLSearchParams({ action, ...params }).toString();
-    const res = await fetch(`${CONFIG.API_URL}?${query}`);
-    return res.json();
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?${query}`);
+      return await res.json();
+    } catch (err) {
+      // Fallback to local server proxy if direct call was blocked or failed
+      if (CONFIG.API_URL.startsWith('http')) {
+        try {
+          const res = await fetch(`/api/gas?${query}`);
+          return await res.json();
+        } catch (e2) {
+          throw err;
+        }
+      }
+      throw err;
+    }
   },
 
   async post(action, data = {}) {
-    const res = await fetch(CONFIG.API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action, ...data })
-    });
-    return res.json();
+    const payload = JSON.stringify({ action, ...data });
+    try {
+      const res = await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        body: payload
+      });
+      return await res.json();
+    } catch (err) {
+      // Fallback to local server proxy if direct call was blocked or failed
+      if (CONFIG.API_URL.startsWith('http')) {
+        try {
+          const res = await fetch('/api/gas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload
+          });
+          return await res.json();
+        } catch (e2) {
+          throw err;
+        }
+      }
+      throw err;
+    }
   }
 };
