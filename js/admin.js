@@ -632,7 +632,11 @@ async function adminPromptDeleteUser(username, displayName) {
       showToast(`تم حذف المستخدم @${username} بنجاح`);
       await refreshAndRenderAdmin();
     } else {
-      showToast(res?.message || 'فشل حذف المستخدم من الخادم', 'error');
+      if (res?.message === 'Unknown action') {
+        showToast('لحذف المستخدم، يرجى نسخ كود backend.gs ونشر إصدار جديد في Google Apps Script', 'error');
+      } else {
+        showToast(res?.message || 'فشل حذف المستخدم من الخادم', 'error');
+      }
     }
   } catch(e) {
     showToast('حدث خطأ أثناء حذف المستخدم', 'error');

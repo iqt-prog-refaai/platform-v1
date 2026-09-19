@@ -59,11 +59,17 @@
       <form id="loginForm" onsubmit="handleLogin(event)">
         <div class="input-group">
           <label>اسم المستخدم</label>
-          <input type="text" id="loginUsername" placeholder="أدخل اسم المستخدم" required>
+          <input type="text" id="loginUsername" placeholder="مثال: admin" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" style="direction: ltr; text-align: right;" required>
         </div>
         <div class="input-group">
           <label>كلمة المرور</label>
-          <input type="password" id="loginPassword" placeholder="أدخل كلمة المرور" required>
+          <div style="position: relative; display: flex; align-items: center;">
+            <input type="password" id="loginPassword" placeholder="أدخل كلمة المرور" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="current-password" style="padding-left: 42px; width: 100%; direction: ltr; text-align: right;" required>
+            <button type="button" id="togglePasswordBtn" onclick="togglePasswordVisibility()" style="position: absolute; left: 10px; background: transparent; border: none; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; padding: 4px;" title="إظهار/إخفاء كلمة المرور">
+              <svg id="eyeIconOpen" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <svg id="eyeIconClosed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+            </button>
+          </div>
         </div>
         <button type="submit" class="btn btn-primary w-full" style="margin-top:8px;">
           تسجيل الدخول

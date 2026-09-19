@@ -3,19 +3,43 @@
 // Depends on: api.js, state.js, utils.js, router.js, student.js
 // ============================================
 
+function togglePasswordVisibility() {
+  const passInput = $('loginPassword');
+  const eyeOpen = $('eyeIconOpen');
+  const eyeClosed = $('eyeIconClosed');
+  if (!passInput) return;
+
+  if (passInput.type === 'password') {
+    passInput.type = 'text';
+    if (eyeOpen) eyeOpen.style.display = 'none';
+    if (eyeClosed) eyeClosed.style.display = 'block';
+  } else {
+    passInput.type = 'password';
+    if (eyeOpen) eyeOpen.style.display = 'block';
+    if (eyeClosed) eyeClosed.style.display = 'none';
+  }
+}
+
 async function handleLogin(e) {
   e.preventDefault();
-  const username = $('loginUsername').value.trim();
-  const password = $('loginPassword').value;
+  let username = ($('loginUsername')?.value || '').trim();
+  const password = ($('loginPassword')?.value || '').trim();
+
+  // Convert Arabic numerals if typed
+  username = username.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  // If user entered Arabic word for admin
+  if (username === 'أدمن' || username === 'الادمن' || username === 'الأدمن') {
+    username = 'admin';
+  }
 
   showLoading();
 
   try {
     let result;
     if (MOCK_MODE) {
-      if (username === 'admin' && password === 'admin') {
+      if (username.toLowerCase() === 'admin' && password.toLowerCase() === 'admin') {
         result = { success: true, user: { name: 'مدير المنصة', username: 'admin', role: 'admin' } };
-      } else if (username === 'student' && password === 'student') {
+      } else if (username.toLowerCase() === 'student' && password.toLowerCase() === 'student') {
         result = { success: true, user: { name: 'طالب تجريبي', username: 'student', role: 'student' } };
       } else {
         result = { success: false, message: 'بيانات الاعتماد غير صحيحة' };
@@ -24,11 +48,11 @@ async function handleLogin(e) {
       result = await API.get('login', { username, password });
     }
 
-    if (result.success) {
+    if (result && result.success) {
       state.user = result.user;
       localStorage.setItem('iqt_user', JSON.stringify(result.user));
       setupNavigation();
-      showToast(`مرحباً بعودتك، ${result.user.name}!`);
+      showToast(`مرحباً بعودتك، ${result.user.name || result.user.username}!`);
 
       if (result.user.role === 'admin') {
         await refreshAllData();   // populate units/lessons/materials for admin panel
@@ -38,7 +62,11 @@ async function handleLogin(e) {
         navigateTo('dashboard');
       }
     } else {
-      showToast(result.message || 'فشل تسجيل الدخول', 'error');
+      if (username.toLowerCase() === 'admin') {
+        showToast('بيانات الدخول غير صحيحة. تأكد من إدخال اسم المستخدم: admin وكلمة المرور: admin باللغة الإنجليزية', 'error');
+      } else {
+        showToast(result?.message || 'فشل تسجيل الدخول. تحقق من اسم المستخدم وكلمة المرور', 'error');
+      }
     }
   } catch(err) {
     showToast('خطأ في الاتصال. تحقق من رابط API.', 'error');

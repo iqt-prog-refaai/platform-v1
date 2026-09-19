@@ -148,8 +148,14 @@ function generateId() {
 function handleLogin(username, password) {
   const sheet = getSheet('credits');
   const data = sheet.getDataRange().getValues();
+  const cleanUser = String(username != null ? username : '').trim().toLowerCase();
+  const cleanPass = String(password != null ? password : '').trim();
+
   for (let i = 1; i < data.length; i++) {
-    if (data[i][1] === username && data[i][2] === password) {
+    const rowUser = String(data[i][1] != null ? data[i][1] : '').trim().toLowerCase();
+    const rowPass = String(data[i][2] != null ? data[i][2] : '').trim();
+
+    if (rowUser === cleanUser && rowPass === cleanPass) {
       return { 
         success: true, 
         user: { 
