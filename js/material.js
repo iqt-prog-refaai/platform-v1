@@ -38,10 +38,95 @@ async function renderMaterialViewer(lessonId, specificMaterialId = null) {
       html += renderVideoMaterial(mat, isCompleted);
     } else if (mat.type === 'article') {
       html += renderArticleMaterial(mat, isCompleted);
+    } else if (mat.type === 'link' || mat.type === 'external') {
+      html += renderLinkMaterial(mat, isCompleted);
     }
   }
 
   container.innerHTML = html;
+}
+
+// ------ FORMAT EXTERNAL LINK ------
+function formatExternalUrl(url) {
+  if (!url) return '#';
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return 'https://' + trimmed;
+  }
+  return trimmed;
+}
+
+function getSlidesEmbedUrl(url) {
+  const formatted = formatExternalUrl(url);
+  if (formatted.includes('docs.google.com/presentation')) {
+    return formatted.replace(/\/edit(\?.*)?$/, '/embed$1').replace(/\/view(\?.*)?$/, '/embed$1');
+  }
+  return formatted;
+}
+
+// ------ EXTERNAL LINK / SLIDES ------
+function renderLinkMaterial(mat, isCompleted) {
+  const targetUrl = formatExternalUrl(mat.content);
+  const embedUrl = getSlidesEmbedUrl(mat.content);
+  const isGoogleSlides = targetUrl.includes('docs.google.com/presentation');
+
+  return `
+    <div class="material-header">
+      <span class="material-type-badge" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; border: 1px solid rgba(14, 165, 233, 0.25); display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 8px; font-weight: 700; font-size: 0.85rem;">
+        ${ICONS.presentation || ICONS.externalLink} شرائح عرض / محتوى خارجي
+      </span>
+      <h2 style="margin-top: 10px;">${mat.title}</h2>
+      ${isCompleted ? `<span style="color: var(--success); display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-weight:600;">${ICONS.check} مكتمل</span>` : ''}
+    </div>
+
+    <!-- Prominent Action Card -->
+    <div class="glass" style="padding: 28px; border-radius: 16px; margin-bottom: 24px; text-align: center; border: 1px solid rgba(99, 102, 241, 0.2); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(255, 255, 255, 0.8) 100%);">
+      <div style="width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 16px; background: rgba(99, 102, 241, 0.1); display: flex; align-items: center; justify-content: center; color: var(--primary);">
+        ${ICONS.presentation || ICONS.externalLink}
+      </div>
+      <h3 style="margin-bottom: 8px; font-size: 1.25rem;">محتوى الدرس متاح عبر رابط خارجي</h3>
+      <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; max-width: 550px; margin-left: auto; margin-right: auto; line-height: 1.6;">
+        تم إعداد هذا الدرس على منصة خارجية (مثل Google Slides أو Canva أو موقع مستقل). اضغط على الزر أدناه للانتقال مباشرة إلى المحتوى والبدء في استعراضه.
+      </p>
+
+      <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 16px;">
+        <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding: 14px 32px; font-size: 1.05rem; display: inline-flex; align-items: center; gap: 10px; border-radius: 12px; text-decoration: none; font-weight: 700; box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);">
+          ${ICONS.externalLink} فتح محتوى الدرس / الشرائح
+        </a>
+        <span style="font-size: 0.78rem; color: var(--text-muted); direction: ltr; max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block;">
+          ${targetUrl}
+        </span>
+      </div>
+    </div>
+
+    ${isGoogleSlides ? `
+      <!-- Embedded Slide Viewer for Google Slides -->
+      <div style="margin-bottom: 24px;">
+        <div style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+          ${ICONS.presentation} معاينة مباشرة للشرائح:
+        </div>
+        <div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; border-radius:14px; border: 1px solid var(--border); box-shadow: var(--shadow);">
+          <iframe
+            src="${embedUrl}"
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:#fff;"
+            allowfullscreen="true"
+            mozallowfullscreen="true"
+            webkitallowfullscreen="true">
+          </iframe>
+        </div>
+      </div>
+    ` : ''}
+
+    <div style="display:flex; gap:12px; justify-content:center; flex-wrap: wrap; margin-top: 20px;">
+      <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+        ${ICONS.externalLink} فتح في نافذة جديدة
+      </a>
+      <button class="btn btn-success" onclick="markComplete('${mat.material_id}')">
+        ${ICONS.check} تحديد كمكتمل
+      </button>
+    </div>
+    <hr style="margin: 32px 0; border: none; border-top: 1px solid var(--border);">
+  `;
 }
 
 // ------ PDF ------

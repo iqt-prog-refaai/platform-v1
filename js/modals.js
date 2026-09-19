@@ -40,23 +40,26 @@ function showModal(type, id = null) {
       </div>
     `;
   } else if (type === 'addLesson' || type === 'editLesson') {
+    const targetUnitId = isEdit ? (data.unit_id || '') : (id || '');
+    const unitLessons = state.lessons[targetUnitId] || [];
+    const suggestedLessonNum = unitLessons.length + 1;
     content = `
       <h3 style="margin-bottom: 20px;">${isEdit ? 'تعديل الدرس' : 'إضافة درس جديد'}</h3>
       <input type="hidden" id="lessonId" value="${isEdit ? data.lesson_id : ''}">
       <div class="input-group">
         <label>الوحدة المستهدفة (اختياري)</label>
-        <select id="lessonUnitId">
+        <select id="lessonUnitId" onchange="onLessonUnitChange()">
           <option value="">-- بدون وحدة (درس مستقل) --</option>
-          ${state.units.map(u => `<option value="${u.unit_id}" ${((isEdit && data.unit_id === u.unit_id) || (!isEdit && id === u.unit_id)) ? 'selected' : ''}>${u.unit_name}</option>`).join('')}
+          ${state.units.map(u => `<option value="${u.unit_id}" ${((isEdit && String(data.unit_id) === String(u.unit_id)) || (!isEdit && String(id) === String(u.unit_id))) ? 'selected' : ''}>${u.unit_name}</option>`).join('')}
         </select>
       </div>
       <div class="input-group">
         <label>رقم الدرس</label>
-        <input type="number" id="lessonNumber" value="${isEdit ? data.lesson_number : ''}" placeholder="مثال: 1">
+        <input type="number" id="lessonNumber" value="${isEdit ? data.lesson_number : suggestedLessonNum}" placeholder="مثال: 1">
       </div>
       <div class="input-group">
         <label>اسم الدرس</label>
-        <input type="text" id="lessonName" value="${isEdit ? data.lesson_name : ''}" placeholder="مثال: المتغيرات والأنواع">
+        <input type="text" id="lessonName" value="${isEdit ? data.lesson_name : ''}" placeholder="مثال: الدرس الأول: مقدمة وشرح المفاهيم">
       </div>
       <div class="modal-footer">
         <button class="btn btn-primary" onclick="${isEdit ? 'submitEditLesson()' : 'submitLesson()'}">${isEdit ? 'حفظ التعديلات' : 'إضافة درس'}</button>
@@ -64,43 +67,51 @@ function showModal(type, id = null) {
       </div>
     `;
   } else if (type === 'addMaterial' || type === 'editMaterial') {
+    const targetMatch = String(id || '');
     content = `
-      <h3 style="margin-bottom: 20px;">${isEdit ? 'تعديل المحتوى' : 'إضافة محتوى'}</h3>
+      <h3 style="margin-bottom: 20px;">${isEdit ? 'تعديل المحتوى' : 'إضافة محتوى جديد'}</h3>
       <input type="hidden" id="materialId" value="${isEdit ? data.material_id : ''}">
       <div class="input-group">
-        <label>الموقع المستهدف (اختياري)</label>
+        <label>الموقع المستهدف (الوحدة أو الدرس)</label>
         <select id="materialLessonIdSelect">
           <option value="">-- خارج الدروس والوحدات (مستقل) --</option>
-          ${state.units.map(u => `
+          ${state.units.map(u => {
+            const isUnitDirect = !isEdit && (targetMatch === `unit_${u.unit_id}` || targetMatch === String(u.unit_id));
+            const isEditUnit = isEdit && String(data.lesson_id) === `unit_${u.unit_id}`;
+            return `
             <optgroup label="${u.unit_name}">
-              <option value="unit_${u.unit_id}" ${((isEdit && data.lesson_id === `unit_${u.unit_id}`) || (!isEdit && id === `unit_${u.unit_id}`)) ? 'selected' : ''}>-- داخل الوحدة مباشرة --</option>
-              ${(state.lessons[u.unit_id] || []).map(l => `<option value="${l.lesson_id}" ${((isEdit && data.lesson_id === l.lesson_id) || (!isEdit && id === l.lesson_id)) ? 'selected' : ''}>الدرس: ${l.lesson_name}</option>`).join('')}
+              <option value="unit_${u.unit_id}" ${isUnitDirect || isEditUnit ? 'selected' : ''}>-- داخل الوحدة مباشرة (${u.unit_name}) --</option>
+              ${(state.lessons[u.unit_id] || []).map(l => {
+                const isLessonMatch = !isEdit && !isUnitDirect && targetMatch === String(l.lesson_id);
+                const isEditLesson = isEdit && String(data.lesson_id) === String(l.lesson_id);
+                return `<option value="${l.lesson_id}" ${isLessonMatch || isEditLesson ? 'selected' : ''}>الدرس: ${l.lesson_name}</option>`;
+              }).join('')}
             </optgroup>
-          `).join('')}
+          `;}).join('')}
           <optgroup label="دروس مستقلة">
-            ${(state.lessons[''] || []).map(l => `<option value="${l.lesson_id}" ${((isEdit && data.lesson_id === l.lesson_id) || (!isEdit && id === l.lesson_id)) ? 'selected' : ''}>الدرس: ${l.lesson_name}</option>`).join('')}
+            ${(state.lessons[''] || []).map(l => `<option value="${l.lesson_id}" ${((isEdit && String(data.lesson_id) === String(l.lesson_id)) || (!isEdit && targetMatch === String(l.lesson_id))) ? 'selected' : ''}>الدرس: ${l.lesson_name}</option>`).join('')}
           </optgroup>
         </select>
       </div>
       <div class="input-group">
-        <label>العنوان</label>
-        <input type="text" id="materialTitle" value="${isEdit ? data.title : ''}" placeholder="مثال: شرائح العرض">
+        <label>عنوان المحتوى</label>
+        <input type="text" id="materialTitle" value="${isEdit ? data.title : ''}" placeholder="مثال: شرائح شرح الدرس الأول">
       </div>
       <div class="input-group">
-        <label>النوع</label>
+        <label>نوع المحتوى</label>
         <select id="materialType" onchange="toggleMaterialFields()">
-          <option value="pdf" ${isEdit && data.type === 'pdf' ? 'selected' : ''}>PDF / مستند</option>
-          <option value="quiz" ${isEdit && data.type === 'quiz' ? 'selected' : ''}>اختبار</option>
-          <option value="video" ${isEdit && data.type === 'video' ? 'selected' : ''}>فيديو</option>
-          <option value="article" ${isEdit && data.type === 'article' ? 'selected' : ''}>مقال / صفحة ويب</option>
+          <option value="link" ${isEdit && (data.type === 'link' || data.type === 'external') ? 'selected' : ''}>🔗 رابط خارجي / شرائح (Google Slides, Canva, Notion, إلخ)</option>
+          <option value="pdf" ${isEdit && data.type === 'pdf' ? 'selected' : ''}>📄 PDF / مستند (جوجل درايف)</option>
+          <option value="video" ${isEdit && data.type === 'video' ? 'selected' : ''}>🎥 فيديو (YouTube / Drive / مباشر)</option>
+          <option value="quiz" ${isEdit && data.type === 'quiz' ? 'selected' : ''}>📝 اختبار تفاعلي</option>
+          <option value="article" ${isEdit && data.type === 'article' ? 'selected' : ''}>🌐 مقال / صفحة ويب</option>
         </select>
       </div>
       <div class="input-group" id="contentField" style="display: ${isEdit && data.type === 'quiz' ? 'none' : 'block'}">
-        <label>المحتوى / الرابط</label>
-        <input type="text" id="materialLinkInput" value="${isEdit ? (data.content || '') : ''}" placeholder="رابط Google Drive (مثال: https://drive.google.com/file/d/FILE_ID/view)">
-        <p style="margin-top: 6px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;">
-          📌 يمكنك لصق رابط المشاركة من Google Drive كما هو — سيتم استخراج معرّف الملف تلقائياً.<br>
-          <strong style="color: var(--danger);">تنبيه هام:</strong> تأكد من تغيير إعدادات المشاركة للملف في جوجل درايف إلى <strong>"أي شخص لديه الرابط"</strong> (Anyone with the link) حتى يتمكن الطلاب من مشاهدته وتحميله.
+        <label id="materialContentLabel">${isEdit && data.type === 'pdf' ? 'رابط ملف PDF (Google Drive)' : (isEdit && data.type === 'video' ? 'رابط الفيديو' : 'رابط المحتوى / الشرائح')}</label>
+        <input type="text" id="materialLinkInput" value="${isEdit ? (data.content || '') : ''}" placeholder="${isEdit && data.type === 'pdf' ? 'https://drive.google.com/file/d/...' : 'https://... (مثال: رابط شرائح Google Slides أو Canva)'}">
+        <p id="materialContentHint" style="margin-top: 6px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;">
+          ${isEdit && data.type === 'pdf' ? '📌 يمكنك لصق رابط المشاركة من Google Drive كما هو — سيتم استخراج معرّف الملف تلقائياً.<br><strong style="color: var(--danger);">تنبيه:</strong> تأكد من إعداد المشاركة: "أي شخص لديه الرابط".' : '🔗 <strong>رابط خارجي:</strong> يمكنك وضع رابط شرائح Google Slides أو Canva أو Notion أو أي موقع خارجي.<br>سيتوفر للطالب زر بارز للانتقال للمحتوى مباشرة في نافذة جديدة مع إمكانية عرض معاينة.'}
         </p>
       </div>
       <div class="modal-footer">
@@ -325,10 +336,47 @@ function closeModal() {
   if (modal) modal.remove();
 }
 
+function onLessonUnitChange() {
+  const selUnitId = $('lessonUnitId')?.value;
+  const numInput = $('lessonNumber');
+  if (numInput && !$('lessonId')?.value) {
+    const count = (state.lessons[selUnitId] || []).length;
+    numInput.value = count + 1;
+  }
+}
+
 function toggleMaterialFields() {
-  const type = $('materialType').value;
+  const type = $('materialType')?.value;
   const field = $('contentField');
-  field.style.display = type === 'quiz' ? 'none' : 'block';
+  if (!field) return;
+
+  if (type === 'quiz') {
+    field.style.display = 'none';
+    return;
+  }
+  field.style.display = 'block';
+
+  const label = $('materialContentLabel');
+  const input = $('materialLinkInput');
+  const hint = $('materialContentHint');
+
+  if (type === 'link') {
+    if (label) label.textContent = 'رابط المحتوى الخارجي أو الشرائح (URL)';
+    if (input) input.placeholder = 'مثال: https://docs.google.com/presentation/d/... أو https://canva.com/...';
+    if (hint) hint.innerHTML = '🔗 <strong>رابط خارجي:</strong> يمكنك وضع رابط شرائح Google Slides أو Canva أو Notion أو أي موقع خارجي.<br>سيتوفر للطالب زر بارز للانتقال فوراً للمحتوى في صفحة جديدة بالإضافة لمعاينة مباشرة إن أمكن.';
+  } else if (type === 'pdf') {
+    if (label) label.textContent = 'رابط ملف PDF (Google Drive)';
+    if (input) input.placeholder = 'رابط Google Drive (مثال: https://drive.google.com/file/d/FILE_ID/view)';
+    if (hint) hint.innerHTML = '📌 يمكنك لصق رابط المشاركة من Google Drive كما هو — سيتم استخراج معرّف الملف تلقائياً.<br><strong style="color: var(--danger);">تنبيه هام:</strong> تأكد من جعل مشاركة الملف: <strong>"أي شخص لديه الرابط"</strong>.';
+  } else if (type === 'video') {
+    if (label) label.textContent = 'رابط الفيديو (YouTube / Drive / مباشر)';
+    if (input) input.placeholder = 'مثال: https://www.youtube.com/watch?v=...';
+    if (hint) hint.innerHTML = '🎥 يدعم روابط يوتيوب العادية، روابط Shorts، روابط Google Drive للمرئيات، وروابط mp4 المباشرة.';
+  } else if (type === 'article') {
+    if (label) label.textContent = 'رابط الصفحة أو المقال';
+    if (input) input.placeholder = 'مثال: https://example.com/article';
+    if (hint) hint.innerHTML = '🌐 سيتم عرض الصفحة داخل إطار تفاعلي مع إتاحة زر للفتح المباشر في صفحة جديدة.';
+  }
 }
 
 function toggleQuestionFields() {
@@ -341,61 +389,95 @@ function toggleQuestionFields() {
 // FORM SUBMISSIONS - CREATE
 // ==========================================
 async function submitUnit() {
-  const num = $('unitNumber').value;
+  let num = $('unitNumber').value;
   const name = $('unitName').value.trim();
-  if (!num || !name) { showToast('يرجى ملء جميع الحقول', 'error'); return; }
+  if (!name) { showToast('يرجى إدخال اسم الوحدة', 'error'); return; }
 
-  if (!MOCK_MODE) {
-    await API.post('addUnit', { unit_number: parseInt(num), unit_name: name });
+  if (!num) {
+    num = state.units.length + 1;
   }
-  showToast('تمت إضافة الوحدة!');
-  closeModal();
-  await refreshAndRenderAdmin();
+
+  showLoading();
+  try {
+    if (!MOCK_MODE) {
+      const res = await API.post('addUnit', { unit_number: parseInt(num), unit_name: name });
+      if (!res || !res.success) {
+        showToast('خطأ: ' + (res?.message || 'فشل في إضافة الوحدة'), 'error');
+        return;
+      }
+    }
+    showToast('تمت إضافة الوحدة بنجاح!');
+    closeModal();
+    await refreshAndRenderAdmin();
+  } catch (err) {
+    console.error(err);
+    showToast('خطأ في الاتصال بالخادم', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 async function submitLesson() {
-  const unitId = $('lessonUnitId').value;
-  const num = $('lessonNumber').value;
-  const name = $('lessonName').value.trim();
-  if (!num || !name) { showToast('يرجى ملء جميع الحقول', 'error'); return; }
+  const unitId = $('lessonUnitId')?.value || '';
+  let num = $('lessonNumber')?.value;
+  const name = $('lessonName')?.value.trim();
+  if (!name) { showToast('يرجى كتابة اسم الدرس', 'error'); return; }
 
-  if (!MOCK_MODE) {
-    await API.post('addLesson', { unit_id: unitId, lesson_number: parseInt(num), lesson_name: name });
+  if (!num) {
+    const existing = state.lessons[unitId] || [];
+    num = existing.length + 1;
   }
-  showToast('تمت إضافة الدرس!');
-  closeModal();
-  await refreshAndRenderAdmin();
+
+  showLoading();
+  try {
+    if (!MOCK_MODE) {
+      const res = await API.post('addLesson', { unit_id: unitId, lesson_number: parseInt(num), lesson_name: name });
+      if (!res || !res.success) {
+        showToast('خطأ: ' + (res?.message || 'فشل في إضافة الدرس'), 'error');
+        return;
+      }
+    }
+    showToast('تمت إضافة الدرس بنجاح!');
+    closeModal();
+    await refreshAndRenderAdmin();
+  } catch (err) {
+    console.error(err);
+    showToast('خطأ في الاتصال بالخادم أثناء إضافة الدرس', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 async function submitMaterial() {
-  let lessonId = $('materialLessonId') ? $('materialLessonId').value : null;
-  if (!lessonId || lessonId === 'undefined') {
-    lessonId = $('materialLessonIdSelect')?.value;
-  }
-  
-  // Optional: parse out 'unit_' prefix if added directly to unit
-  if (lessonId && lessonId.startsWith('unit_')) {
-    // Backend expects lesson_id for standard hierarchy, but we can store 'unit_xxx' to denote it belongs to a unit without a lesson.
-    // Ensure getMaterials can handle this in the backend, or we map it properly.
-    // For this simple schema, we just store it as the lesson_id field.
-  }
-
+  const lessonId = $('materialLessonIdSelect')?.value || $('materialLessonId')?.value || '';
   const title = $('materialTitle').value.trim();
   const type = $('materialType').value;
   const rawContent = $('materialLinkInput')?.value?.trim() || '';
 
-  if (!title) { showToast('يرجى ملء العنوان', 'error'); return; }
-
-  if (!MOCK_MODE) {
-    const res = await API.post('addMaterial', { lesson_id: lessonId || '', title, type, content: rawContent });
-    if (!res || !res.success) {
-      showToast('خطأ: ' + (res?.message || 'فشل في إضافة المحتوى'), 'error');
-      return;
-    }
+  if (!title) { showToast('يرجى كتابة عنوان المحتوى', 'error'); return; }
+  if (type !== 'quiz' && !rawContent) {
+    showToast('يرجى إدخال الرابط أو محتوى الدرس', 'error');
+    return;
   }
-  showToast('تمت إضافة المحتوى!');
-  closeModal();
-  await refreshAndRenderAdmin();
+
+  showLoading();
+  try {
+    if (!MOCK_MODE) {
+      const res = await API.post('addMaterial', { lesson_id: lessonId, title, type, content: rawContent });
+      if (!res || !res.success) {
+        showToast('خطأ: ' + (res?.message || 'فشل في إضافة المحتوى'), 'error');
+        return;
+      }
+    }
+    showToast('تمت إضافة المحتوى بنجاح!');
+    closeModal();
+    await refreshAndRenderAdmin();
+  } catch (err) {
+    console.error(err);
+    showToast('خطأ في الاتصال بالخادم أثناء إضافة المحتوى', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 async function submitQuestion() {
@@ -663,33 +745,65 @@ async function submitEditUnit() {
 
 async function submitEditLesson() {
   const id = $('lessonId').value;
+  const unitId = $('lessonUnitId')?.value;
   const num = $('lessonNumber').value;
   const name = $('lessonName').value.trim();
   if (!num || !name) { showToast('يرجى ملء جميع الحقول', 'error'); return; }
 
-  if (!MOCK_MODE) {
-    const res = await API.post('editItem', { itemType: 'lesson', id, updates: { 2: parseInt(num), 3: name } });
-    if (!res.success) { showToast('حدث خطأ: ' + res.message, 'error'); return; }
+  showLoading();
+  try {
+    if (!MOCK_MODE) {
+      const updates = { 2: parseInt(num), 3: name };
+      if (unitId !== undefined) {
+        updates[1] = unitId;
+      }
+      const res = await API.post('editItem', { itemType: 'lesson', id, updates });
+      if (!res || !res.success) {
+        showToast('حدث خطأ: ' + (res?.message || 'فشل في تعديل الدرس'), 'error');
+        return;
+      }
+    }
+    showToast('تم تعديل الدرس بنجاح!');
+    closeModal();
+    await refreshAndRenderAdmin();
+  } catch (err) {
+    console.error(err);
+    showToast('خطأ في حفظ تعديلات الدرس', 'error');
+  } finally {
+    hideLoading();
   }
-  showToast('تم تعديل الدرس!');
-  closeModal();
-  await refreshAndRenderAdmin();
 }
 
 async function submitEditMaterial() {
   const id = $('materialId').value;
+  const targetLessonId = $('materialLessonIdSelect')?.value;
   const title = $('materialTitle').value.trim();
   const type = $('materialType').value;
   const rawContent = $('materialLinkInput')?.value?.trim() || '';
   if (!title) { showToast('يرجى ملء العنوان', 'error'); return; }
 
-  if (!MOCK_MODE) {
-    const res = await API.post('editItem', { itemType: 'material', id, updates: { 2: title, 3: type, 4: rawContent } });
-    if (!res.success) { showToast('حدث خطأ: ' + res.message, 'error'); return; }
+  showLoading();
+  try {
+    if (!MOCK_MODE) {
+      const updates = { 2: title, 3: type, 4: rawContent };
+      if (targetLessonId !== undefined) {
+        updates[1] = targetLessonId;
+      }
+      const res = await API.post('editItem', { itemType: 'material', id, updates });
+      if (!res || !res.success) {
+        showToast('حدث خطأ: ' + (res?.message || 'فشل في تعديل المحتوى'), 'error');
+        return;
+      }
+    }
+    showToast('تم تعديل المحتوى بنجاح!');
+    closeModal();
+    await refreshAndRenderAdmin();
+  } catch (err) {
+    console.error(err);
+    showToast('خطأ في حفظ تعديلات المحتوى', 'error');
+  } finally {
+    hideLoading();
   }
-  showToast('تم تعديل المحتوى!');
-  closeModal();
-  await refreshAndRenderAdmin();
 }
 
 async function submitEditQuestion() {

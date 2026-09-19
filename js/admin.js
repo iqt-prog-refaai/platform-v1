@@ -142,11 +142,12 @@ async function renderAdminContent(container) {
             ${(state.materials[`unit_${unit.unit_id}`] || []).map(mat => `
               <div class="flex justify-between items-center" style="padding: 8px 12px; margin-bottom: 8px; border-radius: 8px; background: rgba(99,102,241,0.04); border-right: 3px solid var(--primary);">
                 <div class="flex items-center gap-2">
-                  <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file}</span>
+                  <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file}</span>
                   <span style="font-weight: 500;">${mat.title}</span>
-                  <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 4px;">محتوى بالوحدة (${mat.type})</span>
+                  <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 4px;">محتوى بالوحدة (${(mat.type === 'link' || mat.type === 'external') ? 'شرائح / رابط' : mat.type})</span>
                 </div>
                 <div class="flex gap-2">
+                  ${(mat.type === 'link' || mat.type === 'external') && mat.content ? `<a href="${mat.content}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" title="فتح الرابط">${ICONS.externalLink}</a>` : ''}
                   <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                   <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
                 </div>
@@ -175,11 +176,12 @@ async function renderAdminContent(container) {
                     ${lessonMats.map(mat => `
                       <div class="flex justify-between items-center" style="padding: 6px 10px; background: var(--bg-card, #fff); border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; font-size: 0.88rem;">
                         <div class="flex items-center gap-2">
-                          <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file}</span>
+                          <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file}</span>
                           <span>${mat.title}</span>
-                          <span style="font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">${mat.type === 'quiz' ? 'اختبار' : mat.type === 'video' ? 'فيديو' : mat.type === 'pdf' ? 'PDF' : mat.type}</span>
+                          <span style="font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">${mat.type === 'quiz' ? 'اختبار' : mat.type === 'video' ? 'فيديو' : mat.type === 'pdf' ? 'PDF' : (mat.type === 'link' || mat.type === 'external') ? 'شرائح / رابط' : mat.type}</span>
                         </div>
                         <div class="flex gap-2">
+                          ${(mat.type === 'link' || mat.type === 'external') && mat.content ? `<a href="${mat.content}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" title="فتح الرابط">${ICONS.externalLink}</a>` : ''}
                           <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                           <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
                         </div>
@@ -193,7 +195,13 @@ async function renderAdminContent(container) {
               `;
             }).join('')}
             ${!(state.lessons[unit.unit_id] || []).length && !(state.materials[`unit_${unit.unit_id}`] || []).length ? `
-              <p style="color: var(--text-muted); font-size: 0.85rem;">لا توجد دروس في هذه الوحدة بعد.</p>
+              <div style="background: rgba(0,0,0,0.02); border: 1px dashed rgba(0,0,0,0.12); border-radius: 10px; padding: 18px; text-align: center; margin-top: 10px;">
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 12px;">الوحدة فارغة حالياً. يمكنك البدء بإضافة أول درس أو إضافة محتوى مباشر إليها:</p>
+                <div class="flex gap-2 justify-center">
+                  <button class="btn btn-primary" style="padding: 6px 14px; font-size: 0.85rem;" onclick="showModal('addLesson', '${unit.unit_id}')">${ICONS.plus} إضافة درس</button>
+                  <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.85rem;" onclick="showModal('addMaterial', 'unit_${unit.unit_id}')">${ICONS.plus} إضافة محتوى بالوحدة</button>
+                </div>
+              </div>
             ` : ''}
           </div>
         </div>
@@ -224,11 +232,12 @@ async function renderAdminContent(container) {
                   ${lessonMats.map(mat => `
                     <div class="flex justify-between items-center" style="padding: 6px 10px; background: var(--bg-card, #fff); border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; font-size: 0.88rem;">
                       <div class="flex items-center gap-2">
-                        <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file}</span>
+                        <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file}</span>
                         <span>${mat.title}</span>
-                        <span style="font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">${mat.type === 'quiz' ? 'اختبار' : mat.type === 'video' ? 'فيديو' : mat.type === 'pdf' ? 'PDF' : mat.type}</span>
+                        <span style="font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">${mat.type === 'quiz' ? 'اختبار' : mat.type === 'video' ? 'فيديو' : mat.type === 'pdf' ? 'PDF' : (mat.type === 'link' || mat.type === 'external') ? 'شرائح / رابط' : mat.type}</span>
                       </div>
                       <div class="flex gap-2">
+                        ${(mat.type === 'link' || mat.type === 'external') && mat.content ? `<a href="${mat.content}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" title="فتح الرابط">${ICONS.externalLink}</a>` : ''}
                         <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                         <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
                       </div>

@@ -186,11 +186,11 @@ function renderDashboard() {
             return `
               <div class="lesson-item ${isCompleted ? 'completed' : ''}" onclick="openMaterialDirectly('${mat.material_id}', 'unit_${unit.unit_id}')" style="background: rgba(99,102,241,0.02); border: 1px solid rgba(99,102,241,0.1);">
                 <div class="lesson-icon ${isCompleted ? 'completed' : ''}">
-                  ${isCompleted ? ICONS.check : (mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file)}
+                  ${isCompleted ? ICONS.check : (mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file)}
                 </div>
                 <div class="lesson-info">
                   <div class="lesson-title">${mat.title}</div>
-                  <div class="lesson-meta">محتوى مستقل في الوحدة</div>
+                  <div class="lesson-meta">${(mat.type === 'link' || mat.type === 'external') ? 'شرائح عرض / رابط' : 'محتوى مستقل في الوحدة'}</div>
                 </div>
                 ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
               </div>
@@ -232,11 +232,11 @@ function renderDashboard() {
             return `
               <div class="glass lesson-item ${isCompleted ? 'completed' : ''}" onclick="openMaterialDirectly('${mat.material_id}', '')" style="padding:16px; margin-bottom:12px; background:var(--bg-glass);">
                 <div class="lesson-icon ${isCompleted ? 'completed' : ''}">
-                  ${isCompleted ? ICONS.check : (mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file)}
+                  ${isCompleted ? ICONS.check : (mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file)}
                 </div>
                 <div class="lesson-info">
                   <div class="lesson-title" style="font-size:1.1rem; margin-bottom:4px;">${mat.title}</div>
-                  <div class="lesson-meta">${mat.type === 'quiz' ? 'اختبار' : 'محتوى'}</div>
+                  <div class="lesson-meta">${mat.type === 'quiz' ? 'اختبار' : (mat.type === 'link' || mat.type === 'external') ? 'شرائح عرض / رابط خارجي' : 'محتوى'}</div>
                 </div>
                 ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
               </div>
