@@ -101,9 +101,10 @@ async function renderProfile() {
 // Name cannot be updated by student directly anymore
 
 async function updateUsername() {
-  const newUsername = $('profileUsername').value.trim();
+  const newUsername = $('profileUsername')?.value?.trim();
   if (!newUsername) return showToast('يرجى إدخال اسم المستخدم', 'error');
   if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) return showToast('اسم المستخدم يجب أن يحتوي على حروف إنجليزية وأرقام فقط', 'error');
+  if (newUsername === state.user.username) return showToast('اسم المستخدم مطابق للاسم الحالي', 'info');
   
   showLoading();
   try {
@@ -111,23 +112,23 @@ async function updateUsername() {
       username: state.user.username,
       new_username: newUsername
     });
-    if (res.success) {
+    if (res && res.success) {
       state.user.username = newUsername;
       localStorage.setItem('iqt_user', JSON.stringify(state.user));
-      showToast('تم تحديث اسم المستخدم بنجاح');
+      showToast('تم تحديث اسم المستخدم بنجاح في شيت جوجل!');
     } else {
-      showToast(res.message || 'اسم المستخدم مستخدم بالفعل', 'error');
+      showToast(res?.message || 'اسم المستخدم مستخدم بالفعل', 'error');
     }
   } catch(e) {
-    showToast('حدث خطأ', 'error');
+    showToast('حدث خطأ أثناء الاتصال بالخادم', 'error');
   }
   hideLoading();
 }
 
 async function updatePassword() {
-  const newPassword = $('profilePassword').value.trim();
-  if (!newPassword) return showToast('يرجى إدخال كلمة المرور', 'error');
-  if (newPassword.length < 6) return showToast('كلمة المرور يجب أن تكون 6 أحرف على الأقل', 'error');
+  const newPassword = $('profilePassword')?.value?.trim();
+  if (!newPassword) return showToast('يرجى إدخال كلمة المرور الجديدة', 'error');
+  if (newPassword.length < 4) return showToast('كلمة المرور يجب أن تكون 4 أحرف أو أرقام على الأقل', 'error');
 
   showLoading();
   try {
@@ -135,14 +136,14 @@ async function updatePassword() {
       username: state.user.username,
       password: newPassword
     });
-    if (res.success) {
-      showToast('تم تحديث كلمة المرور بنجاح');
-      $('profilePassword').value = '';
+    if (res && res.success) {
+      showToast('تم تحديث كلمة المرور بنجاح في شيت جوجل!');
+      if ($('profilePassword')) $('profilePassword').value = '';
     } else {
-      showToast(res.message || 'فشل التحديث', 'error');
+      showToast(res?.message || 'فشل تحديث كلمة المرور', 'error');
     }
   } catch(e) {
-    showToast('حدث خطأ', 'error');
+    showToast('حدث خطأ أثناء الاتصال بالخادم', 'error');
   }
   hideLoading();
 }

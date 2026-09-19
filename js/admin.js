@@ -474,8 +474,13 @@ async function renderAdminUsers(container) {
   if (MOCK_MODE) {
     users = [{ name: 'طالب تجريبي', username: 'student', role: 'student' }];
   } else {
-    const res = await API.get('getAllStudents');
-    if (res.success) users = res.students || [];
+    const res = await API.get('getAllUsers');
+    if (res && res.success && Array.isArray(res.users)) {
+      users = res.users;
+    } else {
+      const fallback = await API.get('getAllStudents');
+      if (fallback && fallback.success) users = fallback.students || [];
+    }
   }
 
   // Determine what they can see based on role
@@ -488,10 +493,17 @@ async function renderAdminUsers(container) {
   // Show stats card for everyone with access to this tab
   const studentCount = users.filter(u => u.role === 'student').length;
   html += `
-    <div class="glass text-center" style="padding: 24px; margin-bottom: 24px;">
-      <h3 style="margin-bottom: 12px; font-size: 1.1rem; color: var(--text-muted);">إحصائيات الطلاب</h3>
-      <div style="font-size: 2.5rem; font-weight: 800; color: var(--primary);">${studentCount}</div>
-      <div style="color: var(--text-muted); font-size: 0.9rem;">إجمالي عدد الطلاب المسجلين</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
+      <div class="glass text-center" style="padding: 20px;">
+        <h3 style="margin-bottom: 8px; font-size: 1rem; color: var(--text-muted);">إجمالي المستخدمين</h3>
+        <div style="font-size: 2.2rem; font-weight: 800; color: var(--primary);">${users.length}</div>
+        <div style="color: var(--text-muted); font-size: 0.85rem;">جميع الحسابات المسجلة</div>
+      </div>
+      <div class="glass text-center" style="padding: 20px;">
+        <h3 style="margin-bottom: 8px; font-size: 1rem; color: var(--text-muted);">إحصائيات الطلاب</h3>
+        <div style="font-size: 2.2rem; font-weight: 800; color: #10b981;">${studentCount}</div>
+        <div style="color: var(--text-muted); font-size: 0.85rem;">إجمالي عدد الطلاب</div>
+      </div>
     </div>
   `;
 
@@ -508,7 +520,7 @@ async function renderAdminUsers(container) {
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:12px;">
           <input type="text" id="newUserName" placeholder="الاسم الظاهر" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px;">
           <input type="text" id="newUserFull" placeholder="الاسم بالكامل" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px;">
-          <input type="text" id="newUserUsername" placeholder="اسم المستخدم" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px; direction:ltr;" pattern="[a-zA-Z0-9_]+">
+          <input type="text" id="newUserUsername" placeholder="اسم المستخدم (إنجليزي)" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px; direction:ltr;" pattern="[a-zA-Z0-9_]+">
           <input type="password" id="newUserPassword" placeholder="كلمة المرور" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px;">
           <select id="newUserRole" class="w-full" style="padding:8px 12px; border:2px solid var(--border); border-radius:8px;">
             <option value="student">طالب</option>
@@ -526,20 +538,31 @@ async function renderAdminUsers(container) {
   html += `<div id="studentsList">`;
   
   users.forEach(s => {
+    const isCurrentUser = s.username === state.user.username;
     html += `
-      <div class="glass student-card flex justify-between items-center" style="margin-bottom:12px;">
+      <div class="glass student-card flex justify-between items-center" style="margin-bottom:12px; padding:16px;">
         <div class="student-info flex items-center gap-4">
           <div class="avatar" style="width:40px; height:40px; font-size:1.2rem;">
-             ${s.avatar ? `<img src="${s.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : s.name.charAt(0).toUpperCase()}
+             ${s.avatar ? `<img src="${s.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : (s.name ? s.name.charAt(0).toUpperCase() : '؟')}
           </div>
           <div>
-            <h3 style="margin:0;">${s.name} ${s.full_name ? `<span style="font-size:0.8rem;color:var(--text-muted);font-weight:normal;">(${s.full_name})</span>` : ''}</h3>
-            <p style="margin:0; font-size:0.85rem; color:var(--text-muted);">@${s.username}</p>
+            <h3 style="margin:0; font-size:1.05rem;">${s.name || 'بدون اسم'} ${s.full_name ? `<span style="font-size:0.8rem;color:var(--text-muted);font-weight:normal;">(${s.full_name})</span>` : ''}</h3>
+            <p style="margin:0; font-size:0.85rem; color:var(--text-muted); direction:ltr; text-align:right;">@${s.username}</p>
           </div>
         </div>
-        <div style="display:flex; align-items:center; gap: 12px;">
+        <div style="display:flex; align-items:center; gap: 8px; flex-wrap:wrap;">
           ${getRoleBadgeSVG(s.role)}
           ${s.role === 'student' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size:0.85rem;" onclick="viewStudentDetails('${s.username}')">عرض السجل</button>` : ''}
+          ${isAdmin ? `
+            <button class="btn btn-secondary" style="padding: 6px 10px; font-size:0.82rem;" onclick="adminPromptResetPassword('${s.username}', '${s.name || s.username}')" title="تعديل كلمة المرور">
+              كلمة المرور
+            </button>
+          ` : ''}
+          ${isAdmin && !isCurrentUser ? `
+            <button class="btn btn-secondary" style="padding: 6px 10px; font-size:0.82rem; color:var(--danger); border-color:rgba(239,68,68,0.3);" onclick="adminPromptDeleteUser('${s.username}', '${s.name || s.username}')" title="حذف المستخدم">
+              حذف
+            </button>
+          ` : ''}
         </div>
       </div>
     `;
@@ -549,26 +572,70 @@ async function renderAdminUsers(container) {
 }
 
 async function adminAddUser() {
-  const name = $('newUserName').value.trim();
-  const full_name = $('newUserFull').value.trim();
-  const username = $('newUserUsername').value.trim();
-  const password = $('newUserPassword').value;
-  const role = $('newUserRole').value;
+  const name = $('newUserName')?.value?.trim();
+  const full_name = $('newUserFull')?.value?.trim() || '';
+  const username = $('newUserUsername')?.value?.trim();
+  const password = $('newUserPassword')?.value;
+  const role = $('newUserRole')?.value || 'student';
 
-  if (!name || !username || !password) return showToast('يرجى ملء الحقول الأساسية', 'error');
+  if (!name || !username || !password) return showToast('يرجى ملء الحقول الأساسية (الاسم، اسم المستخدم، كلمة المرور)', 'error');
   if (!/^[a-zA-Z0-9_]+$/.test(username)) return showToast('اسم المستخدم: حروف وأرقام إنجليزية فقط', 'error');
 
   showLoading();
   try {
     const res = await API.post('addUser', { name, full_name, username, password, role });
-    if (res.success) {
-      showToast('تمت إضافة المستخدم بنجاح');
+    if (res && res.success) {
+      showToast('تمت إضافة المستخدم بنجاح في النظام وشيت جوجل');
+      if ($('newUserName')) $('newUserName').value = '';
+      if ($('newUserFull')) $('newUserFull').value = '';
+      if ($('newUserUsername')) $('newUserUsername').value = '';
+      if ($('newUserPassword')) $('newUserPassword').value = '';
       await refreshAndRenderAdmin();
     } else {
-      showToast(res.message || 'فشل إضافة المستخدم', 'error');
+      showToast(res?.message || 'فشل إضافة المستخدم', 'error');
     }
   } catch(e) {
-    showToast('حدث خطأ', 'error');
+    showToast('حدث خطأ أثناء الاتصال بالخادم', 'error');
+  }
+  hideLoading();
+}
+
+async function adminPromptResetPassword(username, displayName) {
+  const newPass = prompt(`أدخل كلمة المرور الجديدة للمستخدم (${displayName} - @${username}):`);
+  if (!newPass || !newPass.trim()) return;
+  if (newPass.trim().length < 4) return showToast('كلمة المرور يجب ألا تقل عن 4 خانات', 'error');
+
+  showLoading();
+  try {
+    const res = await API.post('updateUser', {
+      username: username,
+      password: newPass.trim()
+    });
+    if (res && res.success) {
+      showToast(`تم تغيير كلمة المرور للمستخدم @${username} بنجاح في شيت جوجل`);
+    } else {
+      showToast(res?.message || 'فشل تحديث كلمة المرور', 'error');
+    }
+  } catch(e) {
+    showToast('حدث خطأ أثناء تحديث كلمة المرور', 'error');
+  }
+  hideLoading();
+}
+
+async function adminPromptDeleteUser(username, displayName) {
+  if (!confirm(`هل أنت متأكد من رغبتك في حذف المستخدم (${displayName} - @${username})؟`)) return;
+
+  showLoading();
+  try {
+    const res = await API.post('deleteUser', { username });
+    if (res && res.success) {
+      showToast(`تم حذف المستخدم @${username} بنجاح`);
+      await refreshAndRenderAdmin();
+    } else {
+      showToast(res?.message || 'فشل حذف المستخدم من الخادم', 'error');
+    }
+  } catch(e) {
+    showToast('حدث خطأ أثناء حذف المستخدم', 'error');
   }
   hideLoading();
 }

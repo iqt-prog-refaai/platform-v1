@@ -106,6 +106,9 @@ function doPost(e) {
       case 'updateUser':
         result = updateUser(data);
         break;
+      case 'deleteUser':
+        result = deleteUser(data);
+        break;
     }
   } catch(err) {
     result = { success: false, message: err.toString() };
@@ -203,7 +206,45 @@ function updateUser(data) {
       if (data.role) sheet.getRange(i + 1, 4).setValue(data.role);
       if (data.full_name !== undefined) sheet.getRange(i + 1, 5).setValue(data.full_name);
       if (data.avatar !== undefined) sheet.getRange(i + 1, 6).setValue(data.avatar);
+
+      // If username changed, cascade update to student_progress & quiz_attempts
+      if (data.new_username && data.new_username !== data.username) {
+        try {
+          const progSheet = getSheet('student_progress');
+          const progData = progSheet.getDataRange().getValues();
+          for (let p = 1; p < progData.length; p++) {
+            if (String(progData[p][0]) === String(data.username)) {
+              progSheet.getRange(p + 1, 1).setValue(data.new_username);
+            }
+          }
+        } catch(e) {}
+        try {
+          const attSheet = getSheet('quiz_attempts');
+          const attData = attSheet.getDataRange().getValues();
+          for (let a = 1; a < attData.length; a++) {
+            if (String(attData[a][1]) === String(data.username)) {
+              attSheet.getRange(a + 1, 2).setValue(data.new_username);
+            }
+          }
+        } catch(e) {}
+      }
+
       return { success: true, new_username: data.new_username || data.username };
+    }
+  }
+  return { success: false, message: 'User not found' };
+}
+
+function deleteUser(data) {
+  const sheet = getSheet('credits');
+  const allData = sheet.getDataRange().getValues();
+  const targetUsername = String(data.username || data.id || '');
+  if (!targetUsername) return { success: false, message: 'Username is required' };
+
+  for (let i = allData.length - 1; i > 0; i--) {
+    if (String(allData[i][1]) === targetUsername) {
+      sheet.deleteRow(i + 1);
+      return { success: true };
     }
   }
   return { success: false, message: 'User not found' };
@@ -477,6 +518,8 @@ function deleteItem(data) {
     deleteRowsByCol('questions', 0, 1, id);
   } else if (type === 'question') {
     deleteRowsByCol('questions', 0, 0, id);
+  } else if (type === 'user') {
+    deleteRowsByCol('credits', 1, 1, id); // username is col 1
   }
 
   return { success: true };
