@@ -420,18 +420,19 @@ async function submitUnit() {
 async function submitLesson() {
   const unitId = $('lessonUnitId')?.value || '';
   let num = $('lessonNumber')?.value;
-  const name = $('lessonName')?.value.trim();
+  const name = $('lessonName')?.value?.trim();
   if (!name) { showToast('يرجى كتابة اسم الدرس', 'error'); return; }
 
-  if (!num) {
-    const existing = state.lessons[unitId] || [];
-    num = existing.length + 1;
-  }
+  const parsedNum = parseInt(num, 10) || ((state.lessons[unitId] || []).length + 1);
 
   showLoading();
   try {
     if (!MOCK_MODE) {
-      const res = await API.post('addLesson', { unit_id: unitId, lesson_number: parseInt(num), lesson_name: name });
+      const res = await API.post('addLesson', { 
+        unit_id: unitId, 
+        lesson_number: parsedNum, 
+        lesson_name: name 
+      });
       if (!res || !res.success) {
         showToast('خطأ: ' + (res?.message || 'فشل في إضافة الدرس'), 'error');
         return;
@@ -450,8 +451,8 @@ async function submitLesson() {
 
 async function submitMaterial() {
   const lessonId = $('materialLessonIdSelect')?.value || $('materialLessonId')?.value || '';
-  const title = $('materialTitle').value.trim();
-  const type = $('materialType').value;
+  const title = $('materialTitle')?.value?.trim() || '';
+  const type = $('materialType')?.value || 'link';
   const rawContent = $('materialLinkInput')?.value?.trim() || '';
 
   if (!title) { showToast('يرجى كتابة عنوان المحتوى', 'error'); return; }
@@ -463,7 +464,12 @@ async function submitMaterial() {
   showLoading();
   try {
     if (!MOCK_MODE) {
-      const res = await API.post('addMaterial', { lesson_id: lessonId, title, type, content: rawContent });
+      const res = await API.post('addMaterial', { 
+        lesson_id: lessonId, 
+        title, 
+        type, 
+        content: rawContent 
+      });
       if (!res || !res.success) {
         showToast('خطأ: ' + (res?.message || 'فشل في إضافة المحتوى'), 'error');
         return;
