@@ -430,9 +430,10 @@ function deleteRowsByCol(sheetName, idColIndex, parentIdColIndex, parentId) {
   const sheet = getSheet(sheetName);
   const data = sheet.getDataRange().getValues();
   const deletedIds = [];
+  const targetParent = String(parentId != null ? parentId : '');
   // Delete from bottom to top to avoid shifting indices
   for (let i = data.length - 1; i > 0; i--) {
-    if (data[i][parentIdColIndex] === parentId) {
+    if (String(data[i][parentIdColIndex] != null ? data[i][parentIdColIndex] : '') === targetParent) {
       deletedIds.push(data[i][idColIndex]);
       sheet.deleteRow(i + 1);
     }
@@ -442,7 +443,7 @@ function deleteRowsByCol(sheetName, idColIndex, parentIdColIndex, parentId) {
 
 function deleteItem(data) {
   const type = data.itemType; // 'unit', 'lesson', 'material', 'quiz', 'question'
-  const id = data.id;
+  const id = String(data.id != null ? data.id : '');
 
   if (type === 'unit') {
     deleteRowsByCol('units', 0, 0, id); // delete unit itself
@@ -483,7 +484,7 @@ function deleteItem(data) {
 
 function editItem(data) {
   const type = data.itemType;
-  const id = data.id;
+  const id = String(data.id != null ? data.id : '');
   const updates = data.updates; // object: { colIndex: newValue }
 
   let sheetName = '';
@@ -497,7 +498,7 @@ function editItem(data) {
   const sheet = getSheet(sheetName);
   const sheetData = sheet.getDataRange().getValues();
   for (let i = 1; i < sheetData.length; i++) {
-    if (sheetData[i][0] === id) {
+    if (String(sheetData[i][0] != null ? sheetData[i][0] : '') === id) {
       for (const [col, val] of Object.entries(updates)) {
         sheet.getRange(i + 1, parseInt(col) + 1).setValue(val);
       }

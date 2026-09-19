@@ -68,13 +68,19 @@ async function loadStudentData() {
         : Promise.resolve({ success: false })
     ]);
 
-    if (unitsRes.success)    state.units    = unitsRes.units;
+    if (unitsRes.success) {
+      state.units = (unitsRes.units || []).map(u => ({ ...u, unit_id: String(u.unit_id) }));
+    }
     if (progressRes.success) state.progress = progressRes.progress;
 
     // Load all materials once to cover standalone materials, unit-materials, and lesson-materials
     const allMaterialsRes = await API.get('getAllMaterials');
     if (allMaterialsRes.success) {
-      state.allMaterials = allMaterialsRes.materials;
+      state.allMaterials = (allMaterialsRes.materials || []).map(m => ({
+        ...m,
+        material_id: String(m.material_id != null ? m.material_id : ''),
+        lesson_id: String(m.lesson_id != null ? m.lesson_id : '')
+      }));
     } else {
       state.allMaterials = [];
     }
@@ -89,29 +95,40 @@ async function loadStudentData() {
     
     lessonResults.forEach((res, i) => {
       if (res.success) {
+        const normalizedLessons = (res.lessons || []).map(l => ({
+          ...l,
+          lesson_id: String(l.lesson_id != null ? l.lesson_id : ''),
+          unit_id: String(l.unit_id != null ? l.unit_id : '')
+        }));
         if (i < state.units.length) {
-          state.lessons[state.units[i].unit_id] = res.lessons;
+          state.lessons[state.units[i].unit_id] = normalizedLessons;
         } else {
-          state.lessons[''] = res.lessons; // standalone lessons
+          state.lessons[''] = normalizedLessons; // standalone lessons
         }
       }
     });
 
     // Populate materials grouped by lesson_id
-    state.materials = {};
-    state.allMaterials.forEach(m => {
-      const lid = m.lesson_id || '';
-      if (!state.materials[lid]) state.materials[lid] = [];
-      state.materials[lid].push(m);
-    });
-
-    // Sort materials within each lesson_id by order_index
-    for (const lid in state.materials) {
-      state.materials[lid].sort((a,b) => a.order_index - b.order_index);
-    }
+    groupMaterials();
 
   } catch(err) {
     console.error('خطأ في تحميل البيانات:', err);
+  }
+}
+
+function groupMaterials() {
+  state.materials = {};
+  (state.allMaterials || []).forEach(m => {
+    m.material_id = String(m.material_id != null ? m.material_id : '');
+    m.lesson_id = String(m.lesson_id != null ? m.lesson_id : '');
+    const lid = m.lesson_id;
+    if (!state.materials[lid]) state.materials[lid] = [];
+    state.materials[lid].push(m);
+  });
+
+  // Sort materials within each lesson_id by order_index
+  for (const lid in state.materials) {
+    state.materials[lid].sort((a,b) => (a.order_index || 0) - (b.order_index || 0));
   }
 }
 

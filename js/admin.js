@@ -100,90 +100,164 @@ async function renderAdminContent(container) {
 
   if (!MOCK_MODE) {
     const res = await API.get('getAllMaterials');
-    if (res.success) state.allMaterials = res.materials;
+    if (res.success) {
+      state.allMaterials = (res.materials || []).map(m => ({
+        ...m,
+        material_id: String(m.material_id != null ? m.material_id : ''),
+        lesson_id: String(m.lesson_id != null ? m.lesson_id : '')
+      }));
+      if (typeof groupMaterials === 'function') groupMaterials();
+    }
   }
 
   container.innerHTML = `
     <div class="flex justify-between items-center" style="margin-bottom: 24px;">
       <h2 style="font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة المحتوى</h2>
-      <button class="btn btn-primary" onclick="showModal('addUnit')">${ICONS.plus} إضافة وحدة</button>
+      <div class="flex gap-2">
+        <button class="btn btn-secondary" onclick="showModal('addUnit')">${ICONS.plus} إضافة وحدة</button>
+        <button class="btn btn-secondary" onclick="showModal('addLesson')">${ICONS.plus} إضافة درس</button>
+        <button class="btn btn-primary" onclick="showModal('addMaterial')">${ICONS.plus} إضافة محتوى</button>
+      </div>
     </div>
 
     <div style="margin-bottom: 32px;">
-      <h3 style="margin-bottom: 16px; color: var(--text-muted);">المحتوى</h3>
+      <h3 style="margin-bottom: 16px; color: var(--text-muted);">الوحدات والدروس</h3>
       ${state.units.map(unit => `
-        <div class="glass" style="padding: 20px; margin-bottom: 12px; border-right: 4px solid var(--primary);">
-          <div class="flex justify-between items-center">
+        <div class="glass" style="padding: 20px; margin-bottom: 16px; border-right: 4px solid var(--primary);">
+          <div class="flex justify-between items-center" style="border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 12px;">
             <div>
               <span class="unit-number">الوحدة ${unit.unit_number}</span>
               <h4 style="margin-top: 4px;">${unit.unit_name}</h4>
             </div>
             <div class="flex gap-2">
-              <button class="btn btn-secondary" style="padding: 8px;" onclick='showModal("editUnit", ${JSON.stringify(unit).replace(/'/g, "&#39;")})' title="تعديل الوحدة">${ICONS.edit}</button>
-              <button class="btn btn-secondary" style="padding: 8px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'unit', id: '${unit.unit_id}', name: '${unit.unit_name}'})" title="حذف الوحدة">${ICONS.trash}</button>
-              <button class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;"
-                onclick="showModal('addLesson', '${unit.unit_id}')">
-                ${ICONS.plus} درس
-              </button>
+              <button class="btn btn-secondary" style="padding: 6px 10px;" onclick='showModal("editUnit", ${JSON.stringify(unit).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+              <button class="btn btn-secondary" style="padding: 6px 10px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'unit', id: '${unit.unit_id}', name: '${unit.unit_name}'})" title="حذف">${ICONS.trash}</button>
+              <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.85rem;" onclick="showModal('addLesson', '${unit.unit_id}')">${ICONS.plus} درس</button>
+              <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="showModal('addMaterial', 'unit_${unit.unit_id}')">${ICONS.plus} محتوى بالوحدة</button>
             </div>
           </div>
-          <div style="margin-top: 16px; padding-right: 16px;">
+
+          <div style="margin-top: 16px; padding-right: 12px;">
+            <!-- Unit-direct materials -->
             ${(state.materials[`unit_${unit.unit_id}`] || []).map(mat => `
-              <div class="flex justify-between items-center" style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.04); background: rgba(99,102,241,0.02); border-right: 2px solid var(--primary);">
-                <span>محتوى مستقل في الوحدة: ${mat.title}</span>
+              <div class="flex justify-between items-center" style="padding: 8px 12px; margin-bottom: 8px; border-radius: 8px; background: rgba(99,102,241,0.04); border-right: 3px solid var(--primary);">
+                <div class="flex items-center gap-2">
+                  <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file}</span>
+                  <span style="font-weight: 500;">${mat.title}</span>
+                  <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 4px;">محتوى بالوحدة (${mat.type})</span>
+                </div>
                 <div class="flex gap-2">
-                  <button class="btn btn-secondary" style="padding: 6px;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
-                  <button class="btn btn-secondary" style="padding: 6px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
+                  <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+                  <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
                 </div>
               </div>
             `).join('')}
-            ${(state.lessons[unit.unit_id] || []).map(lesson => `
-              <div class="flex justify-between items-center" style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.04);">
-                <span>الدرس ${lesson.lesson_number}: ${lesson.lesson_name}</span>
-                <div class="flex gap-2">
-                  <button class="btn btn-secondary" style="padding: 6px;" onclick='showModal("editLesson", ${JSON.stringify(lesson).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
-                  <button class="btn btn-secondary" style="padding: 6px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'lesson', id: '${lesson.lesson_id}', name: '${lesson.lesson_name}'})" title="حذف">${ICONS.trash}</button>
-                  <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;"
-                    onclick="showModal('addMaterial', '${lesson.lesson_id}')">
-                    ${ICONS.plus} محتوى
-                  </button>
+
+            <!-- Lessons in unit -->
+            ${(state.lessons[unit.unit_id] || []).map(lesson => {
+              const lessonMats = state.materials[String(lesson.lesson_id)] || [];
+              return `
+                <div style="margin-bottom: 12px; background: rgba(0,0,0,0.015); border: 1px solid rgba(0,0,0,0.05); border-radius: 10px; padding: 12px;">
+                  <div class="flex justify-between items-center">
+                    <span style="font-weight: 700; font-size: 0.95rem;">الدرس ${lesson.lesson_number}: ${lesson.lesson_name}</span>
+                    <div class="flex gap-2">
+                      <button class="btn btn-secondary" style="padding: 4px 8px;" onclick='showModal("editLesson", ${JSON.stringify(lesson).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+                      <button class="btn btn-secondary" style="padding: 4px 8px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'lesson', id: '${lesson.lesson_id}', name: '${lesson.lesson_name}'})" title="حذف">${ICONS.trash}</button>
+                      <button class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.8rem;"
+                        onclick="showModal('addMaterial', '${lesson.lesson_id}')">
+                        ${ICONS.plus} محتوى
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Materials list inside lesson -->
+                  <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; padding-right: 12px; border-right: 2px solid rgba(0,0,0,0.08);">
+                    ${lessonMats.map(mat => `
+                      <div class="flex justify-between items-center" style="padding: 6px 10px; background: var(--bg-card, #fff); border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; font-size: 0.88rem;">
+                        <div class="flex items-center gap-2">
+                          <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file}</span>
+                          <span>${mat.title}</span>
+                          <span style="font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">${mat.type === 'quiz' ? 'اختبار' : mat.type === 'video' ? 'فيديو' : mat.type === 'pdf' ? 'PDF' : mat.type}</span>
+                        </div>
+                        <div class="flex gap-2">
+                          <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+                          <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
+                        </div>
+                      </div>
+                    `).join('')}
+                    ${!lessonMats.length ? `
+                      <div style="font-size: 0.8rem; color: var(--text-muted); padding: 4px 0;">لا يوجد محتوى في هذا الدرس بعد</div>
+                    ` : ''}
+                  </div>
                 </div>
-              </div>
-            `).join('')}
+              `;
+            }).join('')}
+            ${!(state.lessons[unit.unit_id] || []).length && !(state.materials[`unit_${unit.unit_id}`] || []).length ? `
+              <p style="color: var(--text-muted); font-size: 0.85rem;">لا توجد دروس في هذه الوحدة بعد.</p>
+            ` : ''}
           </div>
         </div>
       `).join('')}
 
       <!-- Standalone lessons (no unit) -->
       ${(state.lessons[''] || []).length ? `
-        <div class="glass" style="padding: 20px; margin-bottom: 12px; border-right: 4px solid var(--secondary);">
-          <h4 style="margin-bottom: 12px; color: var(--text-muted);">دروس مستقلة</h4>
-          ${(state.lessons[''] || []).map(lesson => `
-            <div class="flex justify-between items-center" style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.04);">
-              <span>الدرس ${lesson.lesson_number}: ${lesson.lesson_name}</span>
-              <div class="flex gap-2">
-                <button class="btn btn-secondary" style="padding: 6px;" onclick='showModal("editLesson", ${JSON.stringify(lesson).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
-                <button class="btn btn-secondary" style="padding: 6px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'lesson', id: '${lesson.lesson_id}', name: '${lesson.lesson_name}'})" title="حذف">${ICONS.trash}</button>
-                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;"
-                  onclick="showModal('addMaterial', '${lesson.lesson_id}')">
-                  ${ICONS.plus} محتوى
-                </button>
+        <div class="glass" style="padding: 20px; margin-bottom: 16px; border-right: 4px solid var(--secondary);">
+          <h4 style="margin-bottom: 14px; color: var(--text-muted);">دروس مستقلة (خارج الوحدات)</h4>
+          ${(state.lessons[''] || []).map(lesson => {
+            const lessonMats = state.materials[String(lesson.lesson_id)] || [];
+            return `
+              <div style="margin-bottom: 12px; background: rgba(0,0,0,0.015); border: 1px solid rgba(0,0,0,0.05); border-radius: 10px; padding: 12px;">
+                <div class="flex justify-between items-center">
+                  <span style="font-weight: 700; font-size: 0.95rem;">الدرس ${lesson.lesson_number}: ${lesson.lesson_name}</span>
+                  <div class="flex gap-2">
+                    <button class="btn btn-secondary" style="padding: 4px 8px;" onclick='showModal("editLesson", ${JSON.stringify(lesson).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+                    <button class="btn btn-secondary" style="padding: 4px 8px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'lesson', id: '${lesson.lesson_id}', name: '${lesson.lesson_name}'})" title="حذف">${ICONS.trash}</button>
+                    <button class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.8rem;"
+                      onclick="showModal('addMaterial', '${lesson.lesson_id}')">
+                      ${ICONS.plus} محتوى
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Materials list inside standalone lesson -->
+                <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; padding-right: 12px; border-right: 2px solid rgba(0,0,0,0.08);">
+                  ${lessonMats.map(mat => `
+                    <div class="flex justify-between items-center" style="padding: 6px 10px; background: var(--bg-card, #fff); border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; font-size: 0.88rem;">
+                      <div class="flex items-center gap-2">
+                        <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file}</span>
+                        <span>${mat.title}</span>
+                        <span style="font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">${mat.type === 'quiz' ? 'اختبار' : mat.type === 'video' ? 'فيديو' : mat.type === 'pdf' ? 'PDF' : mat.type}</span>
+                      </div>
+                      <div class="flex gap-2">
+                        <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+                        <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
+                      </div>
+                    </div>
+                  `).join('')}
+                  ${!lessonMats.length ? `
+                    <div style="font-size: 0.8rem; color: var(--text-muted); padding: 4px 0;">لا يوجد محتوى في هذا الدرس بعد</div>
+                  ` : ''}
+                </div>
               </div>
-            </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       ` : ''}
 
       <!-- Standalone materials (no unit and no lesson) -->
       ${(state.materials[''] || []).length ? `
-        <div class="glass" style="padding: 20px; margin-bottom: 12px; border-right: 4px solid #8b5cf6;">
-          <h4 style="margin-bottom: 12px; color: var(--text-muted);">محتوى مستقل تماماً</h4>
+        <div class="glass" style="padding: 20px; margin-bottom: 16px; border-right: 4px solid #8b5cf6;">
+          <h4 style="margin-bottom: 14px; color: var(--text-muted);">محتويات مستقلة تماماً (خارج الدروس والوحدات)</h4>
           ${(state.materials[''] || []).map(mat => `
-            <div class="flex justify-between items-center" style="padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.04);">
-              <span>${mat.title} <span style="font-size: 0.8rem; color: var(--text-muted);">(${mat.type})</span></span>
+            <div class="flex justify-between items-center" style="padding: 10px 12px; margin-bottom: 6px; border-radius: 8px; background: rgba(139,92,246,0.04); border-right: 3px solid #8b5cf6;">
+              <div class="flex items-center gap-2">
+                <span style="color: #8b5cf6;">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file}</span>
+                <span style="font-weight: 500;">${mat.title}</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 4px;">(${mat.type})</span>
+              </div>
               <div class="flex gap-2">
-                <button class="btn btn-secondary" style="padding: 6px;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
-                <button class="btn btn-secondary" style="padding: 6px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
+                <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
+                <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
               </div>
             </div>
           `).join('')}
@@ -244,18 +318,19 @@ async function renderAdminQuizzes(container) {
       
       // Find the unit and lesson this material belongs to
       if (mat.lesson_id) {
-        if (mat.lesson_id.startsWith('unit_')) {
-          const unitId = mat.lesson_id.replace('unit_', '');
-          unit = state.units.find(u => u.unit_id === unitId);
+        const lidStr = String(mat.lesson_id);
+        if (lidStr.startsWith('unit_')) {
+          const unitId = lidStr.replace('unit_', '');
+          unit = state.units.find(u => String(u.unit_id) === unitId);
         } else {
           for (const u of state.units) {
             if (state.lessons[u.unit_id]) {
-              lesson = state.lessons[u.unit_id].find(l => l.lesson_id === mat.lesson_id);
+              lesson = state.lessons[u.unit_id].find(l => String(l.lesson_id) === lidStr);
               if (lesson) { unit = u; break; }
             }
           }
           if (!lesson && state.lessons['']) {
-            lesson = state.lessons[''].find(l => l.lesson_id === mat.lesson_id);
+            lesson = state.lessons[''].find(l => String(l.lesson_id) === lidStr);
           }
         }
       }
@@ -266,13 +341,13 @@ async function renderAdminQuizzes(container) {
 
   // Load all quiz records in parallel (only for those not yet cached)
   if (!MOCK_MODE) {
-    const uncached = quizMaterials.filter(({ mat }) => !state.quizzes[mat.material_id]);
+    const uncached = quizMaterials.filter(({ mat }) => !state.quizzes[String(mat.material_id)]);
     const results = await Promise.all(
-      uncached.map(({ mat }) => API.get('getQuizzes', { materialId: mat.material_id }))
+      uncached.map(({ mat }) => API.get('getQuizzes', { materialId: String(mat.material_id) }))
     );
     results.forEach((res, i) => {
-      if (res.success && res.quizzes.length) {
-        state.quizzes[uncached[i].mat.material_id] = res.quizzes[0];
+      if (res.success && res.quizzes && res.quizzes.length) {
+        state.quizzes[String(uncached[i].mat.material_id)] = res.quizzes[0];
       }
     });
   }
@@ -281,7 +356,7 @@ async function renderAdminQuizzes(container) {
   let html = '';
 
   for (const { mat, unit, lesson } of quizMaterials) {
-    const quiz = state.quizzes[mat.material_id];
+    const quiz = state.quizzes[String(mat.material_id)];
     let settings = {};
     if (mat.content) {
       try { settings = JSON.parse(mat.content); } catch(e) {}
