@@ -65,11 +65,13 @@ const API = {
       }
     }
 
-    // 2. Direct fetch fallback (if proxy is down or returns non-JSON 502/504)
+    // 2. Direct fetch fallback (if proxy is down or not present, e.g. standalone browser/GitHub Pages)
     try {
       const res = await fetch(CONFIG.API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        // Note: Using text/plain prevents the browser from sending a CORS preflight (OPTIONS) request,
+        // which Google Apps Script web apps do not handle. GAS still parses postData.contents as JSON.
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: payload
       });
       const text = await res.text();

@@ -46,6 +46,13 @@ async function handleLogin(e) {
       }
     } else {
       result = await API.get('login', { username, password });
+      // Client-side fallback if user typed uppercase "Admin" or password was capitalized by mobile keyboard
+      if ((!result || !result.success) && (username !== username.toLowerCase() || password !== password.toLowerCase())) {
+        const retryResult = await API.get('login', { username: username.toLowerCase(), password: password.toLowerCase() });
+        if (retryResult && retryResult.success) {
+          result = retryResult;
+        }
+      }
     }
 
     if (result && result.success) {
