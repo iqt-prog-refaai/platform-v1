@@ -1,47 +1,30 @@
 // ============================================
-// api.js — HTTP layer for Google Apps Script
-// Depends on: config.js (CONFIG)
+// api.js — Direct HTTP layer for Google Apps Script
+// Connects directly to CONFIG.API_URL with ZERO middleman or proxy
 // ============================================
 
 const API = {
+  /**
+   * Direct GET request to Google Apps Script Web App
+   */
   async get(action, params = {}) {
     params._t = Date.now(); // Cache buster
     const query = new URLSearchParams({ action, ...params }).toString();
     
     let result = null;
-
-    // 1. Try local proxy
-    if (CONFIG.API_URL && CONFIG.API_URL.startsWith('http')) {
-      try {
-        const proxyRes = await fetch(`/api/gas?${query}`, {
-          headers: { 'X-Target-GAS-URL': CONFIG.API_URL }
-        });
-        const text = await proxyRes.text();
-        try {
-          result = JSON.parse(text);
-        } catch (e) {
-          console.warn('[API.get] Proxy returned non-JSON, attempting direct fallback...');
-        }
-      } catch (err) {
-        console.warn('[API.get] Proxy fetch failed, attempting direct fallback...', err);
-      }
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?${query}`);
+      const text = await res.text();
+      result = JSON.parse(text);
+    } catch (e) {
+      console.error('[API.get] Error fetching from Google Apps Script:', e);
+      return { 
+        success: false, 
+        message: 'تعذر الاتصال بقاعدة بيانات جوجل. يرجى التحقق من اتصال الإنترنت.' 
+      };
     }
 
-    // 2. Direct fetch fallback
-    if (!result) {
-      try {
-        const res = await fetch(`${CONFIG.API_URL}?${query}`);
-        const text = await res.text();
-        result = JSON.parse(text);
-      } catch (e) {
-        return { 
-          success: false, 
-          message: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.' 
-        };
-      }
-    }
-
-    // Post-process responses for consistency across all environments (proxy and direct GAS)
+    // Process responses directly for account controls (frozen / deleted)
     if (result && result.success) {
       if (action === 'login' && result.user) {
         const r = String(result.user.role || '').toLowerCase();
@@ -85,81 +68,64 @@ const API = {
     return result;
   },
 
+  /**
+   * Direct POST request to Google Apps Script Web App
+   * Uses text/plain to avoid browser CORS preflight issues
+   */
   async post(action, data = {}) {
-    const payload = JSON.stringify({ action, ...data });
-    let result = null;
+    // Map account management actions directly to the deployed updateUser endpoint
+    // so no backend modification or redeployment is required!
+    let targetAction = action;
+    let targetPayload = { action, ...data };
 
-    // 1. Try local proxy first
-    if (CONFIG.API_URL && CONFIG.API_URL.startsWith('http')) {
-      try {
-        const proxyRes = await fetch('/api/gas', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json; charset=utf-8',
-            'X-Target-GAS-URL': CONFIG.API_URL
-          },
-          body: payload
-        });
-        const text = await proxyRes.text();
-        try {
-          result = JSON.parse(text);
-        } catch (e) {
-          console.warn('[API.post] Proxy returned non-JSON, falling back to direct request...');
-        }
-      } catch (err) {
-        console.warn('[API.post] Proxy network error, falling back to direct request...', err);
-      }
+    if (action === 'freezeUser') {
+      targetAction = 'updateUser';
+      targetPayload = {
+        action: 'updateUser',
+        username: data.username,
+        role: 'frozen:' + (data.originalRole || 'student')
+      };
+    } else if (action === 'unfreezeUser') {
+      targetAction = 'updateUser';
+      targetPayload = {
+        action: 'updateUser',
+        username: data.username,
+        role: data.role || 'student'
+      };
+    } else if (action === 'deleteUser') {
+      targetAction = 'updateUser';
+      targetPayload = {
+        action: 'updateUser',
+        username: data.username,
+        new_username: '__deleted_' + Date.now() + '_' + data.username,
+        role: 'deleted'
+      };
     }
 
-    // 2. Direct fetch fallback
-    if (!result) {
-      try {
-        const res = await fetch(CONFIG.API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: payload
-        });
-        const text = await res.text();
-        result = JSON.parse(text);
-      } catch (e) {
-        result = { 
-          success: false, 
-          message: 'تعذر إتمام العملية بسبب انقطاع مؤقت في الاتصال بقاعدة بيانات جوجل. يرجى إعادة المحاولة.' 
-        };
-      }
-    }
+    const payload = JSON.stringify(targetPayload);
 
-    // Smart fallback if direct GAS returned "Unknown action" for delete or freeze
-    if (result && !result.success && result.message === 'Unknown action') {
-      if (action === 'deleteUser') {
-        const fallbackRes = await API.post('updateUser', {
-          username: data.username,
-          new_username: '__deleted_' + Date.now() + '_' + data.username,
-          role: 'deleted'
-        });
-        if (fallbackRes && fallbackRes.success) {
-          return { success: true, message: 'تم حذف الحساب نهائياً بنجاح' };
-        }
-      } else if (action === 'freezeUser') {
-        const fallbackRes = await API.post('updateUser', {
-          username: data.username,
-          role: 'frozen:' + (data.originalRole || 'student')
-        });
-        if (fallbackRes && fallbackRes.success) {
-          return { success: true, message: 'تم تجميد الحساب بنجاح' };
-        }
-      } else if (action === 'unfreezeUser') {
-        const fallbackRes = await API.post('updateUser', {
-          username: data.username,
-          role: data.role || 'student'
-        });
-        if (fallbackRes && fallbackRes.success) {
-          return { success: true, message: 'تم إلغاء تجميد الحساب وتنشيطه بنجاح' };
-        }
-      }
-    }
+    try {
+      const res = await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: payload
+      });
+      const text = await res.text();
+      const result = JSON.parse(text);
 
-    return result;
+      // Enhance messages for mapped actions
+      if (result && result.success) {
+        if (action === 'freezeUser') result.message = 'تم تجميد الحساب بنجاح';
+        if (action === 'unfreezeUser') result.message = 'تم إلغاء تجميد الحساب وتنشيطه بنجاح';
+        if (action === 'deleteUser') result.message = 'تم حذف الحساب نهائياً بنجاح';
+      }
+      return result;
+    } catch (e) {
+      console.error('[API.post] Error communicating with Google Apps Script:', e);
+      return { 
+        success: false, 
+        message: 'تعذر إتمام العملية بسبب انقطاع في الاتصال بقاعدة بيانات جوجل.' 
+      };
+    }
   }
 };
-
