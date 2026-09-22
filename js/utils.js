@@ -8,6 +8,8 @@
 function $(id) { return document.getElementById(id); }
 
 function translateRole(role) {
+  if (!role) return 'طالب';
+  if (role === 'frozen' || role.startsWith('frozen')) return 'مجمد (منتهي الصلاحية)';
   if (role === 'admin') return 'مدير النظام';
   if (role === 'manager') return 'المدير';
   if (role === 'vip') return 'الأب الروحي';
@@ -22,10 +24,12 @@ function getRoleBadgeSVG(role) {
     'vip': { color: 'linear-gradient(135deg, #d97706, #78350f)', label: 'الأب الروحي', icon: '<path d="M2 22h20L19 6l-5 5-2-7-2 7-5-5L2 22z"/>' },
     'manager': { color: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', label: 'المدير', icon: '<circle cx="12" cy="8" r="5"/><path d="M3 21v-2a7 7 0 0 1 14 0v2"/>' },
     'guest': { color: 'linear-gradient(135deg, #8b5cf6, #5b21b6)', label: 'ضيف', icon: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>' },
-    'student': { color: 'linear-gradient(135deg, #10b981, #047857)', label: 'طالب', icon: '<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>' }
+    'student': { color: 'linear-gradient(135deg, #10b981, #047857)', label: 'طالب', icon: '<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>' },
+    'frozen': { color: 'linear-gradient(135deg, #f59e0b, #b45309)', label: 'مجمد (منتهي)', icon: '<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>' }
   };
   
-  const b = badgeMap[role] || badgeMap['student'];
+  const key = (role && (role === 'frozen' || role.startsWith('frozen'))) ? 'frozen' : (role || 'student');
+  const b = badgeMap[key] || badgeMap['student'];
   return `
     <div style="display:inline-flex; align-items:center; gap:6px; background:${b.color}; color:white; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1);">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${b.icon}</svg>

@@ -483,26 +483,39 @@ async function renderAdminUsers(container) {
     }
   }
 
+  // Cache users in state for client-side search & filtering
+  state.cachedAdminUsers = users;
+  state.adminUserFilterType = state.adminUserFilterType || 'all';
+
   // Determine what they can see based on role
   const isManager = state.user.role === 'manager';
   const isVIP = state.user.role === 'vip';
   const isAdmin = state.user.role === 'admin';
 
-  let html = `<h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة المستخدمين</h2>`;
+  let html = `<h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة الحسابات والمستخدمين</h2>`;
   
-  // Show stats card for everyone with access to this tab
-  const studentCount = users.filter(u => u.role === 'student').length;
+  // Calculate counts
+  const totalCount = users.length;
+  const frozenCount = users.filter(u => u.is_frozen || u.status === 'frozen' || String(u.role).startsWith('frozen')).length;
+  const studentCount = users.filter(u => (u.role === 'student' || u.originalRole === 'student') && !u.is_frozen && u.status !== 'frozen').length;
+  const staffCount = users.filter(u => ['admin', 'manager', 'vip'].includes(u.role)).length;
+
   html += `
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
       <div class="glass text-center" style="padding: 20px;">
-        <h3 style="margin-bottom: 8px; font-size: 1rem; color: var(--text-muted);">إجمالي المستخدمين</h3>
-        <div style="font-size: 2.2rem; font-weight: 800; color: var(--primary);">${users.length}</div>
+        <h3 style="margin-bottom: 8px; font-size: 0.95rem; color: var(--text-muted);">إجمالي المستخدمين</h3>
+        <div style="font-size: 2.2rem; font-weight: 800; color: var(--primary);">${totalCount}</div>
         <div style="color: var(--text-muted); font-size: 0.85rem;">جميع الحسابات المسجلة</div>
       </div>
       <div class="glass text-center" style="padding: 20px;">
-        <h3 style="margin-bottom: 8px; font-size: 1rem; color: var(--text-muted);">إحصائيات الطلاب</h3>
+        <h3 style="margin-bottom: 8px; font-size: 0.95rem; color: var(--text-muted);">الطلاب النشطين</h3>
         <div style="font-size: 2.2rem; font-weight: 800; color: #10b981;">${studentCount}</div>
-        <div style="color: var(--text-muted); font-size: 0.85rem;">إجمالي عدد الطلاب</div>
+        <div style="color: var(--text-muted); font-size: 0.85rem;">حسابات الطلاب الفعالة</div>
+      </div>
+      <div class="glass text-center" style="padding: 20px; border: 1.5px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.04);">
+        <h3 style="margin-bottom: 8px; font-size: 0.95rem; color: #d97706;">الحسابات المجمدة</h3>
+        <div style="font-size: 2.2rem; font-weight: 800; color: #f59e0b;">${frozenCount}</div>
+        <div style="color: var(--text-muted); font-size: 0.85rem;">منتهية الصلاحية / معطلة</div>
       </div>
     </div>
   `;
@@ -535,40 +548,169 @@ async function renderAdminUsers(container) {
     `;
   }
 
+  // Filter chips and search bar
+  html += `
+    <div class="glass" style="padding: 16px 20px; margin-bottom: 20px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <span style="font-size:0.9rem; font-weight:700; color:var(--text-muted); margin-left:6px;">التصفية:</span>
+        <button class="btn ${state.adminUserFilterType === 'all' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('all')">الكل (${totalCount})</button>
+        <button class="btn ${state.adminUserFilterType === 'students' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('students')">الطلاب النشطين (${studentCount})</button>
+        <button class="btn ${state.adminUserFilterType === 'frozen' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem; border-color:rgba(245,158,11,0.5); ${state.adminUserFilterType === 'frozen' ? 'background:#f59e0b; border-color:#f59e0b;' : 'color:#d97706;'}" onclick="adminSetUserFilter('frozen')">المجمدة (${frozenCount})</button>
+        <button class="btn ${state.adminUserFilterType === 'staff' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('staff')">الإدارة (${staffCount})</button>
+      </div>
+      <div style="flex:1; min-width:220px; max-width:320px;">
+        <input type="text" id="adminUserSearchInput" oninput="adminFilterUsersLive()" placeholder="بحث بالاسم أو @اسم المستخدم..." style="width:100%; padding:8px 12px; border:2px solid var(--border); border-radius:8px; font-size:0.88rem;">
+      </div>
+    </div>
+  `;
+
   html += `<div id="studentsList">`;
+  html += adminBuildUserCardsHtml(users, isAdmin);
+  html += `</div>`;
   
+  container.innerHTML = html;
+}
+
+function adminBuildUserCardsHtml(users, isAdmin) {
+  if (!users || users.length === 0) {
+    return `<div class="glass text-center" style="padding:40px; color:var(--text-muted);">لا يوجد مستخدمين مطابقين لخيارات البحث أو التصفية الحالية.</div>`;
+  }
+
+  let html = '';
   users.forEach(s => {
     const isCurrentUser = s.username === state.user.username;
+    const isFrozen = !!s.is_frozen || s.status === 'frozen' || String(s.role || '').toLowerCase().startsWith('frozen');
+    const effectiveRole = isFrozen ? (s.originalRole || String(s.role || '').replace(/^frozen:?/i, '') || 'student') : (s.role || 'student');
+    const safeDisplayName = (s.name || s.username || '').replace(/'/g, "\\'");
+
     html += `
-      <div class="glass student-card flex justify-between items-center" style="margin-bottom:12px; padding:16px;">
+      <div class="glass student-card flex justify-between items-center" style="margin-bottom:12px; padding:16px; ${isFrozen ? 'border: 1.5px dashed rgba(245, 158, 11, 0.7); background: rgba(245, 158, 11, 0.04);' : ''}">
         <div class="student-info flex items-center gap-4">
-          <div class="avatar" style="width:40px; height:40px; font-size:1.2rem;">
+          <div class="avatar" style="width:40px; height:40px; font-size:1.2rem; ${isFrozen ? 'opacity:0.8; filter:grayscale(30%);' : ''}">
              ${s.avatar ? `<img src="${s.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : (s.name ? s.name.charAt(0).toUpperCase() : '؟')}
           </div>
           <div>
-            <h3 style="margin:0; font-size:1.05rem;">${s.name || 'بدون اسم'} ${s.full_name ? `<span style="font-size:0.8rem;color:var(--text-muted);font-weight:normal;">(${s.full_name})</span>` : ''}</h3>
-            <p style="margin:0; font-size:0.85rem; color:var(--text-muted); direction:ltr; text-align:right;">@${s.username}</p>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <h3 style="margin:0; font-size:1.05rem;">${s.name || 'بدون اسم'} ${s.full_name ? `<span style="font-size:0.8rem;color:var(--text-muted);font-weight:normal;">(${s.full_name})</span>` : ''}</h3>
+              ${isFrozen ? `
+                <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 800; padding: 2px 8px; border-radius: 6px; font-size: 0.76rem;">
+                  مجمد (انتهت الصلاحية)
+                </span>
+              ` : ''}
+            </div>
+            <p style="margin:2px 0 0 0; font-size:0.85rem; color:var(--text-muted); direction:ltr; text-align:right;">@${s.username}</p>
           </div>
         </div>
         <div style="display:flex; align-items:center; gap: 8px; flex-wrap:wrap;">
-          ${getRoleBadgeSVG(s.role)}
-          ${s.role === 'student' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size:0.85rem;" onclick="viewStudentDetails('${s.username}')">عرض السجل</button>` : ''}
+          ${getRoleBadgeSVG(isFrozen ? 'frozen' : effectiveRole)}
+          ${effectiveRole === 'student' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size:0.85rem;" onclick="viewStudentDetails('${s.username}')">عرض السجل</button>` : ''}
           ${isAdmin ? `
-            <button class="btn btn-secondary" style="padding: 6px 10px; font-size:0.82rem;" onclick="adminPromptResetPassword('${s.username}', '${s.name || s.username}')" title="تعديل كلمة المرور">
+            <button class="btn btn-secondary" style="padding: 6px 10px; font-size:0.82rem;" onclick="adminPromptResetPassword('${s.username}', '${safeDisplayName}')" title="تعديل كلمة المرور">
               كلمة المرور
             </button>
           ` : ''}
           ${isAdmin && !isCurrentUser ? `
-            <button class="btn btn-secondary" style="padding: 6px 10px; font-size:0.82rem; color:var(--danger); border-color:rgba(239,68,68,0.3);" onclick="adminPromptDeleteUser('${s.username}', '${s.name || s.username}')" title="حذف المستخدم">
-              حذف
+            ${isFrozen ? `
+              <button class="btn btn-primary" style="padding: 6px 12px; font-size:0.82rem; background:#10b981; border-color:#10b981;" onclick="adminToggleFreezeUser('${s.username}', true, '${effectiveRole}', '${safeDisplayName}')" title="إلغاء التجميد وتنشيط الحساب">
+                إلغاء التجميد (تنشيط)
+              </button>
+            ` : `
+              <button class="btn btn-secondary" style="padding: 6px 12px; font-size:0.82rem; color:#d97706; border-color:rgba(217,119,6,0.4);" onclick="adminToggleFreezeUser('${s.username}', false, '${effectiveRole}', '${safeDisplayName}')" title="تجميد الحساب (تعطيل الدخول مع الاحتفاظ بالبيانات)">
+                تجميد الحساب
+              </button>
+            `}
+            <button class="btn btn-secondary" style="padding: 6px 12px; font-size:0.82rem; color:var(--danger); border-color:rgba(239,68,68,0.35);" onclick="adminPromptDeleteUser('${s.username}', '${safeDisplayName}')" title="حذف الحساب نهائياً">
+              حذف نهائي
             </button>
           ` : ''}
         </div>
       </div>
     `;
   });
-  html += `</div>`;
-  container.innerHTML = html;
+  return html;
+}
+
+function adminSetUserFilter(filterType) {
+  state.adminUserFilterType = filterType;
+  adminFilterUsersLive();
+  // Update active state on buttons
+  const buttons = document.querySelectorAll('.glass button[onclick^="adminSetUserFilter"]');
+  buttons.forEach(b => {
+    if (b.getAttribute('onclick').includes(`'${filterType}'`)) {
+      b.className = 'btn btn-primary';
+    } else {
+      b.className = 'btn btn-secondary';
+    }
+  });
+}
+
+function adminFilterUsersLive() {
+  const query = ($('adminUserSearchInput')?.value || '').trim().toLowerCase();
+  const filterType = state.adminUserFilterType || 'all';
+  const allUsers = state.cachedAdminUsers || [];
+
+  const filtered = allUsers.filter(u => {
+    const isFrozen = !!u.is_frozen || u.status === 'frozen' || String(u.role || '').toLowerCase().startsWith('frozen');
+    const effectiveRole = isFrozen ? (u.originalRole || String(u.role || '').replace(/^frozen:?/i, '') || 'student') : (u.role || 'student');
+
+    // Filter by type
+    if (filterType === 'students' && (effectiveRole !== 'student' || isFrozen)) return false;
+    if (filterType === 'frozen' && !isFrozen) return false;
+    if (filterType === 'staff' && !['admin', 'manager', 'vip'].includes(effectiveRole)) return false;
+
+    // Filter by search query
+    if (query) {
+      const nameMatch = (u.name || '').toLowerCase().includes(query);
+      const userMatch = (u.username || '').toLowerCase().includes(query);
+      const fullMatch = (u.full_name || '').toLowerCase().includes(query);
+      if (!nameMatch && !userMatch && !fullMatch) return false;
+    }
+    return true;
+  });
+
+  const listContainer = $('studentsList');
+  if (listContainer) {
+    const isAdmin = state.user.role === 'admin';
+    listContainer.innerHTML = adminBuildUserCardsHtml(filtered, isAdmin);
+  }
+}
+
+async function adminToggleFreezeUser(username, isCurrentlyFrozen, role, displayName) {
+  if (isCurrentlyFrozen) {
+    const confirmed = confirm(`هل تريد تنشيط وإلغاء تجميد حساب (${displayName} - @${username})؟\n\nسيتمكن المستخدم من تسجيل الدخول للمنصة مرة أخرى بصورة طبيعية.`);
+    if (!confirmed) return;
+
+    showLoading();
+    try {
+      const res = await API.post('unfreezeUser', { username, role: role || 'student' });
+      if (res && res.success) {
+        showToast(`تم تنشيط وإلغاء تجميد حساب @${username} بنجاح`);
+        await refreshAndRenderAdmin();
+      } else {
+        showToast(res?.message || 'فشل تنشيط الحساب', 'error');
+      }
+    } catch (e) {
+      showToast('حدث خطأ أثناء تنشيط الحساب', 'error');
+    }
+    hideLoading();
+  } else {
+    const confirmed = confirm(`هل تريد تجميد حساب (${displayName} - @${username})؟\n\n- لن يتمكن المستخدم من تسجيل الدخول وستظهر له رسالة: "انتهت صلاحية هذا الحساب".\n- ستبقى كافة بيانات الطالب وسجلاته محفوظة بالكامل.`);
+    if (!confirmed) return;
+
+    showLoading();
+    try {
+      const res = await API.post('freezeUser', { username, originalRole: role || 'student' });
+      if (res && res.success) {
+        showToast(`تم تجميد حساب @${username} بنجاح. لن يتمكن من الدخول حتى يتم تنشيطه.`);
+        await refreshAndRenderAdmin();
+      } else {
+        showToast(res?.message || 'فشل تجميد الحساب', 'error');
+      }
+    } catch (e) {
+      showToast('حدث خطأ أثناء تجميد الحساب', 'error');
+    }
+    hideLoading();
+  }
 }
 
 async function adminAddUser() {
@@ -623,20 +765,16 @@ async function adminPromptResetPassword(username, displayName) {
 }
 
 async function adminPromptDeleteUser(username, displayName) {
-  if (!confirm(`هل أنت متأكد من رغبتك في حذف المستخدم (${displayName} - @${username})؟`)) return;
+  if (!confirm(`هل أنت متأكد من رغبتك في حذف المستخدم (${displayName} - @${username}) نهائياً؟\n\nتنبيه: سيتم حذف الحساب بشكل دائم ومباشر من المنصة وقاعدة البيانات.`)) return;
 
   showLoading();
   try {
     const res = await API.post('deleteUser', { username });
     if (res && res.success) {
-      showToast(`تم حذف المستخدم @${username} بنجاح`);
+      showToast(`تم حذف المستخدم @${username} نهائياً بنجاح`);
       await refreshAndRenderAdmin();
     } else {
-      if (res?.message === 'Unknown action') {
-        showToast('لحذف المستخدم، يرجى نسخ كود backend.gs ونشر إصدار جديد في Google Apps Script', 'error');
-      } else {
-        showToast(res?.message || 'فشل حذف المستخدم من الخادم', 'error');
-      }
+      showToast(res?.message || 'فشل حذف المستخدم من الخادم', 'error');
     }
   } catch(e) {
     showToast('حدث خطأ أثناء حذف المستخدم', 'error');

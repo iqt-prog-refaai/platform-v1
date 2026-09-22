@@ -56,6 +56,13 @@ async function handleLogin(e) {
     }
 
     if (result && result.success) {
+      if (result.user.is_frozen || String(result.user.role || '').toLowerCase().startsWith('frozen')) {
+        state.user = null;
+        localStorage.removeItem('iqt_user');
+        showToast('انتهت صلاحية هذا الحساب. يرجى التواصل مع إدارة المنصة لتجديد الاشتراك.', 'error');
+        return;
+      }
+
       state.user = result.user;
       localStorage.setItem('iqt_user', JSON.stringify(result.user));
       setupNavigation();
@@ -69,7 +76,9 @@ async function handleLogin(e) {
         navigateTo('dashboard');
       }
     } else {
-      if (username.toLowerCase() === 'admin') {
+      if (result && result.frozen) {
+        showToast(result.message || 'انتهت صلاحية هذا الحساب. يرجى التواصل مع إدارة المنصة لتجديد الاشتراك.', 'error');
+      } else if (username.toLowerCase() === 'admin') {
         showToast('بيانات الدخول غير صحيحة. تأكد من إدخال اسم المستخدم: admin وكلمة المرور: admin باللغة الإنجليزية', 'error');
       } else {
         showToast(result?.message || 'فشل تسجيل الدخول. تحقق من اسم المستخدم وكلمة المرور', 'error');
@@ -130,15 +139,29 @@ function logout() {
 async function checkAuth() {
   const saved = localStorage.getItem('iqt_user');
   if (saved) {
-    state.user = JSON.parse(saved);
-    setupNavigation();
-    if (state.user.role === 'admin') {
-      await refreshAllData();
-    } else {
-      await loadStudentData();
+    try {
+      state.user = JSON.parse(saved);
+      if (state.user && (state.user.is_frozen || String(state.user.role || '').toLowerCase().startsWith('frozen'))) {
+        state.user = null;
+        localStorage.removeItem('iqt_user');
+        $('navbar').classList.add('hidden');
+        navigateTo('login');
+        showToast('انتهت صلاحية هذا الحساب. يرجى التواصل مع إدارة المنصة لتجديد الاشتراك.', 'error');
+        hideLoading();
+        return;
+      }
+
+      setupNavigation();
+      if (state.user.role === 'admin') {
+        await refreshAllData();
+      } else {
+        await loadStudentData();
+      }
+      const hash = window.location.hash.replace('#', '') || 'dashboard';
+      navigateTo(hash);
+    } catch (e) {
+      console.error('Error parsing stored user:', e);
     }
-    const hash = window.location.hash.replace('#', '') || 'dashboard';
-    navigateTo(hash);
   }
   hideLoading();
 }

@@ -109,6 +109,12 @@ function doPost(e) {
       case 'deleteUser':
         result = deleteUser(data);
         break;
+      case 'freezeUser':
+        result = freezeUser(data);
+        break;
+      case 'unfreezeUser':
+        result = unfreezeUser(data);
+        break;
     }
   } catch(err) {
     result = { success: false, message: err.toString() };
@@ -156,6 +162,23 @@ function handleLogin(username, password) {
     const rowPass = String(data[i][2] != null ? data[i][2] : '').trim();
 
     if (rowUser === cleanUser && rowPass === cleanPass) {
+      const userRole = String(data[i][3] || '').trim();
+      const uName = String(data[i][1] || '').trim();
+
+      // Check if user is marked as deleted
+      if (userRole.toLowerCase() === 'deleted' || uName.startsWith('__deleted_')) {
+        return { success: false, message: 'Invalid credentials' };
+      }
+
+      // Check if user is frozen (expired subscription / access)
+      if (userRole.toLowerCase() === 'frozen' || userRole.toLowerCase().startsWith('frozen:')) {
+        return { 
+          success: false, 
+          frozen: true, 
+          message: 'انتهت صلاحية هذا الحساب. يرجى التواصل مع إدارة المنصة لتجديد الاشتراك.' 
+        };
+      }
+
       return { 
         success: true, 
         user: { 
@@ -241,16 +264,53 @@ function updateUser(data) {
   return { success: false, message: 'User not found' };
 }
 
+function freezeUser(data) {
+  const sheet = getSheet('credits');
+  const allData = sheet.getDataRange().getValues();
+  const targetUsername = String(data.username || data.id || '').trim().toLowerCase();
+  if (!targetUsername) return { success: false, message: 'Username is required' };
+
+  for (let i = 1; i < allData.length; i++) {
+    if (String(allData[i][1]).trim().toLowerCase() === targetUsername) {
+      const currentRole = String(allData[i][3] || 'student');
+      const originalRole = currentRole.startsWith('frozen:') ? currentRole.replace('frozen:', '') : (currentRole === 'frozen' ? 'student' : currentRole);
+      sheet.getRange(i + 1, 4).setValue('frozen:' + (data.originalRole || originalRole));
+      return { success: true, message: 'Account frozen successfully' };
+    }
+  }
+  return { success: false, message: 'User not found' };
+}
+
+function unfreezeUser(data) {
+  const sheet = getSheet('credits');
+  const allData = sheet.getDataRange().getValues();
+  const targetUsername = String(data.username || data.id || '').trim().toLowerCase();
+  if (!targetUsername) return { success: false, message: 'Username is required' };
+
+  for (let i = 1; i < allData.length; i++) {
+    if (String(allData[i][1]).trim().toLowerCase() === targetUsername) {
+      const currentRole = String(allData[i][3] || '');
+      let restoreRole = data.role;
+      if (!restoreRole) {
+        restoreRole = currentRole.startsWith('frozen:') ? currentRole.replace('frozen:', '') : 'student';
+      }
+      sheet.getRange(i + 1, 4).setValue(restoreRole || 'student');
+      return { success: true, message: 'Account unfrozen successfully' };
+    }
+  }
+  return { success: false, message: 'User not found' };
+}
+
 function deleteUser(data) {
   const sheet = getSheet('credits');
   const allData = sheet.getDataRange().getValues();
-  const targetUsername = String(data.username || data.id || '');
+  const targetUsername = String(data.username || data.id || '').trim().toLowerCase();
   if (!targetUsername) return { success: false, message: 'Username is required' };
 
   for (let i = allData.length - 1; i > 0; i--) {
-    if (String(allData[i][1]) === targetUsername) {
+    if (String(allData[i][1]).trim().toLowerCase() === targetUsername) {
       sheet.deleteRow(i + 1);
-      return { success: true };
+      return { success: true, message: 'User deleted successfully' };
     }
   }
   return { success: false, message: 'User not found' };
@@ -261,10 +321,24 @@ function getAllUsers() {
   const data = sheet.getDataRange().getValues();
   const users = [];
   for (let i = 1; i < data.length; i++) {
+    const rawRole = String(data[i][3] || '');
+    const uName = String(data[i][1] || '');
+
+    // Skip deleted users
+    if (rawRole.toLowerCase() === 'deleted' || uName.startsWith('__deleted_')) {
+      continue;
+    }
+
+    const isFrozen = rawRole.toLowerCase().startsWith('frozen:') || rawRole.toLowerCase() === 'frozen';
+    const originalRole = isFrozen ? (rawRole.replace(/^frozen:?/i, '') || 'student') : rawRole;
+
     users.push({ 
       name: data[i][0], 
       username: data[i][1], 
-      role: data[i][3],
+      role: originalRole,
+      status: isFrozen ? 'frozen' : 'active',
+      is_frozen: isFrozen,
+      originalRole: originalRole,
       full_name: data[i][4] || '',
       avatar: data[i][5] || ''
     });
