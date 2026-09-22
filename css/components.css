@@ -279,19 +279,96 @@
 }
 .quiz-progress {
   display: flex;
-  gap: 8px;
-  margin-bottom: 32px;
+  gap: 6px;
+  margin-bottom: 24px;
 }
 .quiz-progress-dot {
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: rgba(0,0,0,0.06);
+  background: rgba(0,0,0,0.08);
   transition: all 0.3s;
 }
-.quiz-progress-dot.active { background: var(--primary); }
+.quiz-progress-dot.active { background: var(--primary); box-shadow: 0 0 0 2px rgba(99,102,241,0.25); }
+.quiz-progress-dot.answered { background: var(--primary); opacity: 0.85; }
 .quiz-progress-dot.correct { background: var(--success); }
 .quiz-progress-dot.wrong { background: var(--danger); }
+
+/* Question Navigator Grid & Chips */
+.quiz-nav-container {
+  margin-bottom: 24px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.quiz-nav-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.quiz-nav-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 130px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.q-chip {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.q-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+.q-chip.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.09);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+.q-chip.answered {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+.q-chip.answered.active {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
+  filter: brightness(0.92);
+}
+.q-chip.correct {
+  background: var(--success);
+  border-color: var(--success);
+  color: #ffffff;
+}
+.q-chip.wrong {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
 
 .question-card {
   padding: 40px;

@@ -187,21 +187,59 @@ function renderQuizQuestion() {
   }
 
   const q = quiz.questions[quiz.currentIndex];
-  const prevAns = quiz.answers[quiz.currentIndex]; // previously recorded answer (for going back)
+  const prevAns = quiz.answers[quiz.currentIndex]; // previously recorded answer (for going back/jumping)
 
   if (quiz.isReviewMode && !quiz.answerConfirmed) {
     quiz.timeLeft = 60;
     startQuizTimer();
   }
 
-  // Progress dots
+  // Answered count calculation
+  const answeredCount = quiz.questions.filter((_, i) => {
+    const a = quiz.answers[i];
+    if (!a || a.answer === null || a.answer === undefined || a.answer === '') return false;
+    if (Array.isArray(a.answer) && a.answer.length === 0) return false;
+    return true;
+  }).length;
+
+  // Question navigation chips (quick jumping to ANY question)
+  const navChipsHtml = quiz.questions.map((_, i) => {
+    let chipCls = 'q-chip';
+    const isCur = i === quiz.currentIndex;
+    const a = quiz.answers[i];
+    const isAnswered = a && a.answer !== null && a.answer !== undefined && a.answer !== '' && (!Array.isArray(a.answer) || a.answer.length > 0);
+
+    if (quiz.isReviewMode) {
+      if (a && a.answer !== null && a.answer !== undefined) {
+        chipCls += a.isCorrect ? ' correct' : ' wrong';
+      }
+    } else {
+      // EXAM MODE: NEVER show correct or wrong! Only answered / active
+      if (isAnswered) chipCls += ' answered';
+    }
+    if (isCur) chipCls += ' active';
+
+    return `<button type="button" class="${chipCls}" onclick="jumpToQuestion(${i})" title="السؤال ${i + 1}${isAnswered ? ' (تمت الإجابة)' : ' (لم تتم الإجابة)'}">${i + 1}</button>`;
+  }).join('');
+
+  // Progress dots (also clickable)
   const progressHtml = quiz.questions.map((_, i) => {
-    let cls = '';
-    if (i < quiz.currentIndex) {
-      const a = quiz.answers[i];
-      cls = a?.isCorrect ? 'correct' : (a ? 'wrong' : '');
-    } else if (i === quiz.currentIndex) { cls = 'active'; }
-    return `<div class="quiz-progress-dot ${cls}"></div>`;
+    let dotCls = 'quiz-progress-dot';
+    const isCur = i === quiz.currentIndex;
+    const a = quiz.answers[i];
+    const isAnswered = a && a.answer !== null && a.answer !== undefined && a.answer !== '' && (!Array.isArray(a.answer) || a.answer.length > 0);
+
+    if (quiz.isReviewMode) {
+      if (a && a.answer !== null && a.answer !== undefined) {
+        dotCls += a.isCorrect ? ' correct' : ' wrong';
+      }
+    } else {
+      // EXAM MODE: NEVER show correct or wrong! Only answered / active
+      if (isAnswered) dotCls += ' answered';
+    }
+    if (isCur) dotCls += ' active';
+
+    return `<div class="${dotCls}" onclick="jumpToQuestion(${i})" style="cursor:pointer;" title="السؤال ${i + 1}"></div>`;
   }).join('');
 
   // Question body
@@ -212,6 +250,7 @@ function renderQuizQuestion() {
       <div class="options-grid">
         ${labels.map((opt, i) => {
           let extraClass = prevAns?.answer === i ? 'selected' : '';
+          // Only show correct/wrong in Review Mode when confirmed!
           if (quiz.isReviewMode && quiz.answerConfirmed) {
             if (i === q.correct_answer) extraClass += ' correct';
             else if (prevAns?.answer === i) extraClass += ' wrong';
@@ -227,7 +266,8 @@ function renderQuizQuestion() {
   } else if (q.type === 'essay') {
     questionHtml = `
       <textarea class="essay-textarea" id="essayAnswer"
-        placeholder="اكتب إجابتك هنا..." ${(quiz.isReviewMode && quiz.answerConfirmed) ? 'readonly' : ''}>${prevAns?.answer || ''}</textarea>`;
+        placeholder="اكتب إجابتك هنا..." ${(quiz.isReviewMode && quiz.answerConfirmed) ? 'readonly' : ''}
+        oninput="onEssayInput()">${prevAns?.answer || ''}</textarea>`;
   } else if (q.type === 'matching') {
     const pairs = q.options || [];
     questionHtml = `
@@ -245,7 +285,7 @@ function renderQuizQuestion() {
             `;
           } else {
             rightSide = `
-              <select class="match-select" id="match-${i}">
+              <select class="match-select" id="match-${i}" onchange="onMatchingChange()">
                 <option value="">اختر المطابقة...</option>
                 ${pairs.map((p, j) =>
                   `<option value="${j}" ${prevAns?.answer?.find(a => a.left === i)?.right === j ? 'selected' : ''}>${typeof p === 'object' ? p.right : p}</option>`).join('')}
@@ -272,7 +312,7 @@ function renderQuizQuestion() {
     `;
   }
 
-  // Timer badge (re-rendered each time; interval still running in background)
+  // Timer badge
   const timerHtml = quiz.timeLeft > 0 ? `
     <div style="display:inline-flex; align-items:center; gap:6px; padding:5px 14px;
                 background:rgba(99,102,241,0.09); border-radius:20px;
@@ -281,8 +321,8 @@ function renderQuizQuestion() {
       <span id="quizTimerEl">${_fmtTime(quiz.timeLeft)}</span>
     </div>` : '';
 
-  let nextBtnText = quiz.currentIndex === quiz.questions.length - 1 ? 'إنهاء الاختبار' : 'التالي';
-  let nextBtnIcon = quiz.currentIndex === quiz.questions.length - 1 ? '' : ICONS.arrowLeft;
+  let nextBtnText = quiz.currentIndex === quiz.questions.length - 1 ? 'إنهاء وتسليم الاختبار' : 'التالي';
+  let nextBtnIcon = quiz.currentIndex === quiz.questions.length - 1 ? ICONS.checkCircle : ICONS.arrowLeft;
   if (quiz.isReviewMode && !quiz.answerConfirmed) {
     nextBtnText = 'تأكيد الإجابة';
     nextBtnIcon = ICONS.check;
@@ -290,53 +330,236 @@ function renderQuizQuestion() {
 
   $('quizContent').innerHTML = `
     <div class="glass question-card">
+      <!-- Question Navigator Bar -->
+      <div class="quiz-nav-container">
+        <div class="quiz-nav-header">
+          <span style="font-weight:700; color:var(--text); display:flex; align-items:center; gap:6px;">
+            ${ICONS.quiz} التنقل بين الأسئلة (${quiz.questions.length} سؤال)
+          </span>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span id="quizAnsweredBadge" style="font-weight:600; color:var(--primary);">
+              ${answeredCount} من ${quiz.questions.length} تمت الإجابة
+            </span>
+            ${!quiz.isReviewMode ? `
+              <button type="button" class="btn btn-secondary" onclick="confirmSubmitQuiz()" style="padding:4px 10px; font-size:0.8rem; border-radius:8px;">
+                ${ICONS.checkCircle} تسليم الاختبار
+              </button>
+            ` : ''}
+          </div>
+        </div>
+        <div class="quiz-nav-chips" id="quizNavChips">
+          ${navChipsHtml}
+        </div>
+      </div>
+
       <div class="quiz-progress">${progressHtml}</div>
+
       <div style="display:flex; justify-content:space-between; align-items:center;
                   margin-bottom:20px; flex-wrap:wrap; gap:8px;">
-        <span style="color:var(--text-muted); font-size:0.9rem;">
+        <span style="color:var(--text-muted); font-size:0.95rem; font-weight:600;">
           السؤال ${quiz.currentIndex + 1} من ${quiz.questions.length}
         </span>
         <div style="display:flex; align-items:center; gap:12px;">
           ${timerHtml}
           <span style="color:var(--primary); font-weight:700;">
-            ${q.points} نقطة
+            ${q.points || 1} نقطة
           </span>
         </div>
       </div>
+
       <div class="question-text">${q.question_text}</div>
       ${questionHtml}
       ${explanationHtml}
-      <div style="margin-top:32px; display:flex; justify-content:space-between;">
+
+      <div style="margin-top:32px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
         ${quiz.currentIndex > 0
           ? `<button class="btn btn-secondary" onclick="prevQuestion()">${ICONS.arrowRight} السابق</button>`
           : '<div></div>'}
-        <button class="btn btn-primary" onclick="nextQuestion()">
-          ${nextBtnText} ${nextBtnIcon}
-        </button>
+
+        <div style="display:flex; gap:10px;">
+          ${!quiz.isReviewMode && quiz.currentIndex !== quiz.questions.length - 1 ? `
+            <button class="btn btn-secondary" onclick="confirmSubmitQuiz()" style="font-size:0.9rem;">
+              تسليم الآن
+            </button>
+          ` : ''}
+          <button class="btn btn-primary" onclick="nextQuestion()">
+            ${nextBtnText} ${nextBtnIcon}
+          </button>
+        </div>
       </div>
     </div>`;
 }
 
 // ==========================================
-// NAVIGATION
+// NAVIGATION & ANSWER HANDLING
 // ==========================================
 function selectOption(index) {
   document.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected'));
-  document.querySelector(`.option-item[data-index="${index}"]`).classList.add('selected');
+  const target = document.querySelector(`.option-item[data-index="${index}"]`);
+  if (target) target.classList.add('selected');
+
+  if (!state.currentQuiz?.isReviewMode) {
+    saveCurrentAnswer(false);
+    updateNavChips();
+  }
+}
+
+function onEssayInput() {
+  if (!state.currentQuiz?.isReviewMode) {
+    saveCurrentAnswer(false);
+    updateNavChips();
+  }
+}
+
+function onMatchingChange() {
+  if (!state.currentQuiz?.isReviewMode) {
+    saveCurrentAnswer(false);
+    updateNavChips();
+  }
+}
+
+function updateNavChips() {
+  const quiz = state.currentQuiz;
+  if (!quiz) return;
+
+  const answeredCount = quiz.questions.filter((_, i) => {
+    const a = quiz.answers[i];
+    if (!a || a.answer === null || a.answer === undefined || a.answer === '') return false;
+    if (Array.isArray(a.answer) && a.answer.length === 0) return false;
+    return true;
+  }).length;
+
+  const badge = $('quizAnsweredBadge');
+  if (badge) {
+    badge.textContent = `${answeredCount} من ${quiz.questions.length} تمت الإجابة`;
+  }
+
+  const currentChip = document.querySelectorAll('.q-chip')[quiz.currentIndex];
+  const currentDot = document.querySelectorAll('.quiz-progress-dot')[quiz.currentIndex];
+  const a = quiz.answers[quiz.currentIndex];
+  const isAnswered = a && a.answer !== null && a.answer !== undefined && a.answer !== '' && (!Array.isArray(a.answer) || a.answer.length > 0);
+
+  if (currentChip) {
+    if (isAnswered) {
+      currentChip.classList.add('answered');
+    } else {
+      currentChip.classList.remove('answered');
+    }
+  }
+  if (currentDot) {
+    if (isAnswered) {
+      currentDot.classList.add('answered');
+    } else {
+      currentDot.classList.remove('answered');
+    }
+  }
+}
+
+function saveCurrentAnswer(showAlert = false) {
+  const quiz = state.currentQuiz;
+  if (!quiz || !quiz.questions || !quiz.questions[quiz.currentIndex]) return false;
+  const q = quiz.questions[quiz.currentIndex];
+
+  let answer = null;
+  let isCorrect = false;
+  let hasAnswer = false;
+
+  if (q.type === 'mcq' || q.type === 'true_false') {
+    const selected = document.querySelector('.option-item.selected');
+    if (selected) {
+      answer = parseInt(selected.dataset.index, 10);
+      isCorrect = answer === q.correct_answer;
+      hasAnswer = true;
+    }
+  } else if (q.type === 'essay') {
+    const essayEl = $('essayAnswer');
+    if (essayEl) {
+      const val = essayEl.value.trim();
+      if (val !== '') {
+        answer = val;
+        isCorrect = null; // pending manual evaluation
+        hasAnswer = true;
+      }
+    }
+  } else if (q.type === 'matching') {
+    const pairs = q.options || [];
+    answer = [];
+    let allCorrect = true;
+    let anyFilled = false;
+    pairs.forEach((_, i) => {
+      const sel = $(`match-${i}`);
+      if (sel && sel.value !== '') {
+        anyFilled = true;
+        const val = parseInt(sel.value, 10);
+        answer.push({ left: i, right: val });
+        if (val !== i) allCorrect = false;
+      }
+    });
+    if (anyFilled) {
+      hasAnswer = true;
+      isCorrect = answer.length === pairs.length && allCorrect;
+    }
+  }
+
+  if (hasAnswer) {
+    const oldAns = quiz.answers[quiz.currentIndex];
+    if (oldAns?.isCorrect) quiz.score -= (oldAns.points || 0);
+
+    quiz.answers[quiz.currentIndex] = {
+      question_id: q.question_id,
+      type: q.type,
+      answer,
+      isCorrect,
+      points: isCorrect ? (q.points || 1) : 0
+    };
+
+    if (isCorrect) quiz.score += (q.points || 1);
+    return true;
+  } else {
+    if (showAlert) {
+      showToast('يرجى اختيار إجابة أولاً', 'error');
+    }
+    return false;
+  }
+}
+
+function jumpToQuestion(targetIndex) {
+  const quiz = state.currentQuiz;
+  if (!quiz || targetIndex < 0 || targetIndex >= quiz.questions.length) return;
+  if (targetIndex === quiz.currentIndex) return;
+
+  if (!quiz.isReviewMode) {
+    saveCurrentAnswer(false);
+  }
+
+  quiz.currentIndex = targetIndex;
+  if (quiz.isReviewMode) {
+    quiz.answerConfirmed = quiz.answers[quiz.currentIndex] !== null;
+  }
+  renderQuizQuestion();
 }
 
 function prevQuestion() {
-  state.currentQuiz.currentIndex--;
-  if (state.currentQuiz.isReviewMode) {
-    state.currentQuiz.answerConfirmed = true; // Automatically show the confirmed state when going back
+  const quiz = state.currentQuiz;
+  if (!quiz || quiz.currentIndex <= 0) return;
+
+  if (!quiz.isReviewMode) {
+    saveCurrentAnswer(false);
+  }
+
+  quiz.currentIndex--;
+  if (quiz.isReviewMode) {
+    quiz.answerConfirmed = quiz.answers[quiz.currentIndex] !== null;
   }
   renderQuizQuestion();
 }
 
 function nextQuestion(forceAdvance = false) {
   const quiz = state.currentQuiz;
+  if (!quiz) return;
   const q = quiz.questions[quiz.currentIndex];
 
+  // 1. Review Mode logic
   if (quiz.isReviewMode && !quiz.answerConfirmed) {
     let answer = null;
     let isCorrect = false;
@@ -345,7 +568,7 @@ function nextQuestion(forceAdvance = false) {
       if (q.type === 'mcq' || q.type === 'true_false') {
         const selected = document.querySelector('.option-item.selected');
         if (!selected) { showToast('يرجى اختيار إجابة أولاً', 'error'); return; }
-        answer = parseInt(selected.dataset.index);
+        answer = parseInt(selected.dataset.index, 10);
         isCorrect = answer === q.correct_answer;
       } else if (q.type === 'essay') {
         answer = $('essayAnswer').value.trim();
@@ -359,14 +582,13 @@ function nextQuestion(forceAdvance = false) {
         pairs.forEach((_, i) => {
           const val = $(`match-${i}`).value;
           if (val === '') { missing = true; }
-          answer.push({ left: i, right: parseInt(val) });
-          if (parseInt(val) !== i) allCorrect = false;
+          answer.push({ left: i, right: parseInt(val, 10) });
+          if (parseInt(val, 10) !== i) allCorrect = false;
         });
         if (missing) { showToast('يرجى إكمال جميع المطابقات', 'error'); return; }
         isCorrect = allCorrect;
       }
     } else {
-      // Force advanced without answer (timer ran out)
       answer = q.type === 'matching' ? [] : null;
       isCorrect = false;
     }
@@ -376,7 +598,7 @@ function nextQuestion(forceAdvance = false) {
       type: q.type,
       answer,
       isCorrect,
-      points: isCorrect ? q.points : 0
+      points: isCorrect ? (q.points || 1) : 0
     };
 
     quiz.answerConfirmed = true;
@@ -388,45 +610,9 @@ function nextQuestion(forceAdvance = false) {
     return;
   }
 
-  // If we reach here, we are either NOT in review mode, or we are in review mode and ALREADY confirmed.
-  
+  // 2. Exam Mode logic
   if (!quiz.isReviewMode) {
-    let answer = null;
-    let isCorrect = false;
-
-    if (q.type === 'mcq' || q.type === 'true_false') {
-      const selected = document.querySelector('.option-item.selected');
-      if (!selected) { showToast('يرجى اختيار إجابة أولاً', 'error'); return; }
-      answer = parseInt(selected.dataset.index);
-      isCorrect = answer === q.correct_answer;
-    } else if (q.type === 'essay') {
-      answer = $('essayAnswer').value.trim();
-      if (!answer) { showToast('يرجى كتابة إجابة أولاً', 'error'); return; }
-      isCorrect = null; // pending manual grading
-    } else if (q.type === 'matching') {
-      const pairs = q.options || [];
-      answer = [];
-      let allCorrect = true;
-      pairs.forEach((_, i) => {
-        const val = $(`match-${i}`).value;
-        answer.push({ left: i, right: parseInt(val) });
-        if (parseInt(val) !== i) allCorrect = false;
-      });
-      isCorrect = allCorrect;
-    }
-
-    const oldAns = quiz.answers[quiz.currentIndex];
-    if (oldAns?.isCorrect) quiz.score -= (oldAns.points || 0);
-
-    quiz.answers[quiz.currentIndex] = {
-      question_id: q.question_id,
-      type: q.type,
-      answer,
-      isCorrect,
-      points: isCorrect ? q.points : 0
-    };
-
-    if (isCorrect) quiz.score += q.points;
+    saveCurrentAnswer(false);
   }
 
   if (quiz.currentIndex < quiz.questions.length - 1) {
@@ -444,9 +630,85 @@ function nextQuestion(forceAdvance = false) {
         navigateTo('dashboard');
       }
     } else {
-      submitQuiz();
+      confirmSubmitQuiz();
     }
   }
+}
+
+// ==========================================
+// SUBMIT CONFIRMATION & QUIZ SUBMISSION
+// ==========================================
+function confirmSubmitQuiz() {
+  const quiz = state.currentQuiz;
+  if (!quiz) return;
+
+  if (!quiz.isReviewMode) {
+    saveCurrentAnswer(false);
+  }
+
+  const answeredCount = quiz.questions.filter((_, i) => {
+    const a = quiz.answers[i];
+    if (!a || a.answer === null || a.answer === undefined || a.answer === '') return false;
+    if (Array.isArray(a.answer) && a.answer.length === 0) return false;
+    return true;
+  }).length;
+
+  const total = quiz.questions.length;
+  const unansweredCount = total - answeredCount;
+
+  closeSubmitConfirmModal();
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'submitConfirmModal';
+
+  let modalBody = '';
+  if (unansweredCount > 0) {
+    modalBody = `
+      <div style="font-size: 2.8rem; margin-bottom: 12px;">⚠️</div>
+      <h3 style="margin-bottom: 12px; color: var(--warning);">تنبيه: أسئلة متبقية بدون إجابة</h3>
+      <p style="margin-bottom: 16px; color: var(--text-muted); line-height: 1.6;">
+        لقد قمت بالإجابة على <strong>${answeredCount}</strong> من أصل <strong>${total}</strong> سؤالاً.<br>
+        يوجد <strong style="color: var(--danger); font-size: 1.1rem;">${unansweredCount}</strong> سؤالاً بدون إجابة.
+      </p>
+      <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 24px;">
+        يمكنك العودة إلى لوحة الأسئلة واختيار أي سؤال لإكماله، أو تسليم الاختبار الآن.
+      </div>
+      <div class="modal-footer" style="justify-content: center; gap: 12px;">
+        <button type="button" class="btn btn-secondary" onclick="closeSubmitConfirmModal()">
+          العودة للأسئلة
+        </button>
+        <button type="button" class="btn btn-primary" style="background: var(--danger); border-color: var(--danger);" onclick="closeSubmitConfirmModal(); submitQuiz();">
+          تسليم على أي حال
+        </button>
+      </div>
+    `;
+  } else {
+    modalBody = `
+      <div style="font-size: 2.8rem; margin-bottom: 12px;">📝</div>
+      <h3 style="margin-bottom: 12px;">تأكيد تسليم الاختبار</h3>
+      <p style="margin-bottom: 16px; color: var(--text-muted); line-height: 1.6;">
+        أحسنت! لقد أجبت على جميع الأسئلة (<strong>${total}</strong> من <strong>${total}</strong>).<br>
+        هل أنت متأكد من رغبتك في إنهاء المحاولة وتسليم الإجابات الآن؟
+      </p>
+      <div class="modal-footer" style="justify-content: center; gap: 12px; margin-top: 24px;">
+        <button type="button" class="btn btn-secondary" onclick="closeSubmitConfirmModal()">
+          مراجعة الإجابات
+        </button>
+        <button type="button" class="btn btn-primary" onclick="closeSubmitConfirmModal(); submitQuiz();">
+          نعم، تسليم الاختبار
+        </button>
+      </div>
+    `;
+  }
+
+  modal.innerHTML = `<div class="glass modal-content" style="max-width: 440px; text-align: center;">${modalBody}</div>`;
+  document.body.appendChild(modal);
+}
+
+function closeSubmitConfirmModal() {
+  const el = document.getElementById('submitConfirmModal');
+  if (el) el.remove();
 }
 
 // ==========================================
@@ -463,6 +725,20 @@ async function submitQuiz() {
 
   // Stop timer
   if (quiz.timerInterval) { clearInterval(quiz.timerInterval); quiz.timerInterval = null; }
+
+  // Ensure current question answer is saved
+  if (!quiz.isReviewMode) {
+    saveCurrentAnswer(false);
+  }
+
+  // Recalculate total score accurately
+  quiz.score = quiz.questions.reduce((acc, q, i) => {
+    const a = quiz.answers[i];
+    if (a && a.isCorrect) {
+      return acc + (q.points || 1);
+    }
+    return acc;
+  }, 0);
 
   const hasEssay  = quiz.answers.some(a => a?.type === 'essay');
   const color     = _scoreColor(quiz.score, quiz.maxScore);
