@@ -450,12 +450,26 @@ async function createQuizForMaterial(materialId, title) {
     return;
   }
   try {
-    const res = await API.post('addQuiz', {
-      material_id: materialId,
+    let res = await API.post('addQuiz', {
+      material_id: String(materialId),
       title: title,
       description: ''
     });
-    if (res.success) {
+
+    // Safeguard: If backend returns a purely numeric ID (e.g. older GAS deployment),
+    // delete and re-create so Google Sheets will never treat it as a number.
+    let retries = 0;
+    while (res && res.success && /^\d+$/.test(String(res.quiz_id)) && retries < 5) {
+      await API.post('deleteItem', { itemType: 'quiz', id: res.quiz_id });
+      res = await API.post('addQuiz', {
+        material_id: String(materialId),
+        title: title,
+        description: ''
+      });
+      retries++;
+    }
+
+    if (res && res.success) {
       showToast('تم إنشاء الاختبار! يمكنك الآن إضافة الأسئلة.');
       await refreshAndRenderAdmin();
     }

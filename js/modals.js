@@ -660,19 +660,53 @@ async function submitImport() {
   btn.disabled = true;
   btn.textContent = 'جاري الاستيراد...';
 
+  let activeQuizId = String(quizId);
+
+  // If target quiz ID is purely numeric (from older GAS deployment),
+  // migrate to an alphanumeric ID so questions are matched properly by getQuestions.
+  if (!MOCK_MODE && /^\d+$/.test(activeQuizId)) {
+    const selectedOption = quizSelect.options[quizSelect.selectedIndex];
+    const materialId = selectedOption?.dataset?.material;
+    if (materialId) {
+      try {
+        await API.post('deleteItem', { itemType: 'quiz', id: activeQuizId });
+        let newQuizRes = await API.post('addQuiz', {
+          material_id: String(materialId),
+          title: selectedOption.text.split('(')[0].trim(),
+          description: ''
+        });
+        let retries = 0;
+        while (newQuizRes && newQuizRes.success && /^\d+$/.test(String(newQuizRes.quiz_id)) && retries < 5) {
+          await API.post('deleteItem', { itemType: 'quiz', id: newQuizRes.quiz_id });
+          newQuizRes = await API.post('addQuiz', {
+            material_id: String(materialId),
+            title: selectedOption.text.split('(')[0].trim(),
+            description: ''
+          });
+          retries++;
+        }
+        if (newQuizRes && newQuizRes.success && newQuizRes.quiz_id) {
+          activeQuizId = String(newQuizRes.quiz_id);
+        }
+      } catch (e) {
+        console.warn('Migration of numeric quiz ID failed:', e);
+      }
+    }
+  }
+
   if (MOCK_MODE) {
     // In mock mode: add questions to local state only
-    if (!state.questions[quizId]) state.questions[quizId] = [];
+    if (!state.questions[activeQuizId]) state.questions[activeQuizId] = [];
     questions.forEach((q, i) => {
-      state.questions[quizId].push({
+      state.questions[activeQuizId].push({
         question_id: 'mock_import_' + Date.now() + '_' + i,
-        quiz_id: quizId,
+        quiz_id: activeQuizId,
         type: q.type,
         question_text: q.question_text,
         options: q.options || null,
         correct_answer: q.correct_answer ?? null,
         points: q.points || 1,
-        order_index: state.questions[quizId].length,
+        order_index: state.questions[activeQuizId].length,
         explanation: q.explanation || ''
       });
     });
@@ -684,7 +718,7 @@ async function submitImport() {
 
   // Try bulk import first, fall back to adding one by one
   try {
-    const bulkRes = await API.post('importQuiz', { quiz_id: quizId, questions });
+    const bulkRes = await API.post('importQuiz', { quiz_id: activeQuizId, questions });
     if (bulkRes && bulkRes.success) {
       showToast(`✓ تم استيراد ${questions.length} أسئلة بنجاح!`);
       closeModal();
@@ -693,8 +727,6 @@ async function submitImport() {
     }
   } catch (err) {
     console.error("Bulk import error:", err);
-    // If it was a network error but the request reached the server, 
-    // falling through might duplicate. We rely on the proxy now.
   }
 
   // Fallback: add questions one by one using addQuestion
@@ -704,7 +736,7 @@ async function submitImport() {
     const q = questions[i];
     try {
       const res = await API.post('addQuestion', {
-        quiz_id: quizId,
+        quiz_id: activeQuizId,
         type: q.type,
         question_text: q.question_text,
         options: q.options || null,

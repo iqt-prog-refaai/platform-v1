@@ -147,7 +147,7 @@ function getSheet(name) {
 }
 
 function generateId() {
-  return Utilities.getUuid().substring(0, 8);
+  return 'id_' + Utilities.getUuid().substring(0, 8);
 }
 
 // ====== AUTH ======
@@ -369,11 +369,12 @@ function getLessons(unitId) {
   const sheet = getSheet('lessons');
   const data = sheet.getDataRange().getValues();
   const lessons = [];
+  const targetUnitId = String(unitId != null ? unitId : '').trim();
   for (let i = 1; i < data.length; i++) {
     // If unitId is passed as undefined/null or empty string, match accordingly.
     // E.g., for standalone lessons, unitId will be '' and it should match data[i][1] === ''
-    if ((data[i][1] || '') === (unitId || '')) {
-      lessons.push({ lesson_id: data[i][0], unit_id: data[i][1], lesson_number: data[i][2], lesson_name: data[i][3] });
+    if (String(data[i][1] != null ? data[i][1] : '').trim() === targetUnitId) {
+      lessons.push({ lesson_id: String(data[i][0]), unit_id: String(data[i][1]), lesson_number: data[i][2], lesson_name: data[i][3] });
     }
   }
   return { success: true, lessons: lessons.sort((a,b) => a.lesson_number - b.lesson_number) };
@@ -382,7 +383,7 @@ function getLessons(unitId) {
 function addLesson(data) {
   const sheet = getSheet('lessons');
   const id = generateId();
-  sheet.appendRow([id, data.unit_id || '', data.lesson_number, data.lesson_name, new Date().toISOString()]);
+  sheet.appendRow([id, data.unit_id ? String(data.unit_id) : '', data.lesson_number, data.lesson_name, new Date().toISOString()]);
   return { success: true, lesson_id: id };
 }
 
@@ -391,11 +392,12 @@ function getMaterials(lessonId) {
   const sheet = getSheet('materials');
   const data = sheet.getDataRange().getValues();
   const materials = [];
+  const targetLessonId = String(lessonId != null ? lessonId : '').trim();
   for (let i = 1; i < data.length; i++) {
-    if ((data[i][1] || '') === (lessonId || '')) {
+    if (String(data[i][1] != null ? data[i][1] : '').trim() === targetLessonId) {
       materials.push({ 
-        material_id: data[i][0], 
-        lesson_id: data[i][1], 
+        material_id: String(data[i][0]), 
+        lesson_id: String(data[i][1]), 
         title: data[i][2], 
         type: data[i][3], 
         content: data[i][4], 
@@ -462,9 +464,10 @@ function getQuizzes(materialId) {
   const sheet = getSheet('quizzes');
   const data = sheet.getDataRange().getValues();
   const quizzes = [];
+  const targetMatId = String(materialId != null ? materialId : '').trim();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][1] === materialId) {
-      quizzes.push({ quiz_id: data[i][0], material_id: data[i][1], title: data[i][2], description: data[i][3] });
+    if (String(data[i][1] != null ? data[i][1] : '').trim() === targetMatId) {
+      quizzes.push({ quiz_id: String(data[i][0]), material_id: String(data[i][1]), title: data[i][2], description: data[i][3] });
     }
   }
   return { success: true, quizzes };
@@ -473,7 +476,7 @@ function getQuizzes(materialId) {
 function addQuiz(data) {
   const sheet = getSheet('quizzes');
   const id = generateId();
-  sheet.appendRow([id, data.material_id, data.title, data.description || '', new Date().toISOString()]);
+  sheet.appendRow([id, String(data.material_id), data.title, data.description || '', new Date().toISOString()]);
   return { success: true, quiz_id: id };
 }
 
@@ -482,11 +485,12 @@ function getQuestions(quizId) {
   const sheet = getSheet('questions');
   const data = sheet.getDataRange().getValues();
   const questions = [];
+  const targetQuizId = String(quizId != null ? quizId : '').trim();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][1] === quizId) {
+    if (String(data[i][1] != null ? data[i][1] : '').trim() === targetQuizId) {
       questions.push({
-        question_id: data[i][0],
-        quiz_id: data[i][1],
+        question_id: String(data[i][0]),
+        quiz_id: String(data[i][1]),
         type: data[i][2],
         question_text: data[i][3],
         options: data[i][4] ? JSON.parse(data[i][4]) : null,
@@ -505,7 +509,7 @@ function addQuestion(data) {
   const id = generateId();
   sheet.appendRow([
     id, 
-    data.quiz_id, 
+    String(data.quiz_id), 
     data.type, 
     data.question_text, 
     JSON.stringify(data.options || null), 
@@ -519,12 +523,12 @@ function addQuestion(data) {
 
 // ====== IMPORT QUIZ ======
 function importQuiz(data) {
-  let quizId = data.quiz_id;
+  let quizId = data.quiz_id ? String(data.quiz_id) : '';
   
   if (!quizId) {
     const quizSheet = getSheet('quizzes');
     quizId = generateId();
-    quizSheet.appendRow([quizId, data.material_id, data.title, data.description || '', new Date().toISOString()]);
+    quizSheet.appendRow([quizId, String(data.material_id), data.title, data.description || '', new Date().toISOString()]);
   }
 
   const qSheet = getSheet('questions');
@@ -532,7 +536,7 @@ function importQuiz(data) {
     const qId = generateId();
     qSheet.appendRow([
       qId,
-      quizId,
+      String(quizId),
       q.type,
       q.question_text,
       JSON.stringify(q.options || null),
@@ -708,15 +712,19 @@ function getQuizAttempts(username, quizId) {
   const sheet = getSheet('quiz_attempts');
   const data = sheet.getDataRange().getValues();
   const attempts = [];
+  const targetUser = username != null && username !== '' ? String(username).trim().toLowerCase() : '';
+  const targetQuiz = quizId != null && quizId !== '' ? String(quizId).trim() : '';
   for (let i = 1; i < data.length; i++) {
-    const matchUser = !username || data[i][1] === username;
-    const matchQuiz = !quizId || data[i][2] === quizId;
+    const rowUser = String(data[i][1] != null ? data[i][1] : '').trim().toLowerCase();
+    const rowQuiz = String(data[i][2] != null ? data[i][2] : '').trim();
+    const matchUser = !targetUser || rowUser === targetUser;
+    const matchQuiz = !targetQuiz || rowQuiz === targetQuiz;
     if (matchUser && matchQuiz) {
       attempts.push({
-        attempt_id: data[i][0],
+        attempt_id: String(data[i][0]),
         username: data[i][1],
-        quiz_id: data[i][2],
-        material_id: data[i][3],
+        quiz_id: String(data[i][2]),
+        material_id: String(data[i][3]),
         answers: data[i][4] ? JSON.parse(data[i][4]) : [],
         score: parseFloat(data[i][5]) || 0,
         max_score: parseFloat(data[i][6]) || 0,
