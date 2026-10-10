@@ -101,37 +101,115 @@ function createConfetti() {
 }
 
 /**
- * Extracts the Google Drive file ID from various URL formats:
- *   /file/d/FILE_ID/view
- *   /file/d/FILE_ID/preview
- *   /d/FILE_ID/
- *   id=FILE_ID  (query param)
+ * Formats any external URL to ensure it has https:// prefix.
+ */
+function formatExternalUrl(url) {
+  if (!url) return '#';
+  const trimmed = String(url).trim();
+  if (!trimmed) return '#';
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return 'https://' + trimmed;
+  }
+  return trimmed;
+}
+
+/**
+ * Extracts the Google Drive file ID from various URL formats or raw ID:
+ *   /file/d/FILE_ID/...
+ *   /d/FILE_ID/...
+ *   ?id=FILE_ID or &id=FILE_ID
+ *   open?id=FILE_ID
+ *   presentation/d/FILE_ID/
+ *   Raw ID (20+ chars)
  */
 function extractDriveFileId(url) {
   if (!url) return null;
-  // Match /d/FILE_ID/ or /file/d/FILE_ID/
-  let m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+  const str = String(url).trim();
+  if (!str) return null;
+
+  // Match /d/FILE_ID (stops before /, ?, &, or end of string)
+  let m = str.match(/\/d\/([a-zA-Z0-9_-]{15,})(?:[\/\?&#]|$)/);
   if (m) return m[1];
-  // Match id=FILE_ID query param
-  m = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+
+  // Match id=FILE_ID query parameter
+  m = str.match(/[?&]id=([a-zA-Z0-9_-]{15,})/);
   if (m) return m[1];
+
+  // If user pasted pure file ID directly (e.g. 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs7)
+  if (/^[a-zA-Z0-9_-]{20,50}$/.test(str)) {
+    return str;
+  }
+
   return null;
 }
 
 /**
- * Returns a reliable Google Drive embed (preview) URL from any Drive URL/ID.
+ * Returns a reliable Google Drive embed (preview) URL from any Drive URL/ID,
+ * or the formatted URL if it's an external direct PDF link.
  */
 function getDrivePreviewUrl(urlOrId) {
-  const id = extractDriveFileId(urlOrId) || urlOrId;
-  return `https://drive.google.com/file/d/${id}/preview`;
+  if (!urlOrId) return '';
+  const trimmed = String(urlOrId).trim();
+  const id = extractDriveFileId(trimmed);
+  if (id) {
+    return `https://drive.google.com/file/d/${id}/preview`;
+  }
+  return formatExternalUrl(trimmed);
 }
 
 /**
- * Returns a Google Drive direct download URL from any Drive URL/ID.
+ * Returns a Google Drive direct download URL from any Drive URL/ID,
+ * or direct link for download.
  */
 function getDriveDownloadUrl(urlOrId) {
-  const id = extractDriveFileId(urlOrId) || urlOrId;
-  return `https://drive.google.com/uc?export=download&id=${id}`;
+  if (!urlOrId) return '#';
+  const trimmed = String(urlOrId).trim();
+  const id = extractDriveFileId(trimmed);
+  if (id) {
+    return `https://drive.google.com/uc?export=download&id=${id}`;
+  }
+  return formatExternalUrl(trimmed);
+}
+
+/**
+ * Returns a Google Drive view/open URL in a new tab.
+ */
+function getDriveOpenUrl(urlOrId) {
+  if (!urlOrId) return '#';
+  const trimmed = String(urlOrId).trim();
+  const id = extractDriveFileId(trimmed);
+  if (id) {
+    return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
+  }
+  return formatExternalUrl(trimmed);
+}
+
+/**
+ * Converts YouTube, Google Drive, or video links into reliable embed iframe URLs.
+ */
+function getVideoEmbedUrl(url) {
+  if (!url) return '';
+  const trimmed = String(url).trim();
+
+  // YouTube standard watch URL: https://www.youtube.com/watch?v=VIDEO_ID
+  let ytMatch = trimmed.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/i);
+  if (ytMatch && ytMatch[1]) {
+    return `https://www.youtube.com/embed/${ytMatch[1]}`;
+  }
+
+  // Google Drive video
+  const driveId = extractDriveFileId(trimmed);
+  if (driveId && trimmed.includes('drive.google.com')) {
+    return `https://drive.google.com/file/d/${driveId}/preview`;
+  }
+
+  // Vimeo
+  let vimeoMatch = trimmed.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|)(\d+)(?:$|\/|\?)/);
+  if (vimeoMatch && vimeoMatch[3]) {
+    return `https://player.vimeo.com/video/${vimeoMatch[3]}`;
+  }
+
+  return formatExternalUrl(trimmed);
 }
 
 function copySyntaxGuide() {

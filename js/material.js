@@ -214,12 +214,32 @@ function renderPdfMaterial(mat, isCompleted) {
   const previewUrl = getDrivePreviewUrl(mat.content);
   const downloadUrl = getDriveDownloadUrl(mat.content);
   const openUrl = getDriveOpenUrl(mat.content);
+  const isDrive = Boolean(extractDriveFileId(mat.content) || (mat.content && mat.content.includes('drive.google.com')));
+
+  // Trigger safety check in background
+  setTimeout(() => schedulePdfFallbackCheck(mat.material_id), 100);
 
   return `
     <div class="material-header">
-      <span class="material-type-badge badge-pdf">${ICONS.document} ملف PDF</span>
+      <span class="material-type-badge badge-pdf">${ICONS.document} ملف PDF / مستند</span>
       <h2>${mat.title}</h2>
       ${isCompleted ? `<span style="color: var(--success); display:inline-flex; align-items:center; gap:6px; margin-top:8px;">${ICONS.check} مكتمل</span>` : ''}
+    </div>
+
+    <!-- Quick action bar for easy access -->
+    <div class="glass" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 20px; border-radius: 14px; margin-bottom: 16px; border: 1px solid rgba(99, 102, 241, 0.15); background: linear-gradient(135deg, rgba(99,102,241,0.04), rgba(255,255,255,0.7));">
+      <div style="display: flex; align-items: center; gap: 10px; font-size: 0.95rem; font-weight: 600;">
+        <span style="color: var(--primary);">${ICONS.document}</span>
+        <span>${isDrive ? 'مستند Google Drive مدمج' : 'مستند PDF رقمي'}</span>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="${openUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px;">
+          ${ICONS.externalLink} فتح في نافذة كاملة
+        </a>
+        <a href="${downloadUrl}" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px;" download target="_blank">
+          ${ICONS.download} تحميل
+        </a>
+      </div>
     </div>
 
     <div class="pdf-wrapper">
@@ -233,27 +253,30 @@ function renderPdfMaterial(mat, isCompleted) {
         onerror="onPdfError('${mat.material_id}')">
       </iframe>
 
-      <!-- Fallback shown if iframe blocked -->
+      <!-- Fallback shown if iframe blocked or fails to load -->
       <div class="pdf-fallback" id="pdfFallback-${mat.material_id}">
-        <div style="color: var(--danger); margin-bottom: 8px;">${ICONS.fileText}</div>
-        <h3 style="margin-bottom: 8px;">تعذّر عرض أو تحميل الملف</h3>
-        <p style="margin-bottom: 12px; font-size: 0.95rem;">قد يكون الملف محميّاً أو لا يملك صلاحيات المشاركة العامة. يرجى تجربة فتح الملف في نافذة جديدة، أو التواصل مع المعلم للتأكد من جعل إعدادات مشاركة الملف في جوجل درايف: <strong>"أي شخص لديه الرابط"</strong> (Anyone with the link).</p>
+        <div style="color: var(--danger); margin-bottom: 8px; font-size: 2rem;">${ICONS.fileText}</div>
+        <h3 style="margin-bottom: 8px;">تعذّر عرض الملف مباشرة داخل الصفحة</h3>
+        <p style="margin-bottom: 16px; font-size: 0.95rem; max-width: 500px; line-height: 1.6;">
+          قد يكون الملف محميّاً أو تحتاج إعدادات مشاركته في جوجل درايف إلى التعديل لتكون: <strong>"أي شخص لديه الرابط" (Anyone with the link)</strong>.<br>
+          يمكنك دائماً فتح المستند أو تحميله مباشرة عبر الأزرار أدناه:
+        </p>
         <div class="fallback-actions">
-          <a href="${openUrl}" target="_blank" class="btn btn-secondary">
-            ${ICONS.document} فتح في نافذة جديدة
+          <a href="${openUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+            ${ICONS.externalLink} فتح المستند في نافذة كاملة
           </a>
-          <a href="${downloadUrl}" class="btn btn-primary" download>
-            ${ICONS.download} تحميل الملف
+          <a href="${downloadUrl}" class="btn btn-secondary" download target="_blank">
+            ${ICONS.download} تحميل الملف إلى جهازك
           </a>
         </div>
       </div>
     </div>
 
-    <div style="margin-top: 20px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-      <a href="${openUrl}" target="_blank" class="btn btn-secondary">
-        ${ICONS.document} فتح في نافذة جديدة
+    <div style="margin-top: 20px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+      <a href="${openUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+        ${ICONS.externalLink} فتح في نافذة كاملة
       </a>
-      <a href="${downloadUrl}" class="btn btn-secondary" download>
+      <a href="${downloadUrl}" class="btn btn-secondary" download target="_blank">
         ${ICONS.download} تحميل الملف
       </a>
       <button class="btn btn-success" onclick="markComplete('${mat.material_id}')">
@@ -406,20 +429,27 @@ async function renderQuizMaterial(mat, isCompleted) {
 
 // ------ VIDEO ------
 function renderVideoMaterial(mat, isCompleted) {
+  const embedUrl = getVideoEmbedUrl(mat.content);
+  const openUrl = formatExternalUrl(mat.content);
+
   return `
     <div class="material-header">
-      <span class="material-type-badge badge-video">${ICONS.video} فيديو</span>
+      <span class="material-type-badge badge-video">${ICONS.video} فيديو تعليمي</span>
       <h2>${mat.title}</h2>
       ${isCompleted ? `<span style="color: var(--success); display:inline-flex; align-items:center; gap:6px; margin-top:8px;">${ICONS.check} مكتمل</span>` : ''}
     </div>
-    <div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; border-radius:16px; margin-bottom:20px;">
+    <div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; border-radius:16px; margin-bottom:20px; box-shadow: var(--shadow);">
       <iframe
-        src="${mat.content}"
-        style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:16px;"
+        src="${embedUrl}"
+        style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:16px;background:#000;"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen>
       </iframe>
     </div>
-    <div style="display:flex; gap:10px; justify-content:center;">
+    <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+      <a href="${openUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+        ${ICONS.externalLink} فتح الفيديو في نافذة مستقلة
+      </a>
       <button class="btn btn-success" onclick="markComplete('${mat.material_id}')">
         ${ICONS.check} تحديد كمكتمل
       </button>
@@ -430,6 +460,7 @@ function renderVideoMaterial(mat, isCompleted) {
 
 // ------ ARTICLE ------
 function renderArticleMaterial(mat, isCompleted) {
+  const targetUrl = formatExternalUrl(mat.content);
   return `
     <div class="material-header">
       <span class="material-type-badge" style="background: var(--primary-light); color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${ICONS.document} مقال تفاعلي</span>
@@ -438,13 +469,13 @@ function renderArticleMaterial(mat, isCompleted) {
     </div>
     <div style="position:relative; height: 75vh; overflow:hidden; border-radius:16px; margin-bottom:20px; border: 1px solid var(--border); box-shadow: var(--shadow);">
       <iframe
-        src="${mat.content}"
+        src="${targetUrl}"
         style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:white;"
         allowfullscreen>
       </iframe>
     </div>
     <div style="display:flex; gap:10px; justify-content:center; flex-wrap: wrap;">
-      <a href="${mat.content}" target="_blank" class="btn btn-secondary">
+      <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
         ${ICONS.document} فتح في نافذة جديدة
       </a>
       <button class="btn btn-success" onclick="markComplete('${mat.material_id}')">

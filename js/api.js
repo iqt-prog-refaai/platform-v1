@@ -342,6 +342,7 @@ const DirectFirestore = {
       if (updates['2'] !== undefined) patch.lesson_number = Number(updates['2']);
       if (updates['3'] !== undefined) patch.lesson_name = updates['3'];
     } else if (type === 'material') {
+      if (updates['1'] !== undefined) patch.lesson_id = String(updates['1']);
       if (updates['2'] !== undefined) patch.title = updates['2'];
       if (updates['3'] !== undefined) patch.type = updates['3'];
       if (updates['4'] !== undefined) patch.content = updates['4'];
