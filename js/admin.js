@@ -57,6 +57,50 @@ async function refreshAndRenderAdmin() {
   await renderAdmin();
 }
 
+/**
+ * Toggles visibility (is_hidden) for units, lessons, materials, or quizzes.
+ */
+async function toggleItemVisibility(itemType, id, currentHidden) {
+  const newHidden = !currentHidden;
+  const actionText = newHidden ? 'إخفاء' : 'إظهار';
+  showLoading();
+  try {
+    const res = await API.post('editItem', {
+      itemType,
+      id,
+      updates: { is_hidden: newHidden }
+    });
+    if (res && res.success) {
+      showToast(`تم ${actionText} العنصر للطلاب بنجاح!`);
+      // Update in-memory state immediately
+      if (itemType === 'unit') {
+        const u = state.units.find(x => String(x.unit_id) === String(id));
+        if (u) u.is_hidden = newHidden;
+      } else if (itemType === 'lesson') {
+        for (const list of Object.values(state.lessons)) {
+          const l = list.find(x => String(x.lesson_id) === String(id));
+          if (l) l.is_hidden = newHidden;
+        }
+      } else if (itemType === 'material') {
+        const m = state.allMaterials.find(x => String(x.material_id) === String(id));
+        if (m) m.is_hidden = newHidden;
+        for (const list of Object.values(state.materials)) {
+          const m2 = list.find(x => String(x.material_id) === String(id));
+          if (m2) m2.is_hidden = newHidden;
+        }
+      }
+      await refreshAndRenderAdmin();
+    } else {
+      showToast('فشل تحديث حالة الرؤية: ' + (res?.message || ''), 'error');
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('حدث خطأ أثناء تعديل حالة الرؤية', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
 // ==========================================
 // OVERVIEW
 // ==========================================
@@ -125,14 +169,20 @@ async function renderAdminContent(container) {
 
     <div style="margin-bottom: 32px;">
       <h3 style="margin-bottom: 16px; color: var(--text-muted);">الوحدات والدروس</h3>
-      ${state.units.map(unit => `
-        <div class="glass" style="padding: 20px; margin-bottom: 16px; border-right: 4px solid var(--primary);">
+      ${state.units.map(unit => {
+        const isUnitHidden = !!unit.is_hidden;
+        return `
+        <div class="glass" style="padding: 20px; margin-bottom: 16px; border-right: 4px solid ${isUnitHidden ? 'var(--warning, #f59e0b)' : 'var(--primary)'}; ${isUnitHidden ? 'background: rgba(245, 158, 11, 0.03); opacity: 0.9;' : ''}">
           <div class="flex justify-between items-center" style="border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 12px;">
             <div>
               <span class="unit-number">الوحدة ${unit.unit_number}</span>
-              <h4 style="margin-top: 4px;">${unit.unit_name}</h4>
+              <h4 style="margin-top: 4px; display: inline-flex; align-items: center; gap: 8px;">
+                ${unit.unit_name}
+                ${isUnitHidden ? `<span style="font-size: 0.72rem; color: #d97706; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); padding: 2px 8px; border-radius: 6px; font-weight: 700;">👁‍🗨 مخفية عن الطلاب</span>` : ''}
+              </h4>
             </div>
             <div class="flex gap-2">
+              <button class="btn btn-secondary" style="padding: 6px 10px; ${isUnitHidden ? 'color: #d97706; border-color: rgba(245,158,11,0.4);' : ''}" onclick="toggleItemVisibility('unit', '${unit.unit_id}', ${isUnitHidden})" title="${isUnitHidden ? 'إظهار الوحدة للطلاب' : 'إخفاء الوحدة عن الطلاب'}">${isUnitHidden ? ICONS.eye : ICONS.eyeOff}</button>
               <button class="btn btn-secondary" style="padding: 6px 10px;" onclick='showModal("editUnit", ${JSON.stringify(unit).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
               <button class="btn btn-secondary" style="padding: 6px 10px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'unit', id: '${unit.unit_id}', name: '${unit.unit_name}'})" title="حذف">${ICONS.trash}</button>
               <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.85rem;" onclick="showModal('addLesson', '${unit.unit_id}')">${ICONS.plus} درس</button>
@@ -142,29 +192,38 @@ async function renderAdminContent(container) {
 
           <div style="margin-top: 16px; padding-right: 12px;">
             <!-- Unit-direct materials -->
-            ${(state.materials[`unit_${unit.unit_id}`] || []).map(mat => `
-              <div class="flex justify-between items-center" style="padding: 8px 12px; margin-bottom: 8px; border-radius: 8px; background: rgba(99,102,241,0.04); border-right: 3px solid var(--primary);">
+            ${(state.materials[`unit_${unit.unit_id}`] || []).map(mat => {
+              const isMatHidden = !!mat.is_hidden;
+              return `
+              <div class="flex justify-between items-center" style="padding: 8px 12px; margin-bottom: 8px; border-radius: 8px; background: ${isMatHidden ? 'rgba(245, 158, 11, 0.05)' : 'rgba(99,102,241,0.04)'}; border-right: 3px solid ${isMatHidden ? '#f59e0b' : 'var(--primary)'}; ${isMatHidden ? 'opacity: 0.85;' : ''}">
                 <div class="flex items-center gap-2">
-                  <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file}</span>
+                  <span style="color: ${isMatHidden ? '#d97706' : 'var(--primary)'};">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file}</span>
                   <span style="font-weight: 500;">${mat.title}</span>
                   <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 4px;">محتوى بالوحدة (${(mat.type === 'link' || mat.type === 'external') ? 'شرائح / رابط' : mat.type})</span>
+                  ${isMatHidden ? `<span style="font-size: 0.72rem; color: #d97706; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1px 6px; border-radius: 4px; font-weight: 700;">👁‍🗨 مخفي عن الطلاب</span>` : ''}
                 </div>
                 <div class="flex gap-2">
+                  <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; ${isMatHidden ? 'color: #d97706; border-color: rgba(245,158,11,0.4);' : ''}" onclick="toggleItemVisibility('material', '${mat.material_id}', ${isMatHidden})" title="${isMatHidden ? 'إظهار للطلاب' : 'إخفاء عن الطلاب'}">${isMatHidden ? ICONS.eye : ICONS.eyeOff}</button>
                   ${(mat.type === 'link' || mat.type === 'external') && mat.content ? `<a href="${mat.content}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" title="فتح الرابط">${ICONS.externalLink}</a>` : ''}
                   <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                   <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
                 </div>
               </div>
-            `).join('')}
+            `;}).join('')}
 
             <!-- Lessons in unit -->
             ${(state.lessons[unit.unit_id] || []).map(lesson => {
+              const isLesHidden = !!lesson.is_hidden;
               const lessonMats = state.materials[String(lesson.lesson_id)] || [];
               return `
-                <div style="margin-bottom: 12px; background: rgba(0,0,0,0.015); border: 1px solid rgba(0,0,0,0.05); border-radius: 10px; padding: 12px;">
+                <div style="margin-bottom: 12px; background: rgba(0,0,0,0.015); border: 1px solid ${isLesHidden ? 'rgba(245, 158, 11, 0.3)' : 'rgba(0,0,0,0.05)'}; border-radius: 10px; padding: 12px; ${isLesHidden ? 'opacity: 0.88; background: rgba(245, 158, 11, 0.02);' : ''}">
                   <div class="flex justify-between items-center">
-                    <span style="font-weight: 700; font-size: 0.95rem;">الدرس ${lesson.lesson_number}: ${lesson.lesson_name}</span>
+                    <span style="font-weight: 700; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px;">
+                      الدرس ${lesson.lesson_number}: ${lesson.lesson_name}
+                      ${isLesHidden ? `<span style="font-size: 0.72rem; color: #d97706; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1px 6px; border-radius: 4px; font-weight: 700;">👁‍🗨 درس مخفي عن الطلاب</span>` : ''}
+                    </span>
                     <div class="flex gap-2">
+                      <button class="btn btn-secondary" style="padding: 4px 8px; ${isLesHidden ? 'color: #d97706; border-color: rgba(245,158,11,0.4);' : ''}" onclick="toggleItemVisibility('lesson', '${lesson.lesson_id}', ${isLesHidden})" title="${isLesHidden ? 'إظهار الدرس للطلاب' : 'إخفاء الدرس عن الطلاب'}">${isLesHidden ? ICONS.eye : ICONS.eyeOff}</button>
                       <button class="btn btn-secondary" style="padding: 4px 8px;" onclick='showModal("editLesson", ${JSON.stringify(lesson).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                       <button class="btn btn-secondary" style="padding: 4px 8px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'lesson', id: '${lesson.lesson_id}', name: '${lesson.lesson_name}'})" title="حذف">${ICONS.trash}</button>
                       <button class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.8rem;"
@@ -176,20 +235,24 @@ async function renderAdminContent(container) {
 
                   <!-- Materials list inside lesson -->
                   <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; padding-right: 12px; border-right: 2px solid rgba(0,0,0,0.08);">
-                    ${lessonMats.map(mat => `
-                      <div class="flex justify-between items-center" style="padding: 6px 10px; background: var(--bg-card, #fff); border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; font-size: 0.88rem;">
+                    ${lessonMats.map(mat => {
+                      const isMatHidden = !!mat.is_hidden;
+                      return `
+                      <div class="flex justify-between items-center" style="padding: 6px 10px; background: var(--bg-card, #fff); border: 1px solid ${isMatHidden ? 'rgba(245, 158, 11, 0.3)' : 'rgba(0,0,0,0.05)'}; border-radius: 6px; font-size: 0.88rem; ${isMatHidden ? 'opacity: 0.85;' : ''}">
                         <div class="flex items-center gap-2">
-                          <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file}</span>
+                          <span style="color: ${isMatHidden ? '#d97706' : 'var(--primary)'};">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file}</span>
                           <span>${mat.title}</span>
                           <span style="font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">${mat.type === 'quiz' ? 'اختبار' : mat.type === 'video' ? 'فيديو' : mat.type === 'pdf' ? 'PDF' : (mat.type === 'link' || mat.type === 'external') ? 'شرائح / رابط' : mat.type}</span>
+                          ${isMatHidden ? `<span style="font-size: 0.72rem; color: #d97706; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1px 6px; border-radius: 4px; font-weight: 700;">👁‍🗨 مخفي عن الطلاب</span>` : ''}
                         </div>
                         <div class="flex gap-2">
+                          <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; ${isMatHidden ? 'color: #d97706; border-color: rgba(245,158,11,0.4);' : ''}" onclick="toggleItemVisibility('material', '${mat.material_id}', ${isMatHidden})" title="${isMatHidden ? 'إظهار للطلاب' : 'إخفاء عن الطلاب'}">${isMatHidden ? ICONS.eye : ICONS.eyeOff}</button>
                           ${(mat.type === 'link' || mat.type === 'external') && mat.content ? `<a href="${mat.content}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" title="فتح الرابط">${ICONS.externalLink}</a>` : ''}
                           <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                           <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
                         </div>
                       </div>
-                    `).join('')}
+                    `;}).join('')}
                     ${!lessonMats.length ? `
                       <div style="font-size: 0.8rem; color: var(--text-muted); padding: 4px 0;">لا يوجد محتوى في هذا الدرس بعد</div>
                     ` : ''}
@@ -208,19 +271,24 @@ async function renderAdminContent(container) {
             ` : ''}
           </div>
         </div>
-      `).join('')}
+      `;}).join('')}
 
       <!-- Standalone lessons (no unit) -->
       ${(state.lessons[''] || []).length ? `
         <div class="glass" style="padding: 20px; margin-bottom: 16px; border-right: 4px solid var(--secondary);">
           <h4 style="margin-bottom: 14px; color: var(--text-muted);">دروس مستقلة (خارج الوحدات)</h4>
           ${(state.lessons[''] || []).map(lesson => {
+            const isLesHidden = !!lesson.is_hidden;
             const lessonMats = state.materials[String(lesson.lesson_id)] || [];
             return `
-              <div style="margin-bottom: 12px; background: rgba(0,0,0,0.015); border: 1px solid rgba(0,0,0,0.05); border-radius: 10px; padding: 12px;">
+              <div style="margin-bottom: 12px; background: rgba(0,0,0,0.015); border: 1px solid ${isLesHidden ? 'rgba(245, 158, 11, 0.3)' : 'rgba(0,0,0,0.05)'}; border-radius: 10px; padding: 12px; ${isLesHidden ? 'opacity: 0.88; background: rgba(245, 158, 11, 0.02);' : ''}">
                 <div class="flex justify-between items-center">
-                  <span style="font-weight: 700; font-size: 0.95rem;">الدرس ${lesson.lesson_number}: ${lesson.lesson_name}</span>
+                  <span style="font-weight: 700; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px;">
+                    الدرس ${lesson.lesson_number}: ${lesson.lesson_name}
+                    ${isLesHidden ? `<span style="font-size: 0.72rem; color: #d97706; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1px 6px; border-radius: 4px; font-weight: 700;">👁‍🗨 درس مخفي عن الطلاب</span>` : ''}
+                  </span>
                   <div class="flex gap-2">
+                    <button class="btn btn-secondary" style="padding: 4px 8px; ${isLesHidden ? 'color: #d97706; border-color: rgba(245,158,11,0.4);' : ''}" onclick="toggleItemVisibility('lesson', '${lesson.lesson_id}', ${isLesHidden})" title="${isLesHidden ? 'إظهار الدرس للطلاب' : 'إخفاء الدرس عن الطلاب'}">${isLesHidden ? ICONS.eye : ICONS.eyeOff}</button>
                     <button class="btn btn-secondary" style="padding: 4px 8px;" onclick='showModal("editLesson", ${JSON.stringify(lesson).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                     <button class="btn btn-secondary" style="padding: 4px 8px; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'lesson', id: '${lesson.lesson_id}', name: '${lesson.lesson_name}'})" title="حذف">${ICONS.trash}</button>
                     <button class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.8rem;"
@@ -232,20 +300,24 @@ async function renderAdminContent(container) {
 
                 <!-- Materials list inside standalone lesson -->
                 <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; padding-right: 12px; border-right: 2px solid rgba(0,0,0,0.08);">
-                  ${lessonMats.map(mat => `
-                    <div class="flex justify-between items-center" style="padding: 6px 10px; background: var(--bg-card, #fff); border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; font-size: 0.88rem;">
+                  ${lessonMats.map(mat => {
+                    const isMatHidden = !!mat.is_hidden;
+                    return `
+                    <div class="flex justify-between items-center" style="padding: 6px 10px; background: var(--bg-card, #fff); border: 1px solid ${isMatHidden ? 'rgba(245, 158, 11, 0.3)' : 'rgba(0,0,0,0.05)'}; border-radius: 6px; font-size: 0.88rem; ${isMatHidden ? 'opacity: 0.85;' : ''}">
                       <div class="flex items-center gap-2">
-                        <span style="color: var(--primary);">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file}</span>
+                        <span style="color: ${isMatHidden ? '#d97706' : 'var(--primary)'};">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : (mat.type === 'link' || mat.type === 'external') ? ICONS.presentation : ICONS.file}</span>
                         <span>${mat.title}</span>
                         <span style="font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">${mat.type === 'quiz' ? 'اختبار' : mat.type === 'video' ? 'فيديو' : mat.type === 'pdf' ? 'PDF' : (mat.type === 'link' || mat.type === 'external') ? 'شرائح / رابط' : mat.type}</span>
+                        ${isMatHidden ? `<span style="font-size: 0.72rem; color: #d97706; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1px 6px; border-radius: 4px; font-weight: 700;">👁‍🗨 مخفي عن الطلاب</span>` : ''}
                       </div>
                       <div class="flex gap-2">
+                        <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; ${isMatHidden ? 'color: #d97706; border-color: rgba(245,158,11,0.4);' : ''}" onclick="toggleItemVisibility('material', '${mat.material_id}', ${isMatHidden})" title="${isMatHidden ? 'إظهار للطلاب' : 'إخفاء عن الطلاب'}">${isMatHidden ? ICONS.eye : ICONS.eyeOff}</button>
                         ${(mat.type === 'link' || mat.type === 'external') && mat.content ? `<a href="${mat.content}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" title="فتح الرابط">${ICONS.externalLink}</a>` : ''}
                         <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                         <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
                       </div>
                     </div>
-                  `).join('')}
+                  `;}).join('')}
                   ${!lessonMats.length ? `
                     <div style="font-size: 0.8rem; color: var(--text-muted); padding: 4px 0;">لا يوجد محتوى في هذا الدرس بعد</div>
                   ` : ''}
@@ -260,19 +332,23 @@ async function renderAdminContent(container) {
       ${(state.materials[''] || []).length ? `
         <div class="glass" style="padding: 20px; margin-bottom: 16px; border-right: 4px solid #8b5cf6;">
           <h4 style="margin-bottom: 14px; color: var(--text-muted);">محتويات مستقلة تماماً (خارج الدروس والوحدات)</h4>
-          ${(state.materials[''] || []).map(mat => `
-            <div class="flex justify-between items-center" style="padding: 10px 12px; margin-bottom: 6px; border-radius: 8px; background: rgba(139,92,246,0.04); border-right: 3px solid #8b5cf6;">
+          ${(state.materials[''] || []).map(mat => {
+            const isMatHidden = !!mat.is_hidden;
+            return `
+            <div class="flex justify-between items-center" style="padding: 10px 12px; margin-bottom: 6px; border-radius: 8px; background: ${isMatHidden ? 'rgba(245, 158, 11, 0.05)' : 'rgba(139,92,246,0.04)'}; border-right: 3px solid ${isMatHidden ? '#f59e0b' : '#8b5cf6'}; ${isMatHidden ? 'opacity: 0.85;' : ''}">
               <div class="flex items-center gap-2">
-                <span style="color: #8b5cf6;">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file}</span>
+                <span style="color: ${isMatHidden ? '#d97706' : '#8b5cf6'};">${mat.type === 'video' ? ICONS.video : mat.type === 'quiz' ? ICONS.quiz : ICONS.file}</span>
                 <span style="font-weight: 500;">${mat.title}</span>
                 <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 4px;">(${mat.type})</span>
+                ${isMatHidden ? `<span style="font-size: 0.72rem; color: #d97706; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1px 6px; border-radius: 4px; font-weight: 700;">👁‍🗨 مخفي عن الطلاب</span>` : ''}
               </div>
               <div class="flex gap-2">
+                <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; ${isMatHidden ? 'color: #d97706; border-color: rgba(245,158,11,0.4);' : ''}" onclick="toggleItemVisibility('material', '${mat.material_id}', ${isMatHidden})" title="${isMatHidden ? 'إظهار للطلاب' : 'إخفاء عن الطلاب'}">${isMatHidden ? ICONS.eye : ICONS.eyeOff}</button>
                 <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick='showModal("editMaterial", ${JSON.stringify(mat).replace(/'/g, "&#39;")})' title="تعديل">${ICONS.edit}</button>
                 <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; color: var(--danger);" onclick="showModal('deleteConfirm', {type: 'material', id: '${mat.material_id}', name: '${mat.title}'})" title="حذف">${ICONS.trash}</button>
               </div>
             </div>
-          `).join('')}
+          `;}).join('')}
         </div>
       ` : ''}
     </div>
@@ -375,6 +451,7 @@ async function renderAdminQuizzes(container) {
     }
     const timeLimit = settings.time_limit || 0;
     const isReview = settings.is_review_mode || false;
+    const isQuizHidden = !!mat.is_hidden;
 
     const timerBadge = timeLimit > 0
       ? `<span style="font-size:0.78rem; color:var(--primary); background:rgba(99,102,241,0.1);
@@ -389,11 +466,25 @@ async function renderAdminQuizzes(container) {
            ${ICONS.eye} وضع المراجعة
          </span>`
       : '';
+
+    const visibilityBadge = isQuizHidden
+      ? `<span style="font-size:0.78rem; color:#d97706; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3);
+                      padding:2px 8px; border-radius:10px; margin-right:6px; font-weight:700;">
+           👁‍🗨 مخفي عن الطلاب
+         </span>`
+      : `<span style="font-size:0.78rem; color:#059669; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.25);
+                      padding:2px 8px; border-radius:10px; margin-right:6px; font-weight:700;">
+           👁 متاح للطلاب
+         </span>`;
+
     html += `
-      <div class="glass" style="padding: 20px; margin-bottom: 12px;">
+      <div class="glass" style="padding: 20px; margin-bottom: 12px; border-right: 4px solid ${isQuizHidden ? 'var(--warning, #f59e0b)' : 'var(--primary)'}; ${isQuizHidden ? 'background: rgba(245, 158, 11, 0.02); opacity: 0.9;' : ''}">
         <div class="flex justify-between items-center">
           <div>
-            <h4 style="margin-bottom:4px;">${mat.title}</h4>
+            <h4 style="margin-bottom:4px; display:inline-flex; align-items:center; gap:8px;">
+              ${mat.title}
+              ${visibilityBadge}
+            </h4>
             <p style="color: var(--text-muted); font-size: 0.85rem; margin:0;">
               ${unit && lesson ? `${unit.unit_name} → ${lesson.lesson_name}` : (unit ? `${unit.unit_name} (مباشرة)` : (lesson ? `درس مستقل: ${lesson.lesson_name}` : 'مستقل'))}
               ${quiz
@@ -402,6 +493,11 @@ async function renderAdminQuizzes(container) {
             </p>
           </div>
           <div class="flex gap-2" style="flex-wrap:wrap; justify-content:flex-end;">
+            <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; ${isQuizHidden ? 'color:#d97706; border-color:rgba(245,158,11,0.4); font-weight:700;' : ''}"
+              onclick="toggleItemVisibility('material', '${mat.material_id}', ${isQuizHidden})"
+              title="${isQuizHidden ? 'إظهار الاختبار للطلاب الآن' : 'إخفاء الاختبار عن الطلاب'}">
+              ${isQuizHidden ? `${ICONS.eye} إظهار للطلاب الآن` : `${ICONS.eyeOff} إخفاء عن الطلاب`}
+            </button>
             ${!quiz ? `
               <button class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;"
                 onclick="createQuizForMaterial('${mat.material_id}', '${mat.title}')">
@@ -424,7 +520,8 @@ async function renderAdminQuizzes(container) {
               <button class="btn btn-secondary" style="padding: 8px; font-size: 0.85rem;" title="إعدادات الاختبار"
                 onclick='showModal("editQuizSettings", ${JSON.stringify({
                   material_id: mat.material_id, 
-                  title: mat.title, 
+                  title: mat.title,
+                  is_hidden: isQuizHidden,
                   settings: (function(){ try { return JSON.parse(mat.content || "{}"); } catch(e){ return {}; } })() 
                 }).replace(/'/g, "&#39;")})'>
                 ⚙

@@ -224,13 +224,22 @@ function renderDashboard() {
   const statsContainer = $('studentStats');
   $('studentName').textContent = state.user?.name || 'طالب';
 
-  if (!state.units.length) {
-    container.innerHTML = '<div class="glass text-center" style="padding: 60px;"><p>لا توجد وحدات متاحة بعد.</p></div>';
+  const isStudent = state.user?.role !== 'admin';
+  const visibleUnits = isStudent ? state.units.filter(u => !u.is_hidden) : state.units;
+  const rawStandaloneLessons = state.lessons[''] || [];
+  const standaloneLessons = isStudent ? rawStandaloneLessons.filter(l => !l.is_hidden) : rawStandaloneLessons;
+  const rawStandaloneMaterials = state.materials[''] || [];
+  const standaloneMaterials = isStudent ? rawStandaloneMaterials.filter(m => !m.is_hidden) : rawStandaloneMaterials;
+
+  if (!visibleUnits.length && !standaloneLessons.length && !standaloneMaterials.length) {
+    container.innerHTML = '<div class="glass text-center" style="padding: 60px;"><p>لا توجد وحدات أو دروس متاحة حالياً.</p></div>';
+    statsContainer.innerHTML = '';
     return;
   }
 
+  const allVisibleLessons = Object.values(state.lessons).flat().filter(l => !isStudent || !l.is_hidden);
+  const totalLessons = allVisibleLessons.length;
   const completedLessons = state.progress?.completed_lessons?.length || 0;
-  const totalLessons = Object.values(state.lessons).flat().length;
   const completedMaterials = state.progress?.completed_materials?.length || 0;
 
   statsContainer.innerHTML = `
@@ -244,13 +253,15 @@ function renderDashboard() {
     </div>
     <div class="glass stat-card green">
       <div class="stat-label">الوحدة الحالية</div>
-      <div class="stat-value" style="font-size: 1.4rem;">${state.units.find(u => u.unit_id === state.progress?.current_unit_id)?.unit_name || 'لم يبدأ'}</div>
+      <div class="stat-value" style="font-size: 1.4rem;">${visibleUnits.find(u => u.unit_id === state.progress?.current_unit_id)?.unit_name || 'لم يبدأ'}</div>
     </div>
   `;
 
-  container.innerHTML = state.units.map(unit => {
-    const lessons = state.lessons[unit.unit_id] || [];
-    const unitMaterials = state.materials[`unit_${unit.unit_id}`] || [];
+  container.innerHTML = visibleUnits.map(unit => {
+    const rawLessons = state.lessons[unit.unit_id] || [];
+    const lessons = isStudent ? rawLessons.filter(l => !l.is_hidden) : rawLessons;
+    const rawUnitMaterials = state.materials[`unit_${unit.unit_id}`] || [];
+    const unitMaterials = isStudent ? rawUnitMaterials.filter(m => !m.is_hidden) : rawUnitMaterials;
     const isExpanded = unit.unit_id === state.progress?.current_unit_id;
 
     return `
@@ -283,7 +294,8 @@ function renderDashboard() {
           ${lessons.map(lesson => {
             const isCompleted = state.progress?.completed_lessons?.includes(lesson.lesson_id);
             const isActive = lesson.lesson_id === state.progress?.current_lesson_id;
-            const mats = state.materials[lesson.lesson_id] || [];
+            const rawMats = state.materials[lesson.lesson_id] || [];
+            const mats = isStudent ? rawMats.filter(m => !m.is_hidden) : rawMats;
 
             return `
               <div class="lesson-item ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}" onclick="openLesson('${lesson.lesson_id}')">
@@ -304,9 +316,6 @@ function renderDashboard() {
   }).join('');
 
   // Add Standalone lessons
-  const standaloneLessons = state.lessons[''] || [];
-  const standaloneMaterials = state.materials[''] || [];
-  
   if (standaloneLessons.length > 0 || standaloneMaterials.length > 0) {
     container.innerHTML += `
       <div style="margin-top: 16px;">
@@ -329,7 +338,8 @@ function renderDashboard() {
           ${standaloneLessons.map(lesson => {
             const isCompleted = state.progress?.completed_lessons?.includes(lesson.lesson_id);
             const isActive = lesson.lesson_id === state.progress?.current_lesson_id;
-            const mats = state.materials[lesson.lesson_id] || [];
+            const rawMats = state.materials[lesson.lesson_id] || [];
+            const mats = isStudent ? rawMats.filter(m => !m.is_hidden) : rawMats;
             return `
               <div class="glass lesson-item ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}" onclick="openLesson('${lesson.lesson_id}')" style="padding:16px; margin-bottom:12px; background:var(--bg-glass);">
                 <div class="lesson-icon ${isCompleted ? 'completed' : ''}">

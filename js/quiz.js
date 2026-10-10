@@ -13,6 +13,15 @@ async function startQuiz(materialId, quizId, isReviewMode = false) {
     return;
   }
 
+  // If user is a student, ensure quiz is visible
+  if (state.user?.role !== 'admin') {
+    const mat = state.allMaterials.find(m => String(m.material_id) === String(materialId));
+    if (mat && mat.is_hidden) {
+      showToast('عذراً، هذا الاختبار غير متاح حالياً للطلاب.', 'error');
+      return;
+    }
+  }
+
   // Clear any timer left over from a previous attempt
   if (state.currentQuiz?.timerInterval) {
     clearInterval(state.currentQuiz.timerInterval);

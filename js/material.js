@@ -20,8 +20,13 @@ async function renderMaterialViewer(lessonId, specificMaterialId = null) {
     mats = state.materials[lessonId] || [];
   }
 
+  // Filter out hidden materials for students
+  if (state.user?.role !== 'admin') {
+    mats = mats.filter(m => !m.is_hidden);
+  }
+
   if (!mats.length) {
-    container.innerHTML = '<div class="text-center" style="padding: 60px;"><p>لا يوجد محتوى لهذا الدرس بعد.</p></div>';
+    container.innerHTML = '<div class="text-center" style="padding: 60px;"><p>لا يوجد محتوى متاح لهذا الدرس حالياً.</p></div>';
     return;
   }
 

@@ -34,6 +34,15 @@ function showModal(type, id = null) {
         <label>اسم الوحدة</label>
         <input type="text" id="unitName" value="${isEdit ? data.unit_name : ''}" placeholder="مثال: مقدمة في البرمجة">
       </div>
+      <div class="input-group" style="margin-top: 14px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="unitIsHidden" ${isEdit && data.is_hidden ? 'checked' : ''} style="width:18px;height:18px;">
+          <strong>إخفاء هذه الوحدة عن الطلاب مؤقتاً</strong>
+        </label>
+        <p style="margin-top:4px; font-size:0.82rem; color:var(--text-muted);">
+          إذا تم تفعيل هذا الخيار، فلن تظهر الوحدة ودروسها للطلاب حتى تتيحها.
+        </p>
+      </div>
       <div class="modal-footer">
         <button class="btn btn-primary" onclick="${isEdit ? 'submitEditUnit()' : 'submitUnit()'}">${isEdit ? 'حفظ التعديلات' : 'إضافة وحدة'}</button>
         <button class="btn btn-secondary" onclick="closeModal()">إلغاء</button>
@@ -60,6 +69,15 @@ function showModal(type, id = null) {
       <div class="input-group">
         <label>اسم الدرس</label>
         <input type="text" id="lessonName" value="${isEdit ? data.lesson_name : ''}" placeholder="مثال: الدرس الأول: مقدمة وشرح المفاهيم">
+      </div>
+      <div class="input-group" style="margin-top: 14px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="lessonIsHidden" ${isEdit && data.is_hidden ? 'checked' : ''} style="width:18px;height:18px;">
+          <strong>إخفاء هذا الدرس عن الطلاب مؤقتاً</strong>
+        </label>
+        <p style="margin-top:4px; font-size:0.82rem; color:var(--text-muted);">
+          إذا تم تفعيل هذا الخيار، فلن يتمكن الطلاب من مشاهدة هذا الدرس ومحتوياته.
+        </p>
       </div>
       <div class="modal-footer">
         <button class="btn btn-primary" onclick="${isEdit ? 'submitEditLesson()' : 'submitLesson()'}">${isEdit ? 'حفظ التعديلات' : 'إضافة درس'}</button>
@@ -112,6 +130,15 @@ function showModal(type, id = null) {
         <input type="text" id="materialLinkInput" value="${isEdit ? (data.content || '') : ''}" placeholder="${isEdit && data.type === 'pdf' ? 'https://drive.google.com/file/d/...' : 'https://... (مثال: رابط شرائح Google Slides أو Canva)'}">
         <p id="materialContentHint" style="margin-top: 6px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;">
           ${isEdit && data.type === 'pdf' ? '📌 يمكنك لصق رابط المشاركة من Google Drive كما هو — سيتم استخراج معرّف الملف تلقائياً.<br><strong style="color: var(--danger);">تنبيه:</strong> تأكد من إعداد المشاركة: "أي شخص لديه الرابط".' : '🔗 <strong>رابط خارجي:</strong> يمكنك وضع رابط شرائح Google Slides أو Canva أو Notion أو أي موقع خارجي.<br>سيتوفر للطالب زر بارز للانتقال للمحتوى مباشرة في نافذة جديدة مع إمكانية عرض معاينة.'}
+        </p>
+      </div>
+      <div class="input-group" style="margin-top: 14px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="materialIsHidden" ${isEdit && data.is_hidden ? 'checked' : ''} style="width:18px;height:18px;">
+          <strong>إخفاء هذا المحتوى عن الطلاب مؤقتاً</strong>
+        </label>
+        <p style="margin-top:4px; font-size:0.82rem; color:var(--text-muted);">
+          يمكنك تجهيز المحتوى الآن وجعله مخفياً، ثم إظهاره للطلاب بضغطة زر واحدة لاحقاً.
         </p>
       </div>
       <div class="modal-footer">
@@ -206,6 +233,15 @@ function showModal(type, id = null) {
         </label>
         <p style="margin-top:6px; font-size:0.82rem; color:var(--text-muted); line-height:1.6;">
           إذا تم التفعيل، سيُجبر الطالب على أداء الاختبار في وضع المراجعة فقط (تظهر الإجابة الصحيحة فوراً ولا تسجل الدرجة).
+        </p>
+      </div>
+      <div class="input-group" style="margin-top: 16px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="quizIsHidden" ${qz.is_hidden ? 'checked' : ''} style="width:18px;height:18px;">
+          <strong>إخفاء هذا الاختبار عن الطلاب حالياً (تفعيله في وقت محدد لاحقاً)</strong>
+        </label>
+        <p style="margin-top:6px; font-size:0.82rem; color:var(--text-muted); line-height:1.6;">
+          إذا تم تفعيل هذا الخيار، فلن يظهر الاختبار للطلاب نهائياً حتى تقوم بإلغاء إخفائه يدوياً في الوقت المناسب.
         </p>
       </div>
       <div class="modal-footer">
@@ -391,6 +427,7 @@ function toggleQuestionFields() {
 async function submitUnit() {
   let num = $('unitNumber').value;
   const name = $('unitName').value.trim();
+  const isHidden = $('unitIsHidden')?.checked || false;
   if (!name) { showToast('يرجى إدخال اسم الوحدة', 'error'); return; }
 
   if (!num) {
@@ -400,7 +437,7 @@ async function submitUnit() {
   showLoading();
   try {
     if (!MOCK_MODE) {
-      const res = await API.post('addUnit', { unit_number: parseInt(num), unit_name: name });
+      const res = await API.post('addUnit', { unit_number: parseInt(num), unit_name: name, is_hidden: isHidden });
       if (!res || !res.success) {
         showToast('خطأ: ' + (res?.message || 'فشل في إضافة الوحدة'), 'error');
         return;
@@ -421,6 +458,7 @@ async function submitLesson() {
   const unitId = $('lessonUnitId')?.value || '';
   let num = $('lessonNumber')?.value;
   const name = $('lessonName')?.value?.trim();
+  const isHidden = $('lessonIsHidden')?.checked || false;
   if (!name) { showToast('يرجى كتابة اسم الدرس', 'error'); return; }
 
   const parsedNum = parseInt(num, 10) || ((state.lessons[unitId] || []).length + 1);
@@ -431,7 +469,8 @@ async function submitLesson() {
       const res = await API.post('addLesson', { 
         unit_id: unitId, 
         lesson_number: parsedNum, 
-        lesson_name: name 
+        lesson_name: name,
+        is_hidden: isHidden
       });
       if (!res || !res.success) {
         showToast('خطأ: ' + (res?.message || 'فشل في إضافة الدرس'), 'error');
@@ -454,6 +493,7 @@ async function submitMaterial() {
   const title = $('materialTitle')?.value?.trim() || '';
   const type = $('materialType')?.value || 'link';
   const rawContent = $('materialLinkInput')?.value?.trim() || '';
+  const isHidden = $('materialIsHidden')?.checked || false;
 
   if (!title) { showToast('يرجى كتابة عنوان المحتوى', 'error'); return; }
   if (type !== 'quiz' && !rawContent) {
@@ -468,7 +508,8 @@ async function submitMaterial() {
         lesson_id: lessonId, 
         title, 
         type, 
-        content: rawContent 
+        content: rawContent,
+        is_hidden: isHidden
       });
       if (!res || !res.success) {
         showToast('خطأ: ' + (res?.message || 'فشل في إضافة المحتوى'), 'error');
@@ -770,10 +811,11 @@ async function submitEditUnit() {
   const id = $('unitId').value;
   const num = $('unitNumber').value;
   const name = $('unitName').value.trim();
+  const isHidden = $('unitIsHidden')?.checked || false;
   if (!num || !name) { showToast('يرجى ملء جميع الحقول', 'error'); return; }
 
   if (!MOCK_MODE) {
-    const res = await API.post('editItem', { itemType: 'unit', id, updates: { 1: parseInt(num), 2: name } });
+    const res = await API.post('editItem', { itemType: 'unit', id, updates: { 1: parseInt(num), 2: name, is_hidden: isHidden } });
     if (!res.success) { showToast('حدث خطأ: ' + res.message, 'error'); return; }
   }
   showToast('تم تعديل الوحدة!');
@@ -786,12 +828,13 @@ async function submitEditLesson() {
   const unitId = $('lessonUnitId')?.value;
   const num = $('lessonNumber').value;
   const name = $('lessonName').value.trim();
+  const isHidden = $('lessonIsHidden')?.checked || false;
   if (!num || !name) { showToast('يرجى ملء جميع الحقول', 'error'); return; }
 
   showLoading();
   try {
     if (!MOCK_MODE) {
-      const updates = { 2: parseInt(num), 3: name };
+      const updates = { 2: parseInt(num), 3: name, is_hidden: isHidden };
       if (unitId !== undefined) {
         updates[1] = unitId;
       }
@@ -818,12 +861,13 @@ async function submitEditMaterial() {
   const title = $('materialTitle').value.trim();
   const type = $('materialType').value;
   const rawContent = $('materialLinkInput')?.value?.trim() || '';
+  const isHidden = $('materialIsHidden')?.checked || false;
   if (!title) { showToast('يرجى ملء العنوان', 'error'); return; }
 
   showLoading();
   try {
     if (!MOCK_MODE) {
-      const updates = { 2: title, 3: type, 4: rawContent };
+      const updates = { 2: title, 3: type, 4: rawContent, is_hidden: isHidden };
       if (targetLessonId !== undefined) {
         updates[1] = targetLessonId;
       }
@@ -886,6 +930,7 @@ async function submitQuizSettings() {
   const materialId = $('quizSettingsMaterialId').value;
   const timeLimit  = Math.max(0, parseInt($('quizTimeLimit').value) || 0);
   const isReviewMode = $('quizReviewMode').checked;
+  const isHidden = $('quizIsHidden')?.checked || false;
 
   const settingsStr = JSON.stringify({
     time_limit: timeLimit,
@@ -897,7 +942,7 @@ async function submitQuizSettings() {
       const res = await API.post('editItem', {
         itemType: 'material',
         id: materialId,
-        updates: { 4: settingsStr } // Column 4 is 'content'
+        updates: { 4: settingsStr, is_hidden: isHidden }
       });
       if (!res || !res.success) {
         showToast('خطأ: ' + (res?.message || 'فشل في حفظ الإعدادات'), 'error');
@@ -914,11 +959,13 @@ async function submitQuizSettings() {
   const mat = state.allMaterials.find(m => m.material_id === materialId);
   if (mat) {
     mat.content = settingsStr;
+    mat.is_hidden = isHidden;
   }
   
   if (state.quizzes[materialId]) {
     state.quizzes[materialId].time_limit = timeLimit;
     state.quizzes[materialId].is_review_mode = isReviewMode;
+    state.quizzes[materialId].is_hidden = isHidden;
   }
 
   showToast('تم حفظ إعدادات الاختبار بنجاح');

@@ -89,6 +89,7 @@ const DirectFirestore = {
       unit_id: id,
       unit_number: Number(data.unit_number) || 0,
       unit_name: data.unit_name || '',
+      is_hidden: Boolean(data.is_hidden || false),
       created_at: new Date().toISOString()
     });
     return { success: true, unit_id: id };
@@ -114,6 +115,7 @@ const DirectFirestore = {
       unit_id: String(data.unit_id != null ? data.unit_id : ''),
       lesson_number: Number(data.lesson_number) || 0,
       lesson_name: data.lesson_name || '',
+      is_hidden: Boolean(data.is_hidden || false),
       created_at: new Date().toISOString()
     });
     return { success: true, lesson_id: id };
@@ -151,6 +153,7 @@ const DirectFirestore = {
       type: data.type || 'text',
       content: data.content || '',
       order_index: order,
+      is_hidden: Boolean(data.is_hidden || false),
       created_at: new Date().toISOString()
     });
 
@@ -162,6 +165,7 @@ const DirectFirestore = {
         material_id: id,
         title: data.title || '',
         description: '',
+        is_hidden: Boolean(data.is_hidden || false),
         created_at: new Date().toISOString()
       });
     }
