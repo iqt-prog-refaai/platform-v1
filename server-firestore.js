@@ -509,21 +509,6 @@ export const FirestoreService = {
       matched = true;
     }
 
-    // 2. If not matched locally and storedPass was empty from sheet migration, fallback to GAS once
-    if (!matched && !storedPass) {
-      try {
-        const gasRes = await fetch(`https://script.google.com/macros/s/AKfycbxN3hqIWJMscT1C0K3KeiNtfo_OMpXpB8NDX23vbZ9CWPGIyk4TsfGZNHPQqrPjbsoeGg/exec?action=login&username=${encodeURIComponent(cleanUser)}&password=${encodeURIComponent(cleanPass)}`);
-        const gasJson = await gasRes.json();
-        if (gasJson && gasJson.success) {
-          matched = true;
-          // Persist the verified password in Firestore for future ultra-fast logins
-          await updateDoc(docRef, { password: cleanPass }).catch(() => {});
-        }
-      } catch (err) {
-        console.warn('Fallback login check to GAS failed:', err.message);
-      }
-    }
-
     if (!matched) {
       return { success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
     }

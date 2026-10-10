@@ -5,7 +5,15 @@
 
 const CONFIG = {
   API_URL: '/api',
-  SHEET_ID: '1OnvFNlJlMGrxv6UCZAZmT2cJr1SG8j2AjRHOYWWWe7U'
+  FIREBASE: {
+    projectId: "hazel-logic-jv4kj",
+    appId: "1:396272193878:web:c9b8b5fb73f92ae48386f7",
+    apiKey: "AIzaSyAKjUqtTeF7_KagJ3DxJUaz6SjhS2llVOA",
+    authDomain: "hazel-logic-jv4kj.firebaseapp.com",
+    firestoreDatabaseId: "ai-studio-platformv1-35be5c80-6a5b-430d-acb2-1dbe5ef34c30",
+    storageBucket: "hazel-logic-jv4kj.firebasestorage.app",
+    messagingSenderId: "396272193878"
+  }
 };
 
 // Set to true to bypass API calls with mock data (for local development)
