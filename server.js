@@ -127,11 +127,16 @@ app.post('/api', async (req, res) => {
   }
 });
 
-// Serve frontend static files
-app.use(express.static(__dirname));
+// Serve frontend static files with no-cache headers to prevent stale browser caching
+app.use(express.static(__dirname, {
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  }
+}));
 
 // Fallback to index.html for Single Page Application routing
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 

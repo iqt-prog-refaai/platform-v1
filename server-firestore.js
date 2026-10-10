@@ -375,23 +375,34 @@ export const FirestoreService = {
   // ====== PROGRESS ======
   async getStudentProgress(username) {
     if (!username) return { success: true, progress: null };
-    const docRef = doc(db, 'student_progress', sanitizeDocId(String(username).toLowerCase()));
-    const snap = await getDoc(docRef);
+    const lowerKey = sanitizeDocId(String(username).trim().toLowerCase());
+    let docRef = doc(db, 'student_progress', lowerKey);
+    let snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      const origKey = sanitizeDocId(String(username).trim());
+      if (origKey !== lowerKey) {
+        docRef = doc(db, 'student_progress', origKey);
+        snap = await getDoc(docRef);
+      }
+    }
     if (!snap.exists()) return { success: true, progress: null };
     return { success: true, progress: snap.data() };
   },
 
   async updateStudentProgress(data) {
-    const userKey = sanitizeDocId(String(data.username).toLowerCase());
+    const rawUser = String(data.username || '').trim();
+    if (!rawUser) return { success: false, message: 'Missing username' };
+    const userKey = sanitizeDocId(rawUser.toLowerCase());
     const docRef = doc(db, 'student_progress', userKey);
     await setDoc(
       docRef,
       {
-        username: data.username,
+        username: rawUser,
         current_unit_id: data.current_unit_id || '',
         current_lesson_id: data.current_lesson_id || '',
         completed_lessons: Array.isArray(data.completed_lessons) ? data.completed_lessons : [],
         completed_materials: Array.isArray(data.completed_materials) ? data.completed_materials : [],
+        completed_lesson_details: Array.isArray(data.completed_lesson_details) ? data.completed_lesson_details : [],
         updated_at: new Date().toISOString()
       },
       { merge: true }

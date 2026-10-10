@@ -1,8 +1,114 @@
 // ============================================
 // quiz.js — Quiz engine: start, render, answer,
-//            submit, timer, answer review
+//            submit, timer, answer review, auto-save
 // Depends on: api.js, state.js, utils.js, router.js
 // ============================================
+
+// ==========================================
+// QUIZ PROGRESS STORAGE HELPERS
+// ==========================================
+function getQuizStorageKey(quizId) {
+  const username = state.user?.username || 'user';
+  return `iqt_quiz_saved_${username.toLowerCase()}_${quizId}`;
+}
+
+function saveQuizProgress() {
+  const quiz = state.currentQuiz;
+  if (!quiz || quiz.isReviewMode) return;
+  try {
+    const key = getQuizStorageKey(quiz.quizId);
+    const payload = {
+      quizId: quiz.quizId,
+      materialId: quiz.materialId,
+      currentIndex: quiz.currentIndex,
+      answers: quiz.answers,
+      score: quiz.score,
+      timeLeft: quiz.timeLeft,
+      totalQuestions: quiz.questions.length,
+      savedAt: Date.now()
+    };
+    localStorage.setItem(key, JSON.stringify(payload));
+  } catch (e) {
+    console.warn('Failed to save quiz progress to localStorage', e);
+  }
+}
+
+function loadSavedQuizProgress(quizId) {
+  try {
+    const key = getQuizStorageKey(quizId);
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (data && data.quizId === quizId) {
+      return data;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function clearSavedQuizProgress(quizId) {
+  try {
+    const key = getQuizStorageKey(quizId);
+    localStorage.removeItem(key);
+  } catch (e) {}
+}
+
+function confirmResetQuizProgress() {
+  const quiz = state.currentQuiz;
+  if (!quiz) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'resetQuizModal';
+  modal.innerHTML = `
+    <div class="glass modal-content" style="max-width: 440px; text-align: center;">
+      <div style="font-size: 2.8rem; margin-bottom: 12px;">🔄</div>
+      <h3 style="margin-bottom: 12px;">إعادة بدء الاختبار من الصفر</h3>
+      <p style="margin-bottom: 20px; color: var(--text-muted); line-height: 1.6;">
+        هل أنت متأكد من رغبتك في مسح كافة الإجابات السابقة والبدء من السؤال الأول من جديد؟
+      </p>
+      <div class="modal-footer" style="justify-content: center; gap: 12px;">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('resetQuizModal')?.remove()">
+          إلغاء ومتابعة الحل
+        </button>
+        <button type="button" class="btn btn-primary" style="background: var(--danger); border-color: var(--danger);" onclick="document.getElementById('resetQuizModal')?.remove(); resetCurrentQuizProgress();">
+          نعم، إعادة البدء
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function resetCurrentQuizProgress() {
+  const quiz = state.currentQuiz;
+  if (!quiz) return;
+
+  clearSavedQuizProgress(quiz.quizId);
+  quiz.answers = new Array(quiz.questions.length).fill(null);
+  quiz.currentIndex = 0;
+  quiz.score = 0;
+  quiz.resumedFromSaved = false;
+  quiz.answerConfirmed = false;
+
+  // Reset timer
+  if (quiz.timerInterval) clearInterval(quiz.timerInterval);
+  const quizRecord = state.quizzes[quiz.materialId];
+  const mat = state.allMaterials.find(m => m.material_id === quiz.materialId);
+  let timeLimitMins = quizRecord?.time_limit ? parseInt(quizRecord.time_limit) : 0;
+  if (mat && mat.content) {
+    try {
+      const settings = JSON.parse(mat.content);
+      if (settings.time_limit !== undefined) timeLimitMins = parseInt(settings.time_limit);
+    } catch(e) {}
+  }
+  const timeLimitSecs = timeLimitMins > 0 ? timeLimitMins * 60 : 0;
+  quiz.timeLeft = quiz.isReviewMode ? 60 : timeLimitSecs;
+  if (timeLimitSecs > 0 || quiz.isReviewMode) startQuizTimer();
+
+  renderQuizQuestion();
+  showToast('تمت إعادة ضبط الاختبار بنجاح والبدء من السؤال الأول');
+}
 
 // ==========================================
 // START QUIZ
@@ -104,24 +210,51 @@ async function startQuiz(materialId, quizId, isReviewMode = false) {
 
     const timeLimitSecs = timeLimitMins > 0 ? timeLimitMins * 60 : 0;
 
+    // Check for saved quiz progress
+    const savedProg = loadSavedQuizProgress(quizId);
+    let initialAnswers = new Array(questions.length).fill(null);
+    let initialIndex = 0;
+    let initialTimeLeft = isReviewMode ? 60 : timeLimitSecs;
+    let isResumed = false;
+
+    if (savedProg && !isReviewMode) {
+      if (Array.isArray(savedProg.answers) && savedProg.answers.length === questions.length) {
+        initialAnswers = savedProg.answers;
+      }
+      if (typeof savedProg.currentIndex === 'number' && savedProg.currentIndex >= 0 && savedProg.currentIndex < questions.length) {
+        initialIndex = savedProg.currentIndex;
+      }
+      if (timeLimitSecs > 0 && typeof savedProg.timeLeft === 'number' && savedProg.timeLeft > 0) {
+        initialTimeLeft = savedProg.timeLeft;
+      }
+      const hasAnyAnswer = initialAnswers.some(a => a !== null && a !== undefined);
+      if (hasAnyAnswer || initialIndex > 0) {
+        isResumed = true;
+      }
+    }
+
     state.currentQuiz = {
       materialId,
       quizId,
       questions,
-      currentIndex: 0,
-      // Pre-fill answers array with nulls so prev/next pre-selection works
-      answers: new Array(questions.length).fill(null),
+      currentIndex: initialIndex,
+      answers: initialAnswers,
       score: 0,
       maxScore: questions.reduce((acc, q) => acc + (q.points || 1), 0),
-      timeLeft: isReviewMode ? 60 : timeLimitSecs,
+      timeLeft: initialTimeLeft,
       timerInterval: null,
       isReviewMode,
-      answerConfirmed: false
+      answerConfirmed: false,
+      resumedFromSaved: isResumed
     };
 
     navigateTo('quiz');
     renderQuizQuestion();
     if (timeLimitSecs > 0 || isReviewMode) startQuizTimer();
+
+    if (isResumed) {
+      showToast(`📌 تم استئناف تقدمك المحفوظ في الاختبار (السؤال ${initialIndex + 1} من ${questions.length})`);
+    }
 
   } catch (err) {
     showToast('خطأ في تحميل الاختبار', 'error');
@@ -337,8 +470,24 @@ function renderQuizQuestion() {
     nextBtnIcon = ICONS.check;
   }
 
+  // Resume notice banner if student has saved progress or answered questions
+  const showResumeNotice = !quiz.isReviewMode && (quiz.resumedFromSaved || answeredCount > 0);
+  const resumeNoticeHtml = showResumeNotice ? `
+    <div class="quiz-resume-banner">
+      <span style="display:flex; align-items:center; gap:8px; font-weight:600; color:var(--primary);">
+        <span>💾</span>
+        <span>يتم حفظ تقدمك وإجاباتك تلقائياً. يمكنك الخروج والعودة للاختبار في أي وقت.</span>
+      </span>
+      <button type="button" class="btn btn-secondary" onclick="confirmResetQuizProgress()" style="padding:4px 12px; font-size:0.8rem; border-color:rgba(239,68,68,0.3); color:var(--danger); font-weight:700;">
+        🔄 إعادة البدء من جديد
+      </button>
+    </div>
+  ` : '';
+
   $('quizContent').innerHTML = `
     <div class="glass question-card">
+      ${resumeNoticeHtml}
+
       <!-- Question Navigator Bar -->
       <div class="quiz-nav-container">
         <div class="quiz-nav-header">
@@ -380,10 +529,17 @@ function renderQuizQuestion() {
       ${questionHtml}
       ${explanationHtml}
 
-      <div style="margin-top:32px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
-        ${quiz.currentIndex > 0
-          ? `<button class="btn btn-secondary" onclick="prevQuestion()">${ICONS.arrowRight} السابق</button>`
-          : '<div></div>'}
+      <div style="margin-top:32px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          ${quiz.currentIndex > 0
+            ? `<button class="btn btn-secondary" onclick="prevQuestion()">${ICONS.arrowRight} السابق</button>`
+            : ''}
+          ${!quiz.isReviewMode ? `
+            <button type="button" class="btn btn-secondary" onclick="confirmResetQuizProgress()" style="font-size:0.85rem; color:var(--text-muted);" title="مسح التقدم المحفوظ والبدء من السؤال الأول">
+              🔄 إعادة التقدم
+            </button>
+          ` : ''}
+        </div>
 
         <div style="display:flex; gap:10px;">
           ${!quiz.isReviewMode && quiz.currentIndex !== quiz.questions.length - 1 ? `
@@ -523,6 +679,7 @@ function saveCurrentAnswer(showAlert = false) {
     };
 
     if (isCorrect) quiz.score += (q.points || 1);
+    saveQuizProgress();
     return true;
   } else {
     if (showAlert) {
@@ -545,6 +702,7 @@ function jumpToQuestion(targetIndex) {
   if (quiz.isReviewMode) {
     quiz.answerConfirmed = quiz.answers[quiz.currentIndex] !== null;
   }
+  saveQuizProgress();
   renderQuizQuestion();
 }
 
@@ -560,6 +718,7 @@ function prevQuestion() {
   if (quiz.isReviewMode) {
     quiz.answerConfirmed = quiz.answers[quiz.currentIndex] !== null;
   }
+  saveQuizProgress();
   renderQuizQuestion();
 }
 
@@ -629,6 +788,7 @@ function nextQuestion(forceAdvance = false) {
     if (quiz.isReviewMode) {
       quiz.answerConfirmed = quiz.answers[quiz.currentIndex] !== null;
     }
+    saveQuizProgress();
     renderQuizQuestion();
   } else {
     if (quiz.isReviewMode) {
@@ -731,6 +891,9 @@ function _scoreColor(score, max) {
 
 async function submitQuiz() {
   const quiz = state.currentQuiz;
+
+  // Clear in-progress saved state for this quiz once submitted
+  clearSavedQuizProgress(quiz.quizId);
 
   // Stop timer
   if (quiz.timerInterval) { clearInterval(quiz.timerInterval); quiz.timerInterval = null; }
@@ -863,6 +1026,11 @@ async function submitQuiz() {
           score:    quiz.score,
           max_score: quiz.maxScore
         });
+
+        // Auto-mark the quiz material as completed in student's progress record
+        if (quiz.materialId && typeof markComplete === 'function') {
+          markComplete(quiz.materialId);
+        }
       } catch (err) {
         console.error('Error submitting quiz:', err);
       }

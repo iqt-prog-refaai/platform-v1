@@ -97,6 +97,7 @@
         "current_lesson_id": { "type": "string", "maxLength": 100 },
         "completed_lessons": { "type": "array" },
         "completed_materials": { "type": "array" },
+        "completed_lesson_details": { "type": "array" },
         "updated_at": { "type": "string", "maxLength": 100 }
       },
       "required": ["username"]

@@ -23,4 +23,8 @@ window.addEventListener('hashchange', () => {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const el = $(`page-${page}`);
   if (el) el.classList.add('active');
+
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'profile') renderProfile();
+  if (page === 'admin') renderAdmin();
 });

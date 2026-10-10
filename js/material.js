@@ -25,12 +25,72 @@ async function renderMaterialViewer(lessonId, specificMaterialId = null) {
     mats = mats.filter(m => !m.is_hidden);
   }
 
+  // Find lesson and unit metadata for proper header display
+  let currentLessonObj = null;
+  let currentUnitObj = null;
+  const isDirectUnitMat = String(lessonId || '').startsWith('unit_');
+
+  if (lessonId && !isDirectUnitMat) {
+    for (const [uId, lList] of Object.entries(state.lessons)) {
+      const found = lList.find(l => String(l.lesson_id) === String(lessonId));
+      if (found) {
+        currentLessonObj = found;
+        currentUnitObj = state.units.find(u => String(u.unit_id) === String(uId));
+        break;
+      }
+    }
+  } else if (isDirectUnitMat) {
+    const uId = lessonId.replace('unit_', '');
+    currentUnitObj = state.units.find(u => String(u.unit_id) === String(uId));
+  }
+
+  const isLessonCompleted = lessonId && Array.isArray(state.progress?.completed_lessons) && state.progress.completed_lessons.includes(lessonId);
+
+  let headerHtml = '';
+  if (currentLessonObj || currentUnitObj) {
+    const titleText = currentLessonObj ? `الدرس ${currentLessonObj.lesson_number || ''}: ${currentLessonObj.lesson_name}` : (currentUnitObj?.unit_name || 'محتوى تعليمي');
+    const subtitleText = currentUnitObj ? currentUnitObj.unit_name : 'درس مستقل';
+
+    headerHtml = `
+      <div class="glass lesson-viewer-header">
+        <div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600;">
+            ${subtitleText}
+          </div>
+          <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span>${titleText}</span>
+            <span class="lesson-status-pill ${isLessonCompleted ? 'completed' : 'pending'}">
+              ${isLessonCompleted ? `${ICONS.check} مكتمل` : 'قيد التقدم'}
+            </span>
+          </h2>
+        </div>
+        ${(lessonId && !isDirectUnitMat) ? `
+          <div>
+            <button class="btn ${isLessonCompleted ? 'btn-secondary' : 'btn-success'}" onclick="toggleLessonComplete('${lessonId}')" style="box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2); font-weight: 700;">
+              ${isLessonCompleted ? `${ICONS.close} إلغاء تحديد الاكتمال` : `${ICONS.check} تحديد الدرس كاملاً كمكتمل`}
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
   if (!mats.length) {
-    container.innerHTML = '<div class="text-center" style="padding: 60px;"><p>لا يوجد محتوى متاح لهذا الدرس حالياً.</p></div>';
+    container.innerHTML = `
+      ${headerHtml}
+      <div class="glass text-center" style="padding: 60px;">
+        <p style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 20px;">لا يوجد محتوى متاح لهذا الدرس حالياً.</p>
+        ${(lessonId && !isDirectUnitMat) ? `
+          <button class="btn ${isLessonCompleted ? 'btn-secondary' : 'btn-success'}" onclick="toggleLessonComplete('${lessonId}')">
+            ${isLessonCompleted ? `${ICONS.close} إلغاء تحديد الاكتمال` : `${ICONS.check} وضع علامة أنك حضرت / أتممت هذا الدرس`}
+          </button>
+        ` : ''}
+      </div>
+    `;
     return;
   }
 
-  let html = '';
+  let html = headerHtml;
 
   for (const mat of mats) {
     const isCompleted = state.progress?.completed_materials?.includes(mat.material_id);
@@ -46,6 +106,21 @@ async function renderMaterialViewer(lessonId, specificMaterialId = null) {
     } else if (mat.type === 'link' || mat.type === 'external') {
       html += renderLinkMaterial(mat, isCompleted);
     }
+  }
+
+  // Bottom completion banner for lessons
+  if (lessonId && !isDirectUnitMat) {
+    html += `
+      <div class="glass" style="margin-top: 32px; padding: 24px; text-align: center; border-radius: 16px; border: 1px solid var(--border); background: linear-gradient(135deg, rgba(99,102,241,0.03), rgba(16,185,129,0.03));">
+        <h3 style="margin-bottom: 8px;">إتمام الدرس</h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 16px;">
+          ${isLessonCompleted ? 'تهانينا! هذا الدرس مسجل حالياً كدرس مكتمل في سجل إنجازاتك.' : 'هل انتهيت من استيعاب كافة محتويات هذا الدرس؟ اضغط أدناه لتسجيله كمكتمل.'}
+        </p>
+        <button class="btn ${isLessonCompleted ? 'btn-secondary' : 'btn-success'}" onclick="toggleLessonComplete('${lessonId}')" style="padding: 12px 28px; font-weight: 700;">
+          ${isLessonCompleted ? `${ICONS.close} إلغاء تحديد الاكتمال` : `${ICONS.check} تأكيد إتمام الدرس كاملاً`}
+        </button>
+      </div>
+    `;
   }
 
   container.innerHTML = html;
@@ -381,10 +456,10 @@ function renderArticleMaterial(mat, isCompleted) {
 }
 
 // ==========================================
-// MARK COMPLETE
+// MARK COMPLETE & LESSON COMPLETION
 // ==========================================
 async function markComplete(materialId) {
-  if (state.user.role !== 'student') {
+  if (state.user?.role !== 'student') {
     showToast('تم المشاهدة (لا يتم تسجيل التقدم لغير الطلاب)');
     renderMaterialViewer(state.currentLesson);
     return;
@@ -394,20 +469,49 @@ async function markComplete(materialId) {
     state.progress = {
       username: state.user.username,
       completed_lessons: [],
-      completed_materials: []
+      completed_materials: [],
+      completed_lesson_details: []
     };
   }
+  if (!Array.isArray(state.progress.completed_materials)) {
+    state.progress.completed_materials = [];
+  }
+  if (!Array.isArray(state.progress.completed_lessons)) {
+    state.progress.completed_lessons = [];
+  }
+  if (!Array.isArray(state.progress.completed_lesson_details)) {
+    state.progress.completed_lesson_details = [];
+  }
+
   if (!state.progress.completed_materials.includes(materialId)) {
     state.progress.completed_materials.push(materialId);
   }
 
   // Auto-complete the lesson if all materials are completed
   const lessonId = state.currentLesson;
-  if (lessonId) {
-    const mats = state.materials[lessonId] || [];
+  if (lessonId && !String(lessonId).startsWith('unit_')) {
+    const mats = (state.materials[lessonId] || []).filter(m => !m.is_hidden);
     const allCompleted = mats.length > 0 && mats.every(m => state.progress.completed_materials.includes(m.material_id));
     if (allCompleted && !state.progress.completed_lessons.includes(lessonId)) {
       state.progress.completed_lessons.push(lessonId);
+
+      let targetLesson = null;
+      let targetUnit = null;
+      for (const [uId, lList] of Object.entries(state.lessons)) {
+        const found = lList.find(l => String(l.lesson_id) === String(lessonId));
+        if (found) {
+          targetLesson = found;
+          targetUnit = state.units.find(u => String(u.unit_id) === String(uId));
+          break;
+        }
+      }
+
+      state.progress.completed_lesson_details.push({
+        lesson_id: lessonId,
+        lesson_name: targetLesson?.lesson_name || `درس #${lessonId}`,
+        unit_name: targetUnit?.unit_name || 'درس مستقل',
+        completed_at: new Date().toISOString()
+      });
     }
   }
 
@@ -415,7 +519,97 @@ async function markComplete(materialId) {
     await API.post('updateStudentProgress', state.progress);
   }
 
+  if (typeof saveCurriculumToLocal === 'function') {
+    saveCurriculumToLocal();
+  }
+
   showToast('تم تحديد المحتوى كمكتمل!');
   createConfetti();
   renderMaterialViewer(state.currentLesson);
 }
+
+/**
+ * Explicitly toggles completion of a lesson (called from lesson viewer or dashboard)
+ */
+async function toggleLessonComplete(lessonId) {
+  if (!state.user || state.user.role !== 'student') {
+    showToast('يتم تسجيل تقدم الدروس لحسابات الطلاب فقط');
+    return;
+  }
+
+  if (!state.progress) {
+    state.progress = {
+      username: state.user.username,
+      completed_lessons: [],
+      completed_materials: [],
+      completed_lesson_details: []
+    };
+  }
+  if (!Array.isArray(state.progress.completed_lessons)) {
+    state.progress.completed_lessons = [];
+  }
+  if (!Array.isArray(state.progress.completed_materials)) {
+    state.progress.completed_materials = [];
+  }
+  if (!Array.isArray(state.progress.completed_lesson_details)) {
+    state.progress.completed_lesson_details = [];
+  }
+
+  const isAlreadyDone = state.progress.completed_lessons.includes(lessonId);
+
+  // Find metadata
+  let targetLesson = null;
+  let targetUnit = null;
+  for (const [uId, lList] of Object.entries(state.lessons)) {
+    const found = lList.find(l => String(l.lesson_id) === String(lessonId));
+    if (found) {
+      targetLesson = found;
+      targetUnit = state.units.find(u => String(u.unit_id) === String(uId));
+      break;
+    }
+  }
+
+  if (isAlreadyDone) {
+    // Unmark
+    state.progress.completed_lessons = state.progress.completed_lessons.filter(id => id !== lessonId);
+    state.progress.completed_lesson_details = state.progress.completed_lesson_details.filter(d => d.lesson_id !== lessonId);
+    showToast('تم إلغاء تحديد الدرس كمكتمل');
+  } else {
+    // Mark Complete
+    state.progress.completed_lessons.push(lessonId);
+    state.progress.completed_lesson_details.push({
+      lesson_id: lessonId,
+      lesson_name: targetLesson?.lesson_name || `درس #${lessonId}`,
+      unit_name: targetUnit?.unit_name || 'درس مستقل',
+      completed_at: new Date().toISOString()
+    });
+
+    // Also mark all materials of this lesson as completed so stats stay consistent
+    const mats = state.materials[lessonId] || [];
+    mats.forEach(m => {
+      if (!state.progress.completed_materials.includes(m.material_id)) {
+        state.progress.completed_materials.push(m.material_id);
+      }
+    });
+
+    createConfetti();
+    showToast('رائع! تم تحديد الدرس كاملاً كمكتمل بنجاح 🎉');
+  }
+
+  if (!MOCK_MODE) {
+    await API.post('updateStudentProgress', state.progress);
+  }
+
+  if (typeof saveCurriculumToLocal === 'function') {
+    saveCurriculumToLocal();
+  }
+
+  // Rerender active view
+  const currentHash = window.location.hash.replace('#', '') || 'dashboard';
+  if (currentHash === 'material') {
+    renderMaterialViewer(lessonId);
+  } else if (currentHash === 'dashboard') {
+    renderDashboard();
+  }
+}
+

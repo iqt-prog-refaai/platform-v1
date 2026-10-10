@@ -367,24 +367,35 @@ const DirectFirestore = {
   async getStudentProgress(username) {
     if (!username) return { success: true, progress: null };
     const fb = _getFb();
-    const docRef = fb.doc(fb.db, 'student_progress', _sanitizeDocId(String(username).toLowerCase()));
-    const snap = await fb.getDoc(docRef);
+    const lowerKey = _sanitizeDocId(String(username).trim().toLowerCase());
+    let docRef = fb.doc(fb.db, 'student_progress', lowerKey);
+    let snap = await fb.getDoc(docRef);
+    if (!snap.exists()) {
+      const origKey = _sanitizeDocId(String(username).trim());
+      if (origKey !== lowerKey) {
+        docRef = fb.doc(fb.db, 'student_progress', origKey);
+        snap = await fb.getDoc(docRef);
+      }
+    }
     if (!snap.exists()) return { success: true, progress: null };
     return { success: true, progress: snap.data() };
   },
 
   async updateStudentProgress(data) {
     const fb = _getFb();
-    const userKey = _sanitizeDocId(String(data.username).toLowerCase());
+    const rawUser = String(data.username || '').trim();
+    if (!rawUser) return { success: false, message: 'Missing username' };
+    const userKey = _sanitizeDocId(rawUser.toLowerCase());
     const docRef = fb.doc(fb.db, 'student_progress', userKey);
     await fb.setDoc(
       docRef,
       {
-        username: data.username,
+        username: rawUser,
         current_unit_id: data.current_unit_id || '',
         current_lesson_id: data.current_lesson_id || '',
         completed_lessons: Array.isArray(data.completed_lessons) ? data.completed_lessons : [],
         completed_materials: Array.isArray(data.completed_materials) ? data.completed_materials : [],
+        completed_lesson_details: Array.isArray(data.completed_lesson_details) ? data.completed_lesson_details : [],
         updated_at: new Date().toISOString()
       },
       { merge: true }

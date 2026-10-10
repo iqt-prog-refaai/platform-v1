@@ -45,7 +45,9 @@ function restoreCurriculumFromLocal() {
     state.materials = data.materials || {};
     state.quizzes = data.quizzes || {};
     state.allMaterials = data.allMaterials || [];
-    if (data.progress) state.progress = data.progress;
+    if (data.progress && (!state.user || !data.progress.username || data.progress.username.toLowerCase() === (state.user?.username || '').toLowerCase())) {
+      state.progress = data.progress;
+    }
     return true;
   } catch (e) {
     console.warn('Failed to restore curriculum from localStorage', e);
@@ -137,6 +139,13 @@ async function loadStudentData(forceFresh = false) {
 
       if (initialRes.progress) {
         state.progress = initialRes.progress;
+      } else if (state.user && state.user.role === 'student') {
+        state.progress = {
+          username: state.user.username,
+          completed_lessons: [],
+          completed_materials: [],
+          completed_lesson_details: []
+        };
       }
 
       groupMaterials();
@@ -287,7 +296,9 @@ function renderDashboard() {
                   <div class="lesson-title">${mat.title}</div>
                   <div class="lesson-meta">${(mat.type === 'link' || mat.type === 'external') ? 'شرائح عرض / رابط' : 'محتوى مستقل في الوحدة'}</div>
                 </div>
-                ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
+                <button type="button" class="lesson-check-btn ${isCompleted ? 'completed' : ''}" onclick="event.stopPropagation(); markComplete('${mat.material_id}')" title="${isCompleted ? 'مكتمل' : 'تحديد كمكتمل'}">
+                  ${ICONS.check}
+                </button>
               </div>
             `;
           }).join('')}
@@ -304,9 +315,11 @@ function renderDashboard() {
                 </div>
                 <div class="lesson-info">
                   <div class="lesson-title">${lesson.lesson_name}</div>
-                  <div class="lesson-meta">${mats.length} محتوى</div>
+                  <div class="lesson-meta">${mats.length} محتوى ${isCompleted ? '• <span style="color:var(--success); font-weight:700;">مكتمل ✓</span>' : ''}</div>
                 </div>
-                ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
+                <button type="button" class="lesson-check-btn ${isCompleted ? 'completed' : ''}" onclick="event.stopPropagation(); toggleLessonComplete('${lesson.lesson_id}')" title="${isCompleted ? 'إلغاء تحديد الدرس كمكتمل' : 'تحديد الدرس كاملاً كمكتمل'}">
+                  ${ICONS.check}
+                </button>
               </div>
             `;
           }).join('')}
@@ -331,7 +344,9 @@ function renderDashboard() {
                   <div class="lesson-title" style="font-size:1.1rem; margin-bottom:4px;">${mat.title}</div>
                   <div class="lesson-meta">${mat.type === 'quiz' ? 'اختبار' : (mat.type === 'link' || mat.type === 'external') ? 'شرائح عرض / رابط خارجي' : 'محتوى'}</div>
                 </div>
-                ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
+                <button type="button" class="lesson-check-btn ${isCompleted ? 'completed' : ''}" onclick="event.stopPropagation(); markComplete('${mat.material_id}')" title="${isCompleted ? 'مكتمل' : 'تحديد كمكتمل'}">
+                  ${ICONS.check}
+                </button>
               </div>
             `;
           }).join('')}
@@ -347,9 +362,11 @@ function renderDashboard() {
                 </div>
                 <div class="lesson-info">
                   <div class="lesson-title" style="font-size:1.1rem; margin-bottom:4px;">${lesson.lesson_name}</div>
-                  <div class="lesson-meta">${mats.length} محتوى</div>
+                  <div class="lesson-meta">${mats.length} محتوى ${isCompleted ? '• <span style="color:var(--success); font-weight:700;">مكتمل ✓</span>' : ''}</div>
                 </div>
-                ${isCompleted ? `<div class="check-icon">${ICONS.check}</div>` : ''}
+                <button type="button" class="lesson-check-btn ${isCompleted ? 'completed' : ''}" onclick="event.stopPropagation(); toggleLessonComplete('${lesson.lesson_id}')" title="${isCompleted ? 'إلغاء تحديد الدرس كمكتمل' : 'تحديد الدرس كاملاً كمكتمل'}">
+                  ${ICONS.check}
+                </button>
               </div>
             `;
           }).join('')}
@@ -389,6 +406,7 @@ function openLesson(lessonId) {
   if (!MOCK_MODE) {
     API.post('updateStudentProgress', state.progress);
   }
+  saveCurriculumToLocal();
 
   renderMaterialViewer(lessonId);
   navigateTo('material');
@@ -398,12 +416,13 @@ function openMaterialDirectly(materialId, fakeLessonId) {
   // We mock a lesson environment for this standalone material
   state.currentLesson = fakeLessonId;
   if (!state.progress) {
-    state.progress = { username: state.user.username, completed_lessons: [], completed_materials: [] };
+    state.progress = { username: state.user.username, completed_lessons: [], completed_materials: [], completed_lesson_details: [] };
   }
   
   if (!MOCK_MODE) {
     API.post('updateStudentProgress', state.progress);
   }
+  saveCurriculumToLocal();
 
   renderMaterialViewer(fakeLessonId, materialId);
   navigateTo('material');

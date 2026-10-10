@@ -517,6 +517,11 @@ async function renderAdminQuizzes(container) {
                 onclick="startQuiz('${mat.material_id}', '${quiz.quiz_id}', ${(() => { try { return !!JSON.parse(mat.content || '{}').is_review_mode; } catch(e){ return false; } })()})">
                 ▶ معاينة الاختبار
               </button>
+              <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem;"
+                onclick="copyQuizJsonSource('${quiz.quiz_id}', '${mat.material_id}')"
+                title="نسخ السورس كود JSON لهذا الاختبار بالكامل لنسخه أو استيراده من جديد">
+                ${ICONS.copy} نسخ سورس كود JSON
+              </button>
               <button class="btn btn-secondary" style="padding: 8px; font-size: 0.85rem;" title="إعدادات الاختبار"
                 onclick='showModal("editQuizSettings", ${JSON.stringify({
                   material_id: mat.material_id, 
@@ -903,30 +908,247 @@ async function adminPromptDeleteUser(username, displayName) {
   hideLoading();
 }
 
-async function viewStudentDetails(username) {
-  let details;
-  if (MOCK_MODE) {
-    details = {
-      username,
-      progress: { completed_lessons: ['l1'], completed_materials: ['m1'] },
-      attempts: [
-        { quiz_id: 'quiz1', material_id: 'm2', score: 8, max_score: 10, is_graded: true,  attempt_date: new Date().toISOString() },
-        { quiz_id: 'quiz2', material_id: 'm3', score: 0, max_score: 5,  is_graded: false, attempt_date: new Date().toISOString() }
-      ]
-    };
-  } else {
-    const res = await API.get('getStudentDetails', { username });
-    details = res;
-  }
+// ==========================================
+// QUIZ JSON EXPORT
+// ==========================================
+async function copyQuizJsonSource(quizId, materialId) {
+  const mat = state.allMaterials.find(m => String(m.material_id) === String(materialId));
+  const title = mat?.title || 'اختبار';
 
-  // Build a lookup: material_id → material title
+  let settings = {};
+  if (mat?.content) {
+    try { settings = JSON.parse(mat.content); } catch(e) {}
+  }
+  const timeLimit = settings.time_limit || 0;
+  const isReview = settings.is_review_mode || false;
+
+  showLoading();
+  let questions = [];
+
+  try {
+    if (quizId) {
+      if (state.questions[quizId] && state.questions[quizId].length) {
+        questions = state.questions[quizId];
+      } else {
+        const res = await API.get('getQuestions', { quizId }, { forceFresh: true });
+        if (res && res.success && Array.isArray(res.questions)) {
+          questions = res.questions;
+          state.questions[quizId] = questions;
+        }
+      }
+    }
+
+    if (!questions.length) {
+      showToast('لا توجد أسئلة مسجلة في هذا الاختبار بعد', 'warning');
+    }
+
+    // Format clean questions array for export / import
+    const cleanQuestions = questions.map((q, idx) => {
+      let options = q.options;
+      if (typeof options === 'string') {
+        try { options = JSON.parse(options); } catch(e) {}
+      }
+      return {
+        type: q.type || 'mcq',
+        question_text: q.question_text || '',
+        options: Array.isArray(options) ? options : (options ? [options] : []),
+        correct_answer: q.correct_answer != null ? q.correct_answer : '',
+        points: Number(q.points) || 1,
+        order_index: idx,
+        explanation: q.explanation || ''
+      };
+    });
+
+    const fullExport = {
+      title: title,
+      quiz_id: quizId || '',
+      material_id: materialId || '',
+      time_limit: timeLimit,
+      is_review_mode: isReview,
+      questions_count: cleanQuestions.length,
+      questions: cleanQuestions
+    };
+
+    const questionsJsonText = JSON.stringify(cleanQuestions, null, 2);
+    const fullJsonText = JSON.stringify(fullExport, null, 2);
+
+    // Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(questionsJsonText);
+      showToast('تم نسخ سورس كود JSON للأسئلة إلى الحافظة بنجاح! 📋');
+    } catch (clipErr) {
+      console.warn('Clipboard write failed, showing modal:', clipErr);
+    }
+
+    showQuizJsonModal(title, questionsJsonText, fullJsonText);
+  } catch(err) {
+    console.error('Error copying quiz JSON:', err);
+    showToast('حدث خطأ أثناء نسخ كود الاختبار', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function showQuizJsonModal(title, questionsJson, fullJson) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="glass modal-content" style="max-width: 650px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="flex justify-between items-center" style="margin-bottom: 16px;">
+        <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+          ${ICONS.copy} سورس كود JSON: ${title}
+        </h3>
+        <button class="btn btn-secondary" style="padding: 6px 10px;" onclick="this.closest('.modal-overlay').remove()">${ICONS.close}</button>
+      </div>
+
+      <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); color: #047857; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+        ${ICONS.check} تم نسخ كود مصفوفة الأسئلة تلقائياً إلى الحافظة! يمكنك لصقه مباشرة في أداة "استيراد اختبار" لإعادة إنشائه من الصفر.
+      </div>
+
+      <div style="margin-bottom: 12px; display: flex; gap: 8px;">
+        <button id="tabQuestionsBtn" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.85rem;" onclick="switchJsonTab('questions')">
+          كود الأسئلة (المتوافق مع الاستيراد)
+        </button>
+        <button id="tabFullBtn" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.85rem;" onclick="switchJsonTab('full')">
+          حزمة الاختبار الكاملة
+        </button>
+      </div>
+
+      <pre id="quizJsonCodeArea" style="direction: ltr; text-align: left; background: #1e1e1e; color: #4ec9b0; padding: 16px; border-radius: 10px; overflow: auto; max-height: 340px; font-family: monospace; font-size: 0.8rem; border: 1px solid #333; user-select: all; cursor: text; margin: 0 0 16px 0; white-space: pre-wrap; word-break: break-all;">${questionsJson.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+
+      <div class="flex justify-between items-center" style="gap: 10px; flex-wrap: wrap;">
+        <div class="flex gap-2">
+          <button class="btn btn-primary" style="font-size: 0.85rem;" onclick="navigator.clipboard.writeText(window.__CURRENT_QUIZ_JSON__).then(() => showToast('تم النسخ إلى الحافظة! 📋'))">
+            ${ICONS.copy} نسخ الكود المعروض
+          </button>
+          <button class="btn btn-secondary" style="font-size: 0.85rem;" onclick="downloadJsonFile('${title.replace(/'/g, '')}.json', window.__CURRENT_QUIZ_JSON__)">
+            ${ICONS.download} تحميل ملف JSON
+          </button>
+        </div>
+        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">إغلاق</button>
+      </div>
+    </div>
+  `;
+
+  window.__CURRENT_QUIZ_JSON__ = questionsJson;
+  window.switchJsonTab = function(type) {
+    const codeArea = $('quizJsonCodeArea');
+    const tabQ = $('tabQuestionsBtn');
+    const tabF = $('tabFullBtn');
+    if (!codeArea) return;
+
+    if (type === 'questions') {
+      window.__CURRENT_QUIZ_JSON__ = questionsJson;
+      codeArea.textContent = questionsJson;
+      tabQ?.classList.remove('btn-secondary');
+      tabQ?.classList.add('btn-primary');
+      tabF?.classList.remove('btn-primary');
+      tabF?.classList.add('btn-secondary');
+    } else {
+      window.__CURRENT_QUIZ_JSON__ = fullJson;
+      codeArea.textContent = fullJson;
+      tabF?.classList.remove('btn-secondary');
+      tabF?.classList.add('btn-primary');
+      tabQ?.classList.remove('btn-primary');
+      tabQ?.classList.add('btn-secondary');
+    }
+  };
+
+  window.downloadJsonFile = function(filename, content) {
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('تم تحميل الملف بنجاح!');
+  };
+
+  document.body.appendChild(modal);
+}
+
+// ==========================================
+// STUDENT DETAILS & HISTORY
+// ==========================================
+async function viewStudentDetails(username) {
+  showLoading();
+  let details;
+  try {
+    if (MOCK_MODE) {
+      details = {
+        username,
+        progress: { completed_lessons: ['l1'], completed_materials: ['m1'], completed_lesson_details: [{ lesson_id: 'l1', lesson_name: 'المتغيرات والأنواع', unit_name: 'مقدمة في البرمجة', completed_at: new Date().toISOString() }] },
+        attempts: [
+          { quiz_id: 'quiz1', material_id: 'm2', score: 8, max_score: 10, is_graded: true, attempt_date: new Date().toISOString() },
+          { quiz_id: 'quiz2', material_id: 'm3', score: 0, max_score: 5, is_graded: false, attempt_date: new Date().toISOString() }
+        ]
+      };
+    } else {
+      const res = await API.get('getStudentDetails', { username }, { forceFresh: true });
+      details = res;
+    }
+  } catch (err) {
+    console.error('Error fetching student details:', err);
+    hideLoading();
+    showToast('حدث خطأ أثناء تحميل سجل الطالب', 'error');
+    return;
+  }
+  hideLoading();
+
+  // Find student in local users/students list for proper full name
+  const studentUser = (state.students || []).find(s => String(s.username || '').toLowerCase() === String(username).toLowerCase());
+  const displayName = studentUser?.full_name || studentUser?.name || details?.username || username;
+
+  // Build lookups
   const matTitleById = {};
   state.allMaterials.forEach(m => { matTitleById[m.material_id] = m.title; });
-  // Also check quizzes map: quiz_id → material title
+
   const titleByQuizId = {};
   Object.entries(state.quizzes).forEach(([matId, quiz]) => {
     titleByQuizId[quiz.quiz_id] = matTitleById[matId] || quiz.title || 'اختبار';
   });
+
+  // Build lesson dictionary: lesson_id -> { lesson_name, lesson_number, unit_name }
+  const lessonLookup = {};
+  const allLessonsList = [];
+  state.units.forEach(u => {
+    const unitLessons = state.lessons[u.unit_id] || [];
+    unitLessons.forEach(l => {
+      const info = {
+        lesson_id: l.lesson_id,
+        lesson_name: l.lesson_name,
+        lesson_number: l.lesson_number,
+        unit_name: u.unit_name
+      };
+      lessonLookup[l.lesson_id] = info;
+      allLessonsList.push(info);
+    });
+  });
+  // Standalone lessons
+  (state.lessons[''] || []).forEach(l => {
+    const info = {
+      lesson_id: l.lesson_id,
+      lesson_name: l.lesson_name,
+      lesson_number: l.lesson_number,
+      unit_name: 'درس مستقل'
+    };
+    lessonLookup[l.lesson_id] = info;
+    allLessonsList.push(info);
+  });
+
+  const completedLessonIds = Array.isArray(details?.progress?.completed_lessons) ? details.progress.completed_lessons : [];
+  const completedMaterialIds = Array.isArray(details?.progress?.completed_materials) ? details.progress.completed_materials : [];
+  const completedLessonDetails = Array.isArray(details?.progress?.completed_lesson_details) ? details.progress.completed_lesson_details : [];
+  const attempts = Array.isArray(details?.attempts) ? details.attempts : [];
+
+  // Calculate Average Quiz Score
+  const gradedAttempts = attempts.filter(a => a.is_graded && Number(a.max_score) > 0);
+  const avgScore = gradedAttempts.length
+    ? Math.round(gradedAttempts.reduce((acc, a) => acc + (Number(a.score) / Number(a.max_score)) * 100, 0) / gradedAttempts.length)
+    : null;
 
   function scoreColor(score, max) {
     if (!max) return 'var(--text-muted)';
@@ -939,44 +1161,118 @@ async function viewStudentDetails(username) {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.innerHTML = `
-    <div class="glass modal-content" style="max-width:560px;">
-      <div class="flex justify-between items-center" style="margin-bottom: 20px;">
-        <h2>@${details.username}</h2>
+    <div class="glass modal-content" style="max-width: 640px; max-height: 90vh; overflow-y: auto;">
+      <div class="flex justify-between items-center" style="margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
+        <div>
+          <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">${displayName}</h2>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 8px;">
+            <span>@${details.username}</span>
+            <span>•</span>
+            <span style="color: var(--success); font-weight: 600;">طالب مسجل</span>
+          </div>
+        </div>
         <button class="btn btn-secondary" style="padding: 8px 12px;" onclick="this.closest('.modal-overlay').remove()">${ICONS.close}</button>
       </div>
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px;">
-        <div class="glass" style="padding:16px; text-align:center;">
-          <div style="font-size:1.8rem; font-weight:800; color:var(--primary);">${details.progress?.completed_lessons?.length || 0}</div>
-          <div style="color:var(--text-muted); font-size:0.85rem;">دروس مكتملة</div>
+      <!-- Stats Grid -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px;">
+        <div class="glass" style="padding: 14px; text-align: center; border-radius: 12px; background: rgba(99,102,241,0.04); border: 1px solid rgba(99,102,241,0.15);">
+          <div style="font-size: 1.8rem; font-weight: 800; color: var(--primary);">${completedLessonIds.length}</div>
+          <div style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">دروس مكتملة</div>
         </div>
-        <div class="glass" style="padding:16px; text-align:center;">
-          <div style="font-size:1.8rem; font-weight:800; color:var(--secondary);">${details.progress?.completed_materials?.length || 0}</div>
-          <div style="color:var(--text-muted); font-size:0.85rem;">محتويات مكتملة</div>
+        <div class="glass" style="padding: 14px; text-align: center; border-radius: 12px; background: rgba(236,72,153,0.04); border: 1px solid rgba(236,72,153,0.15);">
+          <div style="font-size: 1.8rem; font-weight: 800; color: var(--secondary);">${completedMaterialIds.length}</div>
+          <div style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">محتويات مكتملة</div>
+        </div>
+        <div class="glass" style="padding: 14px; text-align: center; border-radius: 12px; background: rgba(16,185,129,0.04); border: 1px solid rgba(16,185,129,0.15);">
+          <div style="font-size: 1.8rem; font-weight: 800; color: var(--success);">${attempts.length}</div>
+          <div style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">اختبارات مُجابة</div>
+        </div>
+        <div class="glass" style="padding: 14px; text-align: center; border-radius: 12px; background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.15);">
+          <div style="font-size: 1.8rem; font-weight: 800; color: #d97706;">${avgScore !== null ? `${avgScore}%` : '—'}</div>
+          <div style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">متوسط الدرجات</div>
         </div>
       </div>
 
-      <h3 style="margin-bottom: 12px;">سجل الاختبارات</h3>
-      ${(details.attempts || []).length === 0
-        ? '<p style="color: var(--text-muted);">لا توجد محاولات بعد.</p>'
-        : (details.attempts || []).map(att => {
-            const title = titleByQuizId[att.quiz_id] || matTitleById[att.material_id] || 'اختبار';
-            const color = att.is_graded ? scoreColor(att.score, att.max_score) : 'var(--warning)';
-            const pct   = att.is_graded && att.max_score ? Math.round((att.score / att.max_score) * 100) : null;
-            return `
-              <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:rgba(0,0,0,0.02); border-radius:10px; margin-bottom:8px;">
-                <div>
-                  <div style="font-weight:600; margin-bottom:2px;">${title}</div>
-                  <div style="font-size:0.8rem; color:var(--text-muted);">${formatDate(att.attempt_date)}</div>
-                </div>
-                <div style="text-align:center;">
-                  <div style="font-size:1.2rem; font-weight:800; color:${color};">
-                    ${att.is_graded ? `${att.score}/${att.max_score}` : 'معلق'}
+      <!-- Section: Completed Lessons Log -->
+      <div style="margin-bottom: 24px;">
+        <h3 style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+          <span style="display: flex; align-items: center; gap: 8px;">${ICONS.document} سجل إتمام الدروس (${completedLessonIds.length})</span>
+        </h3>
+        ${completedLessonIds.length === 0
+          ? '<div style="padding: 16px; background: rgba(0,0,0,0.02); border-radius: 10px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">لم يقم الطالب بتسجيل إتمام أي دروس بعد.</div>'
+          : `
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${completedLessonIds.map(lId => {
+                const info = lessonLookup[lId];
+                const detail = completedLessonDetails.find(d => d.lesson_id === lId);
+                const lessonTitle = info?.lesson_name || detail?.lesson_name || `درس #${lId}`;
+                const unitTitle = info?.unit_name || detail?.unit_name || 'درس';
+                const dateStr = detail?.completed_at ? formatDate(detail.completed_at) : 'مكتمل';
+
+                return `
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(16,185,129,0.04); border: 1px solid rgba(16,185,129,0.15); border-radius: 10px;">
+                    <div>
+                      <div style="font-weight: 700; color: var(--text);">${lessonTitle}</div>
+                      <div style="font-size: 0.8rem; color: var(--text-muted);">${unitTitle} • ${dateStr}</div>
+                    </div>
+                    <span style="color: var(--success); font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px;">
+                      ${ICONS.check} مكتمل
+                    </span>
                   </div>
-                  ${pct !== null ? `<div style="font-size:0.75rem; color:${color};">${pct}%</div>` : ''}
-                </div>
-              </div>`;
-          }).join('')}
+                `;
+              }).join('')}
+            </div>
+          `}
+      </div>
+
+      <!-- Section: Completed Materials -->
+      <div style="margin-bottom: 24px;">
+        <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <span>${ICONS.file} المحتويات المشاهدة (${completedMaterialIds.length})</span>
+        </h3>
+        ${completedMaterialIds.length === 0
+          ? '<div style="padding: 16px; background: rgba(0,0,0,0.02); border-radius: 10px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">لا توجد محتويات محددة كمشاهدة بعد.</div>'
+          : `
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              ${completedMaterialIds.map(mId => {
+                const title = matTitleById[mId] || `محتوى #${mId}`;
+                return `
+                  <span style="padding: 6px 12px; background: rgba(99,102,241,0.08); border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: var(--primary); display: inline-flex; align-items: center; gap: 4px;">
+                    ${ICONS.check} ${title}
+                  </span>
+                `;
+              }).join('')}
+            </div>
+          `}
+      </div>
+
+      <!-- Section: Quizzes History -->
+      <div>
+        <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <span>${ICONS.quiz} سجل الاختبارات (${attempts.length})</span>
+        </h3>
+        ${attempts.length === 0
+          ? '<div style="padding: 16px; background: rgba(0,0,0,0.02); border-radius: 10px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">لا توجد محاولات اختبارات مسجلة لهذا الطالب بعد.</div>'
+          : attempts.map(att => {
+              const title = titleByQuizId[att.quiz_id] || matTitleById[att.material_id] || 'اختبار';
+              const color = att.is_graded ? scoreColor(att.score, att.max_score) : 'var(--warning)';
+              const pct = att.is_graded && att.max_score ? Math.round((att.score / att.max_score) * 100) : null;
+              return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(0,0,0,0.02); border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border);">
+                  <div>
+                    <div style="font-weight: 700; margin-bottom: 2px;">${title}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">${formatDate(att.attempt_date)}</div>
+                  </div>
+                  <div style="text-align: center;">
+                    <div style="font-size: 1.2rem; font-weight: 800; color: ${color};">
+                      ${att.is_graded ? `${att.score}/${att.max_score}` : 'معلق'}
+                    </div>
+                    ${pct !== null ? `<div style="font-size: 0.75rem; color: ${color}; font-weight: 700;">${pct}%</div>` : ''}
+                  </div>
+                </div>`;
+            }).join('')}
+      </div>
     </div>
   `;
   document.body.appendChild(modal);
