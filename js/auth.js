@@ -68,8 +68,22 @@ async function handleLogin(e) {
       setupNavigation();
       showToast(`مرحباً بعودتك، ${result.user.name || result.user.username}!`);
 
+      const targetHash = ['student', 'guest'].includes(result.user.role) ? 'dashboard' : 'admin';
+      const hasCached = typeof restoreCurriculumFromLocal === 'function' && restoreCurriculumFromLocal();
+
+      if (hasCached) {
+        navigateTo(targetHash);
+        hideLoading();
+        loadStudentData(true).then(() => {
+          const currentHash = window.location.hash.replace('#', '') || targetHash;
+          if (currentHash === 'dashboard') renderDashboard();
+          else if (currentHash === 'admin') renderAdmin();
+        }).catch(console.error);
+        return;
+      }
+
       if (result.user.role === 'admin') {
-        await refreshAllData();   // populate units/lessons/materials for admin panel
+        await refreshAllData();
         navigateTo('admin');
       } else {
         await loadStudentData();
@@ -131,6 +145,8 @@ function setupNavigation() {
 function logout() {
   state.user = null;
   localStorage.removeItem('iqt_user');
+  localStorage.removeItem('iqt_curriculum_cache');
+  if (typeof API !== 'undefined' && API.clearCache) API.clearCache();
   $('navbar').classList.add('hidden');
   navigateTo('login');
   showToast('تم تسجيل الخروج بنجاح');
@@ -152,13 +168,32 @@ async function checkAuth() {
       }
 
       setupNavigation();
+
+      const defaultPage = ['student', 'guest'].includes(state.user.role) ? 'dashboard' : 'admin';
+      const targetHash = window.location.hash.replace('#', '') || defaultPage;
+      const hasCached = typeof restoreCurriculumFromLocal === 'function' && restoreCurriculumFromLocal();
+
+      if (hasCached) {
+        // Render cached curriculum instantly without waiting for network!
+        navigateTo(targetHash);
+        hideLoading();
+
+        // Background non-blocking sync
+        loadStudentData(true).then(() => {
+          const currentHash = window.location.hash.replace('#', '') || targetHash;
+          if (currentHash === 'dashboard') renderDashboard();
+          else if (currentHash === 'admin') renderAdmin();
+        }).catch(console.error);
+        return;
+      }
+
+      // First time loading (no local cache yet)
       if (state.user.role === 'admin') {
         await refreshAllData();
       } else {
         await loadStudentData();
       }
-      const hash = window.location.hash.replace('#', '') || 'dashboard';
-      navigateTo(hash);
+      navigateTo(targetHash);
     } catch (e) {
       console.error('Error parsing stored user:', e);
     }

@@ -48,11 +48,22 @@ function showToast(message, type = 'success') {
 }
 
 function hideLoading() {
-  $('loadingScreen').style.display = 'none';
+  const el = $('loadingScreen');
+  if (el) {
+    el.style.opacity = '0';
+    setTimeout(() => {
+      el.style.display = 'none';
+      el.style.opacity = '1';
+    }, 200);
+  }
 }
 
 function showLoading() {
-  $('loadingScreen').style.display = 'flex';
+  const el = $('loadingScreen');
+  if (el) {
+    el.style.opacity = '1';
+    el.style.display = 'flex';
+  }
 }
 
 function formatDate(dateStr) {

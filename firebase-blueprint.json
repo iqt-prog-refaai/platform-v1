@@ -1,0 +1,158 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Platform users including admins, teachers, and students",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "maxLength": 100 },
+        "name": { "type": "string", "maxLength": 150 },
+        "full_name": { "type": "string", "maxLength": 150 },
+        "password": { "type": "string", "maxLength": 200 },
+        "role": { "type": "string", "maxLength": 50 },
+        "avatar": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "maxLength": 50 },
+        "is_frozen": { "type": "boolean" },
+        "created_at": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["username"]
+    },
+    "Unit": {
+      "title": "Unit",
+      "description": "Curriculum educational units",
+      "type": "object",
+      "properties": {
+        "unit_id": { "type": "string", "maxLength": 100 },
+        "unit_number": { "type": "number" },
+        "unit_name": { "type": "string", "maxLength": 300 },
+        "created_at": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["unit_id", "unit_name"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "Educational lessons under units",
+      "type": "object",
+      "properties": {
+        "lesson_id": { "type": "string", "maxLength": 100 },
+        "unit_id": { "type": "string", "maxLength": 100 },
+        "lesson_number": { "type": "number" },
+        "lesson_name": { "type": "string", "maxLength": 300 },
+        "created_at": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["lesson_id", "lesson_name"]
+    },
+    "Material": {
+      "title": "Material",
+      "description": "Lesson materials (videos, documents, quizzes)",
+      "type": "object",
+      "properties": {
+        "material_id": { "type": "string", "maxLength": 100 },
+        "lesson_id": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 300 },
+        "type": { "type": "string", "maxLength": 50 },
+        "content": { "type": "string" },
+        "order_index": { "type": "number" },
+        "created_at": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["material_id", "title", "type"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "Quiz metadata linked to a material",
+      "type": "object",
+      "properties": {
+        "quiz_id": { "type": "string", "maxLength": 100 },
+        "material_id": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 300 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "created_at": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["quiz_id", "material_id", "title"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Quiz questions (multiple choice, true/false, essay, etc.)",
+      "type": "object",
+      "properties": {
+        "question_id": { "type": "string", "maxLength": 100 },
+        "quiz_id": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "maxLength": 50 },
+        "question_text": { "type": "string" },
+        "options": { "type": "array" },
+        "correct_answer": { "type": "string" },
+        "points": { "type": "number" },
+        "order_index": { "type": "number" },
+        "explanation": { "type": "string" }
+      },
+      "required": ["question_id", "quiz_id", "type", "question_text"]
+    },
+    "StudentProgress": {
+      "title": "StudentProgress",
+      "description": "Student tracking through units, lessons, and materials",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "maxLength": 100 },
+        "current_unit_id": { "type": "string", "maxLength": 100 },
+        "current_lesson_id": { "type": "string", "maxLength": 100 },
+        "completed_lessons": { "type": "array" },
+        "completed_materials": { "type": "array" },
+        "updated_at": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["username"]
+    },
+    "QuizAttempt": {
+      "title": "QuizAttempt",
+      "description": "Quiz attempt by student including answers, score, and teacher grading",
+      "type": "object",
+      "properties": {
+        "attempt_id": { "type": "string", "maxLength": 100 },
+        "username": { "type": "string", "maxLength": 100 },
+        "quiz_id": { "type": "string", "maxLength": 100 },
+        "material_id": { "type": "string", "maxLength": 100 },
+        "answers": { "type": "object" },
+        "score": { "type": "number" },
+        "max_score": { "type": "number" },
+        "is_graded": { "type": "boolean" },
+        "graded_by": { "type": "string", "maxLength": 100 },
+        "feedback": { "type": "string" },
+        "attempt_date": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["attempt_id", "username", "quiz_id"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user accounts"
+    },
+    "/units/{unitId}": {
+      "schema": "Unit",
+      "description": "Curriculum units"
+    },
+    "/lessons/{lessonId}": {
+      "schema": "Lesson",
+      "description": "Curriculum lessons"
+    },
+    "/materials/{materialId}": {
+      "schema": "Material",
+      "description": "Lesson materials"
+    },
+    "/quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Quizzes"
+    },
+    "/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Questions per quiz"
+    },
+    "/student_progress/{username}": {
+      "schema": "StudentProgress",
+      "description": "Student progress tracking records"
+    },
+    "/quiz_attempts/{attemptId}": {
+      "schema": "QuizAttempt",
+      "description": "Quiz attempts and evaluations"
+    }
+  }
+}

@@ -96,17 +96,20 @@ function renderAdminOverview(container) {
 // CONTENT MANAGEMENT
 // ==========================================
 async function renderAdminContent(container) {
-  container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل المحتوى...</div>';
+  // If state doesn't have materials loaded yet, fetch them
+  if (!state.allMaterials || !state.allMaterials.length) {
+    container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل المحتوى...</div>';
 
-  if (!MOCK_MODE) {
-    const res = await API.get('getAllMaterials');
-    if (res.success) {
-      state.allMaterials = (res.materials || []).map(m => ({
-        ...m,
-        material_id: String(m.material_id != null ? m.material_id : ''),
-        lesson_id: String(m.lesson_id != null ? m.lesson_id : '')
-      }));
-      if (typeof groupMaterials === 'function') groupMaterials();
+    if (!MOCK_MODE) {
+      const res = await API.get('getAllMaterials');
+      if (res && res.success) {
+        state.allMaterials = (res.materials || []).map(m => ({
+          ...m,
+          material_id: String(m.material_id != null ? m.material_id : ''),
+          lesson_id: String(m.lesson_id != null ? m.lesson_id : '')
+        }));
+        if (typeof groupMaterials === 'function') groupMaterials();
+      }
     }
   }
 
@@ -482,12 +485,19 @@ async function createQuizForMaterial(materialId, title) {
 // USERS
 // ==========================================
 async function renderAdminUsers(container) {
-  container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل المستخدمين...</div>';
-
   let users = [];
   if (MOCK_MODE) {
     users = [{ name: 'طالب تجريبي', username: 'student', role: 'student' }];
+  } else if (state.cachedAdminUsers && state.cachedAdminUsers.length) {
+    users = state.cachedAdminUsers;
+    // Silently revalidate in background without blocking UI
+    API.get('getAllUsers').then(res => {
+      if (res && res.success && Array.isArray(res.users)) {
+        state.cachedAdminUsers = res.users;
+      }
+    }).catch(console.error);
   } else {
+    container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل المستخدمين...</div>';
     const res = await API.get('getAllUsers');
     if (res && res.success && Array.isArray(res.users)) {
       users = res.users;

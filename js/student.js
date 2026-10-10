@@ -5,31 +5,70 @@
 // ============================================
 
 // ==========================================
-// DATA LOADING
+// DATA LOADING & CACHING
 // ==========================================
 
-/**
- * Wipes all cached data from state, then re-fetches everything
- * fresh from the API. Call this after any create / edit / delete
- * operation so the UI is always in sync with the server.
- */
-async function refreshAllData() {
-  // Clear all cached state
-  state.units        = [];
-  state.lessons      = {};
-  state.materials    = {};
-  state.quizzes      = {};
-  state.allMaterials = [];
-  state.questions    = {};
+const CURRICULUM_CACHE_KEY = 'iqt_curriculum_cache';
 
-  await loadStudentData();
+/**
+ * Persists current curriculum snapshot to localStorage for instantaneous loads
+ */
+function saveCurriculumToLocal() {
+  try {
+    const payload = {
+      units: state.units,
+      lessons: state.lessons,
+      materials: state.materials,
+      quizzes: state.quizzes,
+      allMaterials: state.allMaterials,
+      progress: state.progress,
+      savedAt: Date.now()
+    };
+    localStorage.setItem(CURRICULUM_CACHE_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn('Failed to save curriculum to localStorage', e);
+  }
 }
 
 /**
- * Loads all units → lessons → materials in parallel batches.
+ * Restores curriculum from localStorage immediately on startup
+ */
+function restoreCurriculumFromLocal() {
+  try {
+    const raw = localStorage.getItem(CURRICULUM_CACHE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.units) || data.units.length === 0) return false;
+
+    state.units = data.units || [];
+    state.lessons = data.lessons || {};
+    state.materials = data.materials || {};
+    state.quizzes = data.quizzes || {};
+    state.allMaterials = data.allMaterials || [];
+    if (data.progress) state.progress = data.progress;
+    return true;
+  } catch (e) {
+    console.warn('Failed to restore curriculum from localStorage', e);
+    return false;
+  }
+}
+
+/**
+ * Re-fetches fresh data from the server.
+ * Instead of wiping state before the request (which causes UI flicker),
+ * it fetches fresh data in the background and swaps state seamlessly.
+ */
+async function refreshAllData() {
+  API.clearCache();
+  await loadStudentData(true);
+}
+
+/**
+ * Loads all units → lessons → materials using single batch query if supported,
+ * or fast parallel requests as fallback.
  * Also builds state.allMaterials for admin / profile lookups.
  */
-async function loadStudentData() {
+async function loadStudentData(forceFresh = false) {
   if (MOCK_MODE) {
     state.units = [
       { unit_id: 'u1', unit_number: 1, unit_name: 'مقدمة في البرمجة' },
@@ -46,7 +85,7 @@ async function loadStudentData() {
     ];
     state.quizzes['m2'] = { quiz_id: 'quiz1', material_id: 'm2', title: 'اختبار 1' };
     state.progress = {
-      username: state.user.username,
+      username: state.user?.username,
       current_unit_id: 'u1',
       current_lesson_id: 'l2',
       completed_lessons: ['l1'],
@@ -60,22 +99,68 @@ async function loadStudentData() {
   }
 
   try {
-    // Step 1 — units + student progress in parallel
-    const [unitsRes, progressRes] = await Promise.all([
-      API.get('getUnits'),
-      state.user?.role !== 'admin'
-        ? API.get('getStudentProgress', { username: state.user.username })
-        : Promise.resolve({ success: false })
+    const username = state.user?.username || '';
+    
+    // 1. FAST SINGLE-BATCH ATTEMPT
+    // Retrieves units, lessons, materials, quizzes, and progress in 1 single HTTP call
+    const initialRes = await API.get('getInitialData', { username }, { forceFresh });
+    if (initialRes && initialRes.success && Array.isArray(initialRes.units)) {
+      state.units = (initialRes.units || []).map(u => ({ ...u, unit_id: String(u.unit_id) }));
+      state.allMaterials = (initialRes.materials || []).map(m => ({
+        ...m,
+        material_id: String(m.material_id != null ? m.material_id : ''),
+        lesson_id: String(m.lesson_id != null ? m.lesson_id : '')
+      }));
+
+      // Group lessons by unit_id
+      state.lessons = {};
+      (initialRes.lessons || []).forEach(l => {
+        const uid = String(l.unit_id != null ? l.unit_id : '');
+        if (!state.lessons[uid]) state.lessons[uid] = [];
+        state.lessons[uid].push({
+          ...l,
+          lesson_id: String(l.lesson_id != null ? l.lesson_id : ''),
+          unit_id: uid
+        });
+      });
+
+      // Map quizzes
+      state.quizzes = {};
+      (initialRes.quizzes || []).forEach(q => {
+        const matId = String(q.material_id != null ? q.material_id : '');
+        state.quizzes[matId] = {
+          ...q,
+          quiz_id: String(q.quiz_id),
+          material_id: matId
+        };
+      });
+
+      if (initialRes.progress) {
+        state.progress = initialRes.progress;
+      }
+
+      groupMaterials();
+      saveCurriculumToLocal();
+      return;
+    }
+
+    // 2. PARALLEL FALLBACK (for backward compatibility with older GAS deployments)
+    const [unitsRes, progressRes, allMaterialsRes] = await Promise.all([
+      API.get('getUnits', {}, { forceFresh }),
+      state.user?.role !== 'admin' && username
+        ? API.get('getStudentProgress', { username }, { forceFresh })
+        : Promise.resolve({ success: false }),
+      API.get('getAllMaterials', {}, { forceFresh })
     ]);
 
-    if (unitsRes.success) {
+    if (unitsRes && unitsRes.success) {
       state.units = (unitsRes.units || []).map(u => ({ ...u, unit_id: String(u.unit_id) }));
     }
-    if (progressRes.success) state.progress = progressRes.progress;
+    if (progressRes && progressRes.success) {
+      state.progress = progressRes.progress;
+    }
 
-    // Load all materials once to cover standalone materials, unit-materials, and lesson-materials
-    const allMaterialsRes = await API.get('getAllMaterials');
-    if (allMaterialsRes.success) {
+    if (allMaterialsRes && allMaterialsRes.success) {
       state.allMaterials = (allMaterialsRes.materials || []).map(m => ({
         ...m,
         material_id: String(m.material_id != null ? m.material_id : ''),
@@ -85,16 +170,14 @@ async function loadStudentData() {
       state.allMaterials = [];
     }
 
-    // Step 2 — all lessons. We can get them by querying getLessons with empty unitId to get standalone lessons
-    // Or we can just get all lessons if the API supported it.
-    // Wait, getLessons(unitId) filters by unitId. If unitId is empty, it returns standalone lessons.
-    const lessonPromises = state.units.map(unit => API.get('getLessons', { unitId: unit.unit_id }));
-    lessonPromises.push(API.get('getLessons', { unitId: '' })); // Fetch standalone lessons
+    // Fetch lessons in parallel for all units + standalone
+    const lessonPromises = state.units.map(unit => API.get('getLessons', { unitId: unit.unit_id }, { forceFresh }));
+    lessonPromises.push(API.get('getLessons', { unitId: '' }, { forceFresh }));
     
     const lessonResults = await Promise.all(lessonPromises);
-    
+    state.lessons = {};
     lessonResults.forEach((res, i) => {
-      if (res.success) {
+      if (res && res.success) {
         const normalizedLessons = (res.lessons || []).map(l => ({
           ...l,
           lesson_id: String(l.lesson_id != null ? l.lesson_id : ''),
@@ -110,6 +193,7 @@ async function loadStudentData() {
 
     // Populate materials grouped by lesson_id
     groupMaterials();
+    saveCurriculumToLocal();
 
   } catch(err) {
     console.error('خطأ في تحميل البيانات:', err);

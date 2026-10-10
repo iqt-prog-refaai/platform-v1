@@ -1,71 +1,119 @@
 // ============================================
 // api.js — Direct HTTP layer for Google Apps Script
 // Connects directly to CONFIG.API_URL with ZERO middleman or proxy
+// Includes smart in-memory caching and request deduplication
 // ============================================
 
+const _apiCache = new Map();
+const _inFlightRequests = new Map();
+const API_CACHE_TTL = 45000; // 45 seconds
+
 const API = {
+  clearCache() {
+    _apiCache.clear();
+    _inFlightRequests.clear();
+  },
+
   /**
    * Direct GET request to Google Apps Script Web App
    */
-  async get(action, params = {}) {
-    params._t = Date.now(); // Cache buster
-    const query = new URLSearchParams({ action, ...params }).toString();
+  async get(action, params = {}, options = {}) {
+    const isLogin = action === 'login';
+    const forceFresh = options.forceFresh === true || isLogin;
     
-    let result = null;
-    try {
-      const res = await fetch(`${CONFIG.API_URL}?${query}`);
-      const text = await res.text();
-      result = JSON.parse(text);
-    } catch (e) {
-      console.error('[API.get] Error fetching from Google Apps Script:', e);
-      return { 
-        success: false, 
-        message: 'تعذر الاتصال بقاعدة بيانات جوجل. يرجى التحقق من اتصال الإنترنت.' 
-      };
+    // Build canonical query key for caching & deduplication
+    const queryObj = { action, ...params };
+    const cacheKey = JSON.stringify(queryObj);
+
+    // 1. Check in-memory cache if not forced fresh
+    if (!forceFresh && _apiCache.has(cacheKey)) {
+      const cached = _apiCache.get(cacheKey);
+      if (Date.now() - cached.time < API_CACHE_TTL) {
+        return JSON.parse(JSON.stringify(cached.data));
+      }
+      _apiCache.delete(cacheKey);
     }
 
-    // Process responses directly for account controls (frozen / deleted)
-    if (result && result.success) {
-      if (action === 'login' && result.user) {
-        const r = String(result.user.role || '').toLowerCase();
-        const u = String(result.user.username || '');
-        if (r === 'deleted' || u.startsWith('__deleted_')) {
-          return { success: false, message: 'بيانات الاعتماد غير صحيحة' };
+    // 2. Check if identical request is already in-flight (deduplication)
+    if (!forceFresh && _inFlightRequests.has(cacheKey)) {
+      return _inFlightRequests.get(cacheKey);
+    }
+
+    // 3. Perform network fetch
+    const fetchPromise = (async () => {
+      // 30-second time bucket prevents aggressive cache-busting on identical calls
+      params._t = forceFresh ? Date.now() : Math.floor(Date.now() / 30000);
+      const query = new URLSearchParams({ action, ...params }).toString();
+      
+      let result = null;
+      try {
+        const res = await fetch(`${CONFIG.API_URL}?${query}`);
+        const text = await res.text();
+        result = JSON.parse(text);
+      } catch (e) {
+        console.error('[API.get] Error fetching from Google Apps Script:', e);
+        return { 
+          success: false, 
+          message: 'تعذر الاتصال بقاعدة بيانات جوجل. يرجى التحقق من اتصال الإنترنت.' 
+        };
+      }
+
+      // Process responses directly for account controls (frozen / deleted)
+      if (result && result.success) {
+        if (action === 'login' && result.user) {
+          const r = String(result.user.role || '').toLowerCase();
+          const u = String(result.user.username || '');
+          if (r === 'deleted' || u.startsWith('__deleted_')) {
+            return { success: false, message: 'بيانات الاعتماد غير صحيحة' };
+          }
+          if (r === 'frozen' || r.startsWith('frozen')) {
+            return {
+              success: false,
+              frozen: true,
+              message: 'انتهت صلاحية هذا الحساب. يرجى التواصل مع إدارة المنصة لتجديد الاشتراك.'
+            };
+          }
         }
-        if (r === 'frozen' || r.startsWith('frozen')) {
-          return {
-            success: false,
-            frozen: true,
-            message: 'انتهت صلاحية هذا الحساب. يرجى التواصل مع إدارة المنصة لتجديد الاشتراك.'
-          };
+
+        if (action === 'getAllUsers' || action === 'getAllStudents') {
+          const rawList = result.users || result.students || [];
+          const processed = rawList.filter(user => {
+            const r = String(user.role || '').toLowerCase();
+            const u = String(user.username || '');
+            if (r === 'deleted' || u.startsWith('__deleted_')) return false;
+            return true;
+          }).map(user => {
+            const r = String(user.role || '');
+            const isFrozen = !!user.is_frozen || r.toLowerCase().startsWith('frozen:') || r.toLowerCase() === 'frozen';
+            const originalRole = user.originalRole || r.replace(/^frozen:?/i, '') || 'student';
+            return {
+              ...user,
+              is_frozen: isFrozen,
+              status: isFrozen ? 'frozen' : 'active',
+              role: isFrozen ? originalRole : r,
+              originalRole: originalRole
+            };
+          });
+          if (result.users) result.users = processed;
+          if (result.students) result.students = processed;
+        }
+
+        // Cache successful response (except login)
+        if (!isLogin) {
+          _apiCache.set(cacheKey, { data: result, time: Date.now() });
         }
       }
 
-      if (action === 'getAllUsers' || action === 'getAllStudents') {
-        const rawList = result.users || result.students || [];
-        const processed = rawList.filter(user => {
-          const r = String(user.role || '').toLowerCase();
-          const u = String(user.username || '');
-          if (r === 'deleted' || u.startsWith('__deleted_')) return false;
-          return true;
-        }).map(user => {
-          const r = String(user.role || '');
-          const isFrozen = !!user.is_frozen || r.toLowerCase().startsWith('frozen:') || r.toLowerCase() === 'frozen';
-          const originalRole = user.originalRole || r.replace(/^frozen:?/i, '') || 'student';
-          return {
-            ...user,
-            is_frozen: isFrozen,
-            status: isFrozen ? 'frozen' : 'active',
-            role: isFrozen ? originalRole : r,
-            originalRole: originalRole
-          };
-        });
-        if (result.users) result.users = processed;
-        if (result.students) result.students = processed;
-      }
+      return result;
+    })();
+
+    // Store in-flight request
+    if (!forceFresh) {
+      _inFlightRequests.set(cacheKey, fetchPromise);
+      fetchPromise.finally(() => _inFlightRequests.delete(cacheKey));
     }
 
-    return result;
+    return fetchPromise;
   },
 
   /**
@@ -73,6 +121,8 @@ const API = {
    * Uses text/plain to avoid browser CORS preflight issues
    */
   async post(action, data = {}) {
+    // Invalidate GET cache on any mutation
+    this.clearCache();
     // Map account management actions directly to the deployed updateUser endpoint
     // so no backend modification or redeployment is required!
     let targetAction = action;

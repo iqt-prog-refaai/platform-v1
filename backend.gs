@@ -48,6 +48,9 @@ function doGet(e) {
       case 'getStudentDetails':
         result = getStudentDetails(e.parameter.username);
         break;
+      case 'getInitialData':
+        result = getInitialData(e.parameter.username);
+        break;
     }
   } catch(err) {
     result = { success: false, message: err.toString() };
@@ -344,6 +347,109 @@ function getAllUsers() {
     });
   }
   return { success: true, users };
+}
+
+// ====== FAST BATCH DATA LOADING ======
+function getInitialData(username) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  
+  // 1. Units
+  const unitsSheet = ss.getSheetByName('units');
+  const units = [];
+  if (unitsSheet) {
+    const data = unitsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      units.push({
+        unit_id: String(data[i][0]),
+        unit_number: data[i][1],
+        unit_name: data[i][2],
+        created_at: data[i][3]
+      });
+    }
+  }
+  units.sort((a,b) => a.unit_number - b.unit_number);
+
+  // 2. Lessons
+  const lessonsSheet = ss.getSheetByName('lessons');
+  const lessons = [];
+  if (lessonsSheet) {
+    const data = lessonsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      lessons.push({
+        lesson_id: String(data[i][0]),
+        unit_id: String(data[i][1] != null ? data[i][1] : ''),
+        lesson_number: data[i][2],
+        lesson_name: data[i][3]
+      });
+    }
+  }
+  lessons.sort((a,b) => a.lesson_number - b.lesson_number);
+
+  // 3. Materials
+  const materialsSheet = ss.getSheetByName('materials');
+  const materials = [];
+  if (materialsSheet) {
+    const data = materialsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      materials.push({
+        material_id: String(data[i][0]),
+        lesson_id: String(data[i][1] != null ? data[i][1] : ''),
+        title: data[i][2],
+        type: data[i][3],
+        content: data[i][4],
+        order_index: parseInt(data[i][5]) || 0,
+        created_at: data[i][6]
+      });
+    }
+  }
+  materials.sort((a,b) => (a.order_index || 0) - (b.order_index || 0));
+
+  // 4. Quizzes
+  const quizzesSheet = ss.getSheetByName('quizzes');
+  const quizzes = [];
+  if (quizzesSheet) {
+    const data = quizzesSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      quizzes.push({
+        quiz_id: String(data[i][0]),
+        material_id: String(data[i][1] != null ? data[i][1] : ''),
+        title: data[i][2],
+        description: data[i][3]
+      });
+    }
+  }
+
+  // 5. Progress (if username specified)
+  let progress = null;
+  if (username) {
+    const progSheet = ss.getSheetByName('student_progress');
+    if (progSheet) {
+      const data = progSheet.getDataRange().getValues();
+      const targetUser = String(username).trim().toLowerCase();
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0]).trim().toLowerCase() === targetUser) {
+          progress = {
+            username: data[i][0],
+            current_unit_id: data[i][1],
+            current_lesson_id: data[i][2],
+            completed_lessons: data[i][3] ? JSON.parse(data[i][3]) : [],
+            completed_materials: data[i][4] ? JSON.parse(data[i][4]) : [],
+            updated_at: data[i][5]
+          };
+          break;
+        }
+      }
+    }
+  }
+
+  return {
+    success: true,
+    units,
+    lessons,
+    materials,
+    quizzes,
+    progress
+  };
 }
 
 // ====== UNITS ======

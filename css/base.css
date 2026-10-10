@@ -98,6 +98,7 @@ body {
   justify-content: center;
   z-index: 9999;
   gap: 24px;
+  transition: opacity 0.2s ease-out;
 }
 .loading-spinner {
   width: 60px; height: 60px;
