@@ -85,6 +85,14 @@ async function handleApiAction(action, payload) {
       return await FirestoreService.getAnnouncement();
     case 'saveAnnouncement':
       return await FirestoreService.saveAnnouncement(payload);
+    case 'getNotifications':
+      return await FirestoreService.getNotifications();
+    case 'addNotification':
+      return await FirestoreService.addNotification(payload);
+    case 'deleteNotification':
+      return await FirestoreService.deleteNotification(payload);
+    case 'clearAllNotifications':
+      return await FirestoreService.clearAllNotifications();
     case 'getAdminAnalytics':
       return await FirestoreService.getAdminAnalytics();
     case 'exportAllCurriculum':

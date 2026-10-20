@@ -133,6 +133,10 @@ async function renderAdminOverview(container) {
           announcement = res.announcement;
           state.announcement = announcement;
         }
+        if (Array.isArray(res.notifications)) {
+          state.notifications = res.notifications;
+          if (typeof renderNavbarNotifications === 'function') renderNavbarNotifications();
+        }
       }
     } catch (e) {
       console.error('Error loading admin analytics:', e);
@@ -265,65 +269,121 @@ async function renderAdminOverview(container) {
     <!-- Two-Column Layout: Announcement Manager & Top Students Leaderboard -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; align-items: start;">
       
-      <!-- Announcement Manager -->
-      <div class="glass" style="padding: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h3 style="margin: 0; font-size: 1.1rem;">نشر إعلان أو تنبيه للطلاب</h3>
-          <span style="font-size: 0.8rem; font-weight: 700; color: ${annActive ? 'var(--success)' : 'var(--text-muted)'};">
-            ${annActive ? 'مفعّل حالياً للطلاب' : 'غير مفعّل'}
-          </span>
-        </div>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
-          يظهر هذا الإعلان في شريط بارز أعلى الصفحة الرئيسية لجميع الطلاب فور دخولهم للمنصة.
-        </p>
-
-        <div class="input-group" style="margin-bottom: 12px;">
-          <label>عنوان الإعلان</label>
-          <input type="text" id="annTitleInput" value="${annTitle.replace(/"/g, '&quot;')}" placeholder="مثال: موعد الاختبار الشامل للوحدة الأولى">
-        </div>
-
-        <div class="input-group" style="margin-bottom: 12px;">
-          <label>تفاصيل الإعلان أو التنبيه</label>
-          <textarea id="annMessageInput" rows="3" placeholder="اكتب تفاصيل التنبيه هنا...">${annMessage}</textarea>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-          <div class="input-group" style="margin: 0;">
-            <label>نوع التنبيه</label>
-            <select id="annTypeSelect">
-              <option value="info" ${annType === 'info' ? 'selected' : ''}>تنبيه عام (أزرق)</option>
-              <option value="warning" ${annType === 'warning' ? 'selected' : ''}>تنبيه هام (برتقالي)</option>
-              <option value="success" ${annType === 'success' ? 'selected' : ''}>تحديث جديد (أخضر)</option>
-              <option value="urgent" ${annType === 'urgent' ? 'selected' : ''}>إعلان عاجل (أحمر)</option>
-            </select>
+      <!-- Announcement & Notifications Manager -->
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div class="glass" style="padding: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--primary); display: inline-flex;">${ICONS.megaphone || ICONS.bell || ''}</span>
+              نشر إعلان أو تنبيه للطلاب
+            </h3>
+            <span style="font-size: 0.78rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: ${annActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(0,0,0,0.05)'}; color: ${annActive ? 'var(--success)' : 'var(--text-muted)'};">
+              ${annActive ? 'مثبّت كشريط علوي حالياً' : 'الشريط العلوي غير مفعّل'}
+            </span>
           </div>
-          <div class="input-group" style="margin: 0;">
-            <label>نص الزر الإضافي (اختياري)</label>
-            <input type="text" id="annLinkTextInput" value="${annLinkText.replace(/"/g, '&quot;')}" placeholder="مثال: فتح جدول المراجعة">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.55;">
+            يمكنك إرسال الإعلان مباشرة إلى <strong>جرس الإشعارات</strong> لجميع الطلاب مع إمكانية تثبيته كشريط بارز أعلى الصفحة الرئيسية.
+          </p>
+
+          <div class="input-group" style="margin-bottom: 12px;">
+            <label>عنوان الإعلان أو التنبيه</label>
+            <input type="text" id="annTitleInput" value="${annTitle.replace(/"/g, '&quot;')}" placeholder="مثال: موعد الاختبار الشامل للوحدة الأولى">
           </div>
-        </div>
 
-        <div class="input-group" style="margin-bottom: 14px;">
-          <label>رابط خارجي مرفق بالإعلان (اختياري)</label>
-          <input type="text" id="annLinkUrlInput" value="${annLinkUrl.replace(/"/g, '&quot;')}" placeholder="https://..." style="direction: ltr;">
-        </div>
+          <div class="input-group" style="margin-bottom: 12px;">
+            <label>تفاصيل الإعلان أو التنبيه</label>
+            <textarea id="annMessageInput" rows="3" placeholder="اكتب تفاصيل التنبيه هنا...">${annMessage}</textarea>
+          </div>
 
-        <div style="margin-bottom: 18px;">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; font-size: 0.92rem;">
-            <input type="checkbox" id="annIsActiveCheckbox" ${annActive ? 'checked' : ''} style="width: 18px; height: 18px;">
-            <span>تفعيل وإظهار الإعلان في لوحة تحكم الطلاب</span>
-          </label>
-        </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div class="input-group" style="margin: 0;">
+              <label>نوع التنبيه</label>
+              <select id="annTypeSelect">
+                <option value="info" ${annType === 'info' ? 'selected' : ''}>تنبيه عام (أزرق)</option>
+                <option value="warning" ${annType === 'warning' ? 'selected' : ''}>تنبيه هام (برتقالي)</option>
+                <option value="success" ${annType === 'success' ? 'selected' : ''}>تحديث جديد (أخضر)</option>
+                <option value="urgent" ${annType === 'urgent' ? 'selected' : ''}>إعلان عاجل (أحمر)</option>
+              </select>
+            </div>
+            <div class="input-group" style="margin: 0;">
+              <label>نص الزر الإضافي (اختياري)</label>
+              <input type="text" id="annLinkTextInput" value="${annLinkText.replace(/"/g, '&quot;')}" placeholder="مثال: فتح جدول المراجعة">
+            </div>
+          </div>
 
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <button type="button" class="btn btn-primary" onclick="saveAdminAnnouncement()">
-            ${ICONS.check} حفظ وتحديث الإعلان
-          </button>
-          ${annActive ? `
-            <button type="button" class="btn btn-secondary" style="color: var(--danger);" onclick="deactivateAdminAnnouncement()">
-              إيقاف عرض الإعلان
+          <div class="input-group" style="margin-bottom: 14px;">
+            <label>رابط مرفق بالإعلان (اختياري)</label>
+            <input type="text" id="annLinkUrlInput" value="${annLinkUrl.replace(/"/g, '&quot;')}" placeholder="https://..." style="direction: ltr;">
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; padding: 12px 14px; background: rgba(99, 102, 241, 0.04); border: 1px solid rgba(99, 102, 241, 0.16); border-radius: 12px;">
+            <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-weight: 700; font-size: 0.9rem; margin: 0;">
+              <input type="checkbox" id="annSendToBellCheckbox" checked style="width: 18px; height: 18px; margin-top: 2px; accent-color: var(--primary);">
+              <div>
+                <div style="color: var(--text-primary);">إرسال هذا الإعلان إلى جرس الإشعارات لجميع الطلاب</div>
+                <div style="font-size: 0.78rem; color: var(--text-muted); font-weight: 400;">سيصل تنبيه جديد في قائمة الإشعارات العلوية لكل طالب</div>
+              </div>
+            </label>
+
+            <div style="height: 1px; background: rgba(0,0,0,0.06);"></div>
+
+            <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-weight: 700; font-size: 0.9rem; margin: 0;">
+              <input type="checkbox" id="annIsActiveCheckbox" ${annActive ? 'checked' : ''} style="width: 18px; height: 18px; margin-top: 2px; accent-color: var(--primary);">
+              <div>
+                <div style="color: var(--text-primary);">تثبيت الإعلان كشريط علوي بارز أعلى لوحة الطلاب</div>
+                <div style="font-size: 0.78rem; color: var(--text-muted); font-weight: 400;">يظهر في شريط ثابت أعلى الصفحة الرئيسية لجميع الطلاب</div>
+              </div>
+            </label>
+          </div>
+
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-primary" onclick="saveAdminAnnouncement()">
+              ${ICONS.check} نشر وحفظ الإعلان
             </button>
-          ` : ''}
+            ${annActive ? `
+              <button type="button" class="btn btn-secondary" style="color: var(--danger);" onclick="deactivateAdminAnnouncement()">
+                إلغاء تثبيت الشريط العلوي
+              </button>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- Recent Sent Notifications Card -->
+        <div class="glass" style="padding: 20px 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <h3 style="margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--primary); display: inline-flex;">${ICONS.bell || ''}</span>
+              آخر الإشعارات المرسلة للطلاب (${(state.notifications || []).length})
+            </h3>
+            ${(state.notifications || []).length > 0 ? `
+              <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.76rem; color: var(--danger);" onclick="clearAllAdminNotifications()">
+                مسح سجل الإشعارات
+              </button>
+            ` : ''}
+          </div>
+          ${!(state.notifications || []).length ? `
+            <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+              لا توجد إشعارات مرسلة في الجرس حالياً.
+            </div>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; padding-left: 4px;">
+              ${(state.notifications || []).slice(0, 12).map(n => `
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(0,0,0,0.02); border: 1px solid var(--border); border-radius: 10px; font-size: 0.84rem;">
+                  <div style="min-width: 0; flex: 1;">
+                    <div style="font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                      ${n.title || 'إشعار'}
+                    </div>
+                    <div style="font-size: 0.76rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                      ${n.message || ''} · ${typeof formatRelativeTimeAr === 'function' ? formatRelativeTimeAr(n.created_at) : ''}
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; color: var(--danger); flex-shrink: 0;" onclick="deleteAdminNotification('${n.notification_id}')" title="حذف هذا الإشعار من جرس الطلاب">
+                    ${ICONS.trash}
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          `}
         </div>
       </div>
 
@@ -393,10 +453,11 @@ async function saveAdminAnnouncement() {
   const type = $('annTypeSelect')?.value || 'info';
   const link_url = $('annLinkUrlInput')?.value?.trim() || '';
   const link_text = $('annLinkTextInput')?.value?.trim() || '';
+  const sendToBell = $('annSendToBellCheckbox')?.checked !== false;
   const is_active = $('annIsActiveCheckbox')?.checked || false;
 
-  if (is_active && !title && !message) {
-    showToast('يرجى كتابة عنوان أو نص الإعلان قبل تفعيله', 'error');
+  if ((is_active || sendToBell) && !title && !message) {
+    showToast('يرجى كتابة عنوان أو نص الإعلان قبل نشره', 'error');
     return;
   }
 
@@ -404,17 +465,44 @@ async function saveAdminAnnouncement() {
   try {
     const payload = { title, message, type, link_url, link_text, is_active };
     const res = await API.post('saveAnnouncement', payload);
+
+    let bellSent = false;
+    if (sendToBell && (title || message)) {
+      const notifRes = await API.post('addNotification', {
+        title: title || 'إعلان إداري جديد',
+        message: message || title,
+        type: 'announcement',
+        target_type: 'announcement',
+        announcement_type: type,
+        link_url,
+        link_text
+      });
+      if (notifRes && notifRes.success && notifRes.notification) {
+        state.notifications = [notifRes.notification, ...(state.notifications || [])];
+        if (typeof renderNavbarNotifications === 'function') renderNavbarNotifications();
+        bellSent = true;
+      }
+    }
+
     if (res && res.success) {
       state.announcement = res.announcement || payload;
       saveCurriculumToLocal();
-      showToast(is_active ? 'تم حفظ وتفعيل الإعلان لجميع الطلاب بنجاح!' : 'تم حفظ إعدادات الإعلان بنجاح');
+      if (bellSent && is_active) {
+        showToast('تم إرسال الإعلان لجرس الإشعارات وتثبيته في الشريط العلوي للطلاب!');
+      } else if (bellSent) {
+        showToast('تم إرسال الإعلان إلى جرس إشعارات الطلاب بنجاح!');
+      } else if (is_active) {
+        showToast('تم تثبيت الإعلان في الشريط العلوي للطلاب بنجاح!');
+      } else {
+        showToast('تم حفظ إعدادات الإعلان بنجاح');
+      }
       await renderAdminOverview($('adminContent'));
     } else {
       showToast('فشل في حفظ الإعلان', 'error');
     }
   } catch (e) {
     console.error(e);
-    showToast('حدث خطأ أثناء حفظ الإعلان', 'error');
+    showToast('حدث خطأ أثناء نشر الإعلان', 'error');
   } finally {
     hideLoading();
   }
@@ -422,7 +510,47 @@ async function saveAdminAnnouncement() {
 
 async function deactivateAdminAnnouncement() {
   if ($('annIsActiveCheckbox')) $('annIsActiveCheckbox').checked = false;
+  if ($('annSendToBellCheckbox')) $('annSendToBellCheckbox').checked = false;
   await saveAdminAnnouncement();
+}
+
+async function deleteAdminNotification(notificationId) {
+  if (!notificationId) return;
+  showLoading();
+  try {
+    const res = await API.post('deleteNotification', { notification_id: notificationId });
+    if (res && res.success) {
+      state.notifications = (state.notifications || []).filter(n => String(n.notification_id) !== String(notificationId));
+      saveCurriculumToLocal();
+      if (typeof renderNavbarNotifications === 'function') renderNavbarNotifications();
+      showToast('تم حذف الإشعار من جرس الطلاب');
+      await renderAdminOverview($('adminContent'));
+    }
+  } catch (e) {
+    console.error(e);
+    showToast('تعذر حذف الإشعار', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function clearAllAdminNotifications() {
+  showLoading();
+  try {
+    const res = await API.post('clearAllNotifications', {});
+    if (res && res.success) {
+      state.notifications = [];
+      saveCurriculumToLocal();
+      if (typeof renderNavbarNotifications === 'function') renderNavbarNotifications();
+      showToast('تم مسح سجل الإشعارات بالكامل');
+      await renderAdminOverview($('adminContent'));
+    }
+  } catch (e) {
+    console.error(e);
+    showToast('تعذر مسح سجل الإشعارات', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 async function exportStudentsReportCSV() {

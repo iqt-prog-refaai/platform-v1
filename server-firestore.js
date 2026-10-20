@@ -47,12 +47,13 @@ function generateId() {
 export const FirestoreService = {
   // ====== INITIAL BULK LOADER (Super Fast <60ms) ======
   async getInitialData(username) {
-    const [unitsSnap, lessonsSnap, matsSnap, quizzesSnap, annSnap] = await Promise.all([
+    const [unitsSnap, lessonsSnap, matsSnap, quizzesSnap, annSnap, notifsSnap] = await Promise.all([
       getDocs(collection(db, 'units')),
       getDocs(collection(db, 'lessons')),
       getDocs(collection(db, 'materials')),
       getDocs(collection(db, 'quizzes')),
-      getDoc(doc(db, 'announcements', 'global_announcement')).catch(() => null)
+      getDoc(doc(db, 'announcements', 'global_announcement')).catch(() => null),
+      getDocs(collection(db, 'notifications')).catch(() => null)
     ]);
 
     const units = unitsSnap.docs
@@ -69,6 +70,12 @@ export const FirestoreService = {
 
     const quizzes = quizzesSnap.docs.map(d => d.data());
     const announcement = (annSnap && annSnap.exists()) ? annSnap.data() : null;
+    const notifications = notifsSnap
+      ? notifsSnap.docs
+          .map(d => d.data())
+          .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+          .slice(0, 50)
+      : [];
 
     let progress = null;
     if (username) {
@@ -85,7 +92,8 @@ export const FirestoreService = {
       materials,
       quizzes,
       progress,
-      announcement
+      announcement,
+      notifications
     };
   },
 
@@ -405,19 +413,19 @@ export const FirestoreService = {
     if (!rawUser) return { success: false, message: 'Missing username' };
     const userKey = sanitizeDocId(rawUser.toLowerCase());
     const docRef = doc(db, 'student_progress', userKey);
-    await setDoc(
-      docRef,
-      {
-        username: rawUser,
-        current_unit_id: data.current_unit_id || '',
-        current_lesson_id: data.current_lesson_id || '',
-        completed_lessons: Array.isArray(data.completed_lessons) ? data.completed_lessons : [],
-        completed_materials: Array.isArray(data.completed_materials) ? data.completed_materials : [],
-        completed_lesson_details: Array.isArray(data.completed_lesson_details) ? data.completed_lesson_details : [],
-        updated_at: new Date().toISOString()
-      },
-      { merge: true }
-    );
+    const payload = {
+      username: rawUser,
+      current_unit_id: data.current_unit_id || '',
+      current_lesson_id: data.current_lesson_id || '',
+      completed_lessons: Array.isArray(data.completed_lessons) ? data.completed_lessons : [],
+      completed_materials: Array.isArray(data.completed_materials) ? data.completed_materials : [],
+      completed_lesson_details: Array.isArray(data.completed_lesson_details) ? data.completed_lesson_details : [],
+      updated_at: new Date().toISOString()
+    };
+    if (Array.isArray(data.read_notifications)) {
+      payload.read_notifications = data.read_notifications;
+    }
+    await setDoc(docRef, payload, { merge: true });
     return { success: true };
   },
 
@@ -695,25 +703,74 @@ export const FirestoreService = {
     return { success: true, announcement: payload };
   },
 
+  async getNotifications() {
+    const snap = await getDocs(collection(db, 'notifications'));
+    const notifications = snap.docs
+      .map(d => d.data())
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      .slice(0, 50);
+    return { success: true, notifications };
+  },
+
+  async addNotification(data) {
+    const id = generateId();
+    const payload = {
+      notification_id: id,
+      title: String(data.title || '').trim(),
+      message: String(data.message || '').trim(),
+      type: String(data.type || 'announcement').trim(),
+      target_type: String(data.target_type || 'announcement').trim(),
+      target_id: String(data.target_id || '').trim(),
+      unit_id: String(data.unit_id || '').trim(),
+      lesson_id: String(data.lesson_id || '').trim(),
+      link_url: String(data.link_url || '').trim(),
+      link_text: String(data.link_text || '').trim(),
+      created_at: new Date().toISOString()
+    };
+    await setDoc(doc(db, 'notifications', id), payload);
+    return { success: true, notification: payload };
+  },
+
+  async deleteNotification(data) {
+    const id = sanitizeDocId(data.notification_id || data.id || '');
+    if (!id) return { success: false, message: 'Missing notification_id' };
+    await deleteDoc(doc(db, 'notifications', id)).catch(() => {});
+    return { success: true };
+  },
+
+  async clearAllNotifications() {
+    const snap = await getDocs(collection(db, 'notifications'));
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})));
+    return { success: true, deleted_count: snap.size };
+  },
+
   async getAdminAnalytics() {
-    const [usersSnap, progSnap, attemptsSnap, annSnap] = await Promise.all([
+    const [usersSnap, progSnap, attemptsSnap, annSnap, notifsSnap] = await Promise.all([
       getDocs(collection(db, 'users')),
       getDocs(collection(db, 'student_progress')),
       getDocs(collection(db, 'quiz_attempts')),
-      getDoc(doc(db, 'announcements', 'global_announcement')).catch(() => null)
+      getDoc(doc(db, 'announcements', 'global_announcement')).catch(() => null),
+      getDocs(collection(db, 'notifications')).catch(() => null)
     ]);
 
     const users = usersSnap.docs.map(d => d.data());
     const allProgress = progSnap.docs.map(d => d.data());
     const allAttempts = attemptsSnap.docs.map(d => d.data());
     const announcement = (annSnap && annSnap.exists()) ? annSnap.data() : null;
+    const notifications = notifsSnap
+      ? notifsSnap.docs
+          .map(d => d.data())
+          .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+          .slice(0, 50)
+      : [];
 
     return {
       success: true,
       users,
       allProgress,
       allAttempts,
-      announcement
+      announcement,
+      notifications
     };
   },
 

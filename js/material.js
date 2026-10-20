@@ -50,6 +50,9 @@ async function renderMaterialViewer(lessonId, specificMaterialId = null) {
   if (currentLessonObj || currentUnitObj) {
     const titleText = currentLessonObj ? `الدرس ${currentLessonObj.lesson_number || ''}: ${currentLessonObj.lesson_name}` : (currentUnitObj?.unit_name || 'محتوى تعليمي');
     const subtitleText = currentUnitObj ? currentUnitObj.unit_name : 'درس مستقل';
+    const totalLessonMatsCount = (lessonId && !isDirectUnitMat)
+      ? (state.materials[lessonId] || []).filter(m => state.user?.role === 'admin' || !m.is_hidden).length
+      : 0;
 
     headerHtml = `
       <div class="glass lesson-viewer-header">
@@ -65,7 +68,12 @@ async function renderMaterialViewer(lessonId, specificMaterialId = null) {
           </h2>
         </div>
         ${(lessonId && !isDirectUnitMat) ? `
-          <div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            ${specificMaterialId && totalLessonMatsCount > 1 ? `
+              <button type="button" class="btn btn-secondary" onclick="renderMaterialViewer('${lessonId}')" style="font-weight: 700;">
+                عرض كل محتويات الدرس (${totalLessonMatsCount})
+              </button>
+            ` : ''}
             <button class="btn ${isLessonCompleted ? 'btn-secondary' : 'btn-success'}" onclick="toggleLessonComplete('${lessonId}')" style="box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2); font-weight: 700;">
               ${isLessonCompleted ? `${ICONS.close} إلغاء تحديد الاكتمال` : `${ICONS.check} تحديد الدرس كاملاً كمكتمل`}
             </button>

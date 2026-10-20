@@ -30,12 +30,13 @@ const DirectFirestore = {
     const fb = _getFb();
     const { db, collection, getDocs, doc, getDoc } = fb;
 
-    const [unitsSnap, lessonsSnap, matsSnap, quizzesSnap, annSnap] = await Promise.all([
+    const [unitsSnap, lessonsSnap, matsSnap, quizzesSnap, annSnap, notifsSnap] = await Promise.all([
       getDocs(collection(db, 'units')),
       getDocs(collection(db, 'lessons')),
       getDocs(collection(db, 'materials')),
       getDocs(collection(db, 'quizzes')),
-      getDoc(doc(db, 'announcements', 'global_announcement')).catch(() => null)
+      getDoc(doc(db, 'announcements', 'global_announcement')).catch(() => null),
+      getDocs(collection(db, 'notifications')).catch(() => null)
     ]);
 
     const units = unitsSnap.docs
@@ -52,6 +53,12 @@ const DirectFirestore = {
 
     const quizzes = quizzesSnap.docs.map(d => d.data());
     const announcement = (annSnap && annSnap.exists()) ? annSnap.data() : null;
+    const notifications = notifsSnap
+      ? notifsSnap.docs
+          .map(d => d.data())
+          .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+          .slice(0, 50)
+      : [];
 
     let progress = null;
     if (username) {
@@ -72,7 +79,8 @@ const DirectFirestore = {
       materials,
       quizzes,
       progress,
-      announcement
+      announcement,
+      notifications
     };
   },
 
@@ -398,19 +406,19 @@ const DirectFirestore = {
     if (!rawUser) return { success: false, message: 'Missing username' };
     const userKey = _sanitizeDocId(rawUser.toLowerCase());
     const docRef = fb.doc(fb.db, 'student_progress', userKey);
-    await fb.setDoc(
-      docRef,
-      {
-        username: rawUser,
-        current_unit_id: data.current_unit_id || '',
-        current_lesson_id: data.current_lesson_id || '',
-        completed_lessons: Array.isArray(data.completed_lessons) ? data.completed_lessons : [],
-        completed_materials: Array.isArray(data.completed_materials) ? data.completed_materials : [],
-        completed_lesson_details: Array.isArray(data.completed_lesson_details) ? data.completed_lesson_details : [],
-        updated_at: new Date().toISOString()
-      },
-      { merge: true }
-    );
+    const payload = {
+      username: rawUser,
+      current_unit_id: data.current_unit_id || '',
+      current_lesson_id: data.current_lesson_id || '',
+      completed_lessons: Array.isArray(data.completed_lessons) ? data.completed_lessons : [],
+      completed_materials: Array.isArray(data.completed_materials) ? data.completed_materials : [],
+      completed_lesson_details: Array.isArray(data.completed_lesson_details) ? data.completed_lesson_details : [],
+      updated_at: new Date().toISOString()
+    };
+    if (Array.isArray(data.read_notifications)) {
+      payload.read_notifications = data.read_notifications;
+    }
+    await fb.setDoc(docRef, payload, { merge: true });
     return { success: true };
   },
 
@@ -690,26 +698,79 @@ const DirectFirestore = {
     return { success: true, announcement: payload };
   },
 
+  async getNotifications() {
+    const fb = _getFb();
+    const snap = await fb.getDocs(fb.collection(fb.db, 'notifications'));
+    const notifications = snap.docs
+      .map(d => d.data())
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      .slice(0, 50);
+    return { success: true, notifications };
+  },
+
+  async addNotification(data) {
+    const fb = _getFb();
+    const id = _generateId();
+    const payload = {
+      notification_id: id,
+      title: String(data.title || '').trim(),
+      message: String(data.message || '').trim(),
+      type: String(data.type || 'announcement').trim(),
+      target_type: String(data.target_type || 'announcement').trim(),
+      target_id: String(data.target_id || '').trim(),
+      unit_id: String(data.unit_id || '').trim(),
+      lesson_id: String(data.lesson_id || '').trim(),
+      link_url: String(data.link_url || '').trim(),
+      link_text: String(data.link_text || '').trim(),
+      created_at: new Date().toISOString()
+    };
+    await fb.setDoc(fb.doc(fb.db, 'notifications', id), payload);
+    return { success: true, notification: payload };
+  },
+
+  async deleteNotification(data) {
+    const fb = _getFb();
+    const id = _sanitizeDocId(data.notification_id || data.id || '');
+    if (!id) return { success: false, message: 'Missing notification_id' };
+    await fb.deleteDoc(fb.doc(fb.db, 'notifications', id)).catch(() => {});
+    return { success: true };
+  },
+
+  async clearAllNotifications() {
+    const fb = _getFb();
+    const snap = await fb.getDocs(fb.collection(fb.db, 'notifications'));
+    await Promise.all(snap.docs.map(d => fb.deleteDoc(d.ref).catch(() => {})));
+    return { success: true, deleted_count: snap.size };
+  },
+
   async getAdminAnalytics() {
     const fb = _getFb();
-    const [usersSnap, progSnap, attemptsSnap, annSnap] = await Promise.all([
+    const [usersSnap, progSnap, attemptsSnap, annSnap, notifsSnap] = await Promise.all([
       fb.getDocs(fb.collection(fb.db, 'users')),
       fb.getDocs(fb.collection(fb.db, 'student_progress')),
       fb.getDocs(fb.collection(fb.db, 'quiz_attempts')),
-      fb.getDoc(fb.doc(fb.db, 'announcements', 'global_announcement')).catch(() => null)
+      fb.getDoc(fb.doc(fb.db, 'announcements', 'global_announcement')).catch(() => null),
+      fb.getDocs(fb.collection(fb.db, 'notifications')).catch(() => null)
     ]);
 
     const users = usersSnap.docs.map(d => d.data());
     const allProgress = progSnap.docs.map(d => d.data());
     const allAttempts = attemptsSnap.docs.map(d => d.data());
     const announcement = (annSnap && annSnap.exists()) ? annSnap.data() : null;
+    const notifications = notifsSnap
+      ? notifsSnap.docs
+          .map(d => d.data())
+          .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+          .slice(0, 50)
+      : [];
 
     return {
       success: true,
       users,
       allProgress,
       allAttempts,
-      announcement
+      announcement,
+      notifications
     };
   },
 
@@ -891,6 +952,8 @@ const API = {
             result = await DirectFirestore.getStudentDetails(params.username);
           } else if (action === 'getAnnouncement') {
             result = await DirectFirestore.getAnnouncement();
+          } else if (action === 'getNotifications') {
+            result = await DirectFirestore.getNotifications();
           } else if (action === 'getAdminAnalytics') {
             result = await DirectFirestore.getAdminAnalytics();
           } else if (action === 'exportAllCurriculum') {

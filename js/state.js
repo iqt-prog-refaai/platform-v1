@@ -19,5 +19,8 @@ const state = {
   allMaterials: [],
   announcement: null,
   dismissedAnnouncementTime: null,
+  notifications: [],
+  readNotifications: [],
+  notifDropdownOpen: false,
   dragItem: null
 };

@@ -3,6 +3,57 @@
 // Depends on: api.js, state.js, utils.js, student.js, admin.js
 // ============================================
 
+const ADMIN_NOTIFY_PREF_KEY = 'iqt_admin_notify_pref';
+
+function getAdminNotifyPref() {
+  try {
+    const val = localStorage.getItem(ADMIN_NOTIFY_PREF_KEY);
+    if (val === null) return true;
+    return val !== 'false';
+  } catch (e) {
+    return true;
+  }
+}
+
+function setAdminNotifyPref(checked) {
+  try {
+    localStorage.setItem(ADMIN_NOTIFY_PREF_KEY, checked ? 'true' : 'false');
+  } catch (e) {
+    console.warn('Could not persist admin notify preference:', e);
+  }
+}
+
+function _resolveLocationContext(lessonId) {
+  const lid = String(lessonId || '');
+  let unitId = '';
+  let unitName = '';
+  let lessonName = '';
+
+  if (lid.startsWith('unit_')) {
+    unitId = lid.replace(/^unit_/, '');
+    const u = (state.units || []).find(x => String(x.unit_id) === unitId);
+    if (u) unitName = u.unit_name;
+  } else if (lid) {
+    for (const [uId, lList] of Object.entries(state.lessons || {})) {
+      const found = (lList || []).find(l => String(l.lesson_id) === lid);
+      if (found) {
+        lessonName = found.lesson_name;
+        unitId = String(uId || '');
+        const u = (state.units || []).find(x => String(x.unit_id) === unitId);
+        if (u) unitName = u.unit_name;
+        break;
+      }
+    }
+  }
+
+  let locationLabel = '';
+  if (unitName && lessonName) locationLabel = `${lessonName} (${unitName})`;
+  else if (unitName) locationLabel = unitName;
+  else if (lessonName) locationLabel = lessonName;
+
+  return { unitId, unitName, lessonName, locationLabel };
+}
+
 function showModal(type, id = null) {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -79,6 +130,17 @@ function showModal(type, id = null) {
           إذا تم تفعيل هذا الخيار، فلن يتمكن الطلاب من مشاهدة هذا الدرس ومحتوياته.
         </p>
       </div>
+      ${!isEdit ? `
+      <div class="input-group" style="margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.2);">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+          <input type="checkbox" id="lessonSendNotification" ${getAdminNotifyPref() ? 'checked' : ''} onchange="setAdminNotifyPref(this.checked)" style="width:18px;height:18px;">
+          <strong>إرسال إشعار للطلاب بإضافة هذا الدرس</strong>
+        </label>
+        <p style="margin:4px 0 0 0; font-size:0.8rem; color:var(--text-muted);">
+          يظهر للطلاب في جرس الإشعارات وينقلهم للدرس مباشرة عند الضغط عليه (يتم حفظ آخر اختيار لك تلقائياً).
+        </p>
+      </div>
+      ` : ''}
       <div class="modal-footer">
         <button class="btn btn-primary" onclick="${isEdit ? 'submitEditLesson()' : 'submitLesson()'}">${isEdit ? 'حفظ التعديلات' : 'إضافة درس'}</button>
         <button class="btn btn-secondary" onclick="closeModal()">إلغاء</button>
@@ -141,6 +203,17 @@ function showModal(type, id = null) {
           يمكنك تجهيز المحتوى الآن وجعله مخفياً، ثم إظهاره للطلاب بضغطة زر واحدة لاحقاً.
         </p>
       </div>
+      ${!isEdit ? `
+      <div class="input-group" style="margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.2);">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+          <input type="checkbox" id="materialSendNotification" ${getAdminNotifyPref() ? 'checked' : ''} onchange="setAdminNotifyPref(this.checked)" style="width:18px;height:18px;">
+          <strong>إرسال إشعار للطلاب بإضافة هذا المحتوى</strong>
+        </label>
+        <p style="margin:4px 0 0 0; font-size:0.8rem; color:var(--text-muted);">
+          يظهر للطلاب في جرس الإشعارات وعند الضغط عليه ينقلهم للمحتوى مباشرة (يتم حفظ آخر اختيار لك تلقائياً).
+        </p>
+      </div>
+      ` : ''}
       <div class="modal-footer">
         <button class="btn btn-primary" onclick="${isEdit ? 'submitEditMaterial()' : 'submitMaterial()'}">${isEdit ? 'حفظ التعديلات' : 'إضافة محتوى'}</button>
         <button class="btn btn-secondary" onclick="closeModal()">إلغاء</button>
@@ -148,12 +221,48 @@ function showModal(type, id = null) {
     `;
   } else if (type === 'addQuiz') {
     content = `
-      <h3 style="margin-bottom: 20px;">إنشاء اختبار</h3>
-      <p style="color: var(--text-muted); margin-bottom: 16px;">
-        أولاً، أنشئ محتوى من نوع "اختبار" في قسم المحتوى، ثم انتقل إلى قسم الاختبارات وانقر على "إنشاء اختبار" بجانب المحتوى لتفعيله، ثم أضف الأسئلة.
-      </p>
+      <h3 style="margin-bottom: 16px;">إنشاء اختبار جديد</h3>
+      <div class="input-group">
+        <label>الموقع المستهدف (الوحدة أو الدرس)</label>
+        <select id="quickQuizLessonIdSelect">
+          <option value="">-- خارج الدروس والوحدات (اختبار مستقل) --</option>
+          ${state.units.map(u => `
+            <optgroup label="${u.unit_name}">
+              <option value="unit_${u.unit_id}">-- داخل الوحدة مباشرة (${u.unit_name}) --</option>
+              ${(state.lessons[u.unit_id] || []).map(l => `<option value="${l.lesson_id}">الدرس: ${l.lesson_name}</option>`).join('')}
+            </optgroup>
+          `).join('')}
+          <optgroup label="دروس مستقلة">
+            ${(state.lessons[''] || []).map(l => `<option value="${l.lesson_id}">الدرس: ${l.lesson_name}</option>`).join('')}
+          </optgroup>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>عنوان الاختبار</label>
+        <input type="text" id="quickQuizTitle" placeholder="مثال: اختبار شامل على الدرس الأول">
+      </div>
+      <div class="input-group">
+        <label>الوقت المحدد بالدقائق (0 = مفتوح بدون وقت)</label>
+        <input type="number" id="quickQuizTimeLimit" value="0" min="0" max="180">
+      </div>
+      <div class="input-group" style="margin-top: 12px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="quickQuizIsHidden" style="width:18px;height:18px;">
+          <strong>إخفاء هذا الاختبار عن الطلاب مؤقتاً (ريثما تضيف الأسئلة)</strong>
+        </label>
+      </div>
+      <div class="input-group" style="margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.2);">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+          <input type="checkbox" id="quickQuizSendNotification" ${getAdminNotifyPref() ? 'checked' : ''} onchange="setAdminNotifyPref(this.checked)" style="width:18px;height:18px;">
+          <strong>إرسال إشعار للطلاب بإضافة هذا الاختبار</strong>
+        </label>
+        <p style="margin:4px 0 0 0; font-size:0.8rem; color:var(--text-muted);">
+          يظهر للطلاب في جرس الإشعارات وعند الضغط عليه يفتح صفحة الاختبار مباشرة (يتم حفظ آخر اختيار لك تلقائياً).
+        </p>
+      </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal()">إغلاق</button>
+        <button class="btn btn-primary" onclick="submitQuickCreateQuiz()">إنشاء الاختبار</button>
+        <button class="btn btn-secondary" onclick="closeModal()">إلغاء</button>
       </div>
     `;
   } else if (type === 'addQuestion' || type === 'editQuestion') {
@@ -459,12 +568,16 @@ async function submitLesson() {
   let num = $('lessonNumber')?.value;
   const name = $('lessonName')?.value?.trim();
   const isHidden = $('lessonIsHidden')?.checked || false;
+  const sendNotif = $('lessonSendNotification') ? $('lessonSendNotification').checked : getAdminNotifyPref();
+  setAdminNotifyPref(sendNotif);
+
   if (!name) { showToast('يرجى كتابة اسم الدرس', 'error'); return; }
 
   const parsedNum = parseInt(num, 10) || ((state.lessons[unitId] || []).length + 1);
 
   showLoading();
   try {
+    let createdLessonId = '';
     if (!MOCK_MODE) {
       const res = await API.post('addLesson', { 
         unit_id: unitId, 
@@ -476,8 +589,23 @@ async function submitLesson() {
         showToast('خطأ: ' + (res?.message || 'فشل في إضافة الدرس'), 'error');
         return;
       }
+      createdLessonId = String(res.lesson_id || '');
+
+      if (sendNotif && !isHidden && createdLessonId) {
+        const unitObj = (state.units || []).find(u => String(u.unit_id) === String(unitId));
+        const unitLabel = unitObj ? `ضمن ${unitObj.unit_name}` : 'درس مستقل';
+        await API.post('addNotification', {
+          title: 'درس جديد متاح الآن',
+          message: `الدرس ${parsedNum}: ${name} — ${unitLabel}`,
+          type: 'lesson',
+          target_type: 'lesson',
+          target_id: createdLessonId,
+          unit_id: String(unitId),
+          lesson_id: createdLessonId
+        }).catch(console.warn);
+      }
     }
-    showToast('تمت إضافة الدرس بنجاح!');
+    showToast(sendNotif && !isHidden ? 'تمت إضافة الدرس وإرسال إشعار للطلاب بنجاح!' : 'تمت إضافة الدرس بنجاح!');
     closeModal();
     await refreshAndRenderAdmin();
   } catch (err) {
@@ -494,6 +622,8 @@ async function submitMaterial() {
   const type = $('materialType')?.value || 'link';
   const rawContent = $('materialLinkInput')?.value?.trim() || '';
   const isHidden = $('materialIsHidden')?.checked || false;
+  const sendNotif = $('materialSendNotification') ? $('materialSendNotification').checked : getAdminNotifyPref();
+  setAdminNotifyPref(sendNotif);
 
   if (!title) { showToast('يرجى كتابة عنوان المحتوى', 'error'); return; }
   if (type !== 'quiz' && !rawContent) {
@@ -515,13 +645,106 @@ async function submitMaterial() {
         showToast('خطأ: ' + (res?.message || 'فشل في إضافة المحتوى'), 'error');
         return;
       }
+
+      const createdMatId = String(res.material_id || '');
+
+      // Automatically create quiz record if material type is quiz
+      if (type === 'quiz' && createdMatId) {
+        await API.post('addQuiz', {
+          material_id: createdMatId,
+          title: title,
+          description: ''
+        }).catch(console.warn);
+      }
+
+      if (sendNotif && !isHidden && createdMatId) {
+        const ctx = _resolveLocationContext(lessonId);
+        const typeTitleMap = {
+          pdf: 'ملف PDF جديد',
+          video: 'فيديو تعليمي جديد',
+          link: 'شرائح عرض / رابط جديد',
+          external: 'شرائح عرض / رابط جديد',
+          quiz: 'اختبار جديد متاح الآن',
+          article: 'مقال تعليمي جديد'
+        };
+        await API.post('addNotification', {
+          title: typeTitleMap[type] || 'محتوى تعليمي جديد',
+          message: ctx.locationLabel ? `${title} — ${ctx.locationLabel}` : title,
+          type: type,
+          target_type: type === 'quiz' ? 'quiz' : 'material',
+          target_id: createdMatId,
+          unit_id: ctx.unitId,
+          lesson_id: String(lessonId)
+        }).catch(console.warn);
+      }
     }
-    showToast('تمت إضافة المحتوى بنجاح!');
+    showToast(sendNotif && !isHidden ? 'تمت إضافة المحتوى وإرسال إشعار للطلاب بنجاح!' : 'تمت إضافة المحتوى بنجاح!');
     closeModal();
     await refreshAndRenderAdmin();
   } catch (err) {
     console.error(err);
     showToast('خطأ في الاتصال بالخادم أثناء إضافة المحتوى', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function submitQuickCreateQuiz() {
+  const lessonId = $('quickQuizLessonIdSelect')?.value || '';
+  const title = $('quickQuizTitle')?.value?.trim() || '';
+  const timeLimit = Math.max(0, parseInt($('quickQuizTimeLimit')?.value || '0', 10) || 0);
+  const isHidden = $('quickQuizIsHidden')?.checked || false;
+  const sendNotif = $('quickQuizSendNotification') ? $('quickQuizSendNotification').checked : getAdminNotifyPref();
+  setAdminNotifyPref(sendNotif);
+
+  if (!title) {
+    showToast('يرجى كتابة عنوان الاختبار', 'error');
+    return;
+  }
+
+  const contentSettings = JSON.stringify({ time_limit: timeLimit, is_review_mode: false });
+
+  showLoading();
+  try {
+    if (!MOCK_MODE) {
+      const matRes = await API.post('addMaterial', {
+        lesson_id: lessonId,
+        title,
+        type: 'quiz',
+        content: contentSettings,
+        is_hidden: isHidden
+      });
+      if (!matRes || !matRes.success) {
+        showToast('خطأ في إنشاء محتوى الاختبار', 'error');
+        return;
+      }
+
+      const createdMatId = String(matRes.material_id || '');
+      await API.post('addQuiz', {
+        material_id: createdMatId,
+        title,
+        description: ''
+      });
+
+      if (sendNotif && !isHidden && createdMatId) {
+        const ctx = _resolveLocationContext(lessonId);
+        await API.post('addNotification', {
+          title: 'اختبار جديد متاح الآن',
+          message: ctx.locationLabel ? `${title} — ${ctx.locationLabel}` : title,
+          type: 'quiz',
+          target_type: 'quiz',
+          target_id: createdMatId,
+          unit_id: ctx.unitId,
+          lesson_id: String(lessonId)
+        }).catch(console.warn);
+      }
+    }
+    showToast(sendNotif && !isHidden ? 'تم إنشاء الاختبار وإرسال إشعار للطلاب بنجاح!' : 'تم إنشاء الاختبار بنجاح!');
+    closeModal();
+    await refreshAndRenderAdmin();
+  } catch (err) {
+    console.error(err);
+    showToast('حدث خطأ أثناء إنشاء الاختبار', 'error');
   } finally {
     hideLoading();
   }

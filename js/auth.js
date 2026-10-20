@@ -140,10 +140,16 @@ function setupNavigation() {
       <a class="nav-link" onclick="navigateTo('profile')">الملف الشخصي</a>
     `;
   }
+
+  if (typeof renderNavbarNotifications === 'function') {
+    renderNavbarNotifications();
+  }
 }
 
 function logout() {
   state.user = null;
+  state.notifDropdownOpen = false;
+  $('navNotifDropdown')?.classList.add('hidden');
   localStorage.removeItem('iqt_user');
   localStorage.removeItem('iqt_curriculum_cache');
   if (typeof API !== 'undefined' && API.clearCache) API.clearCache();

@@ -98,6 +98,7 @@
         "completed_lessons": { "type": "array" },
         "completed_materials": { "type": "array" },
         "completed_lesson_details": { "type": "array" },
+        "read_notifications": { "type": "array" },
         "updated_at": { "type": "string", "maxLength": 100 }
       },
       "required": ["username"]
@@ -135,6 +136,25 @@
         "updated_at": { "type": "string", "maxLength": 100 }
       },
       "required": ["is_active"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Student notifications for newly added lessons, materials, quizzes, and announcements",
+      "type": "object",
+      "properties": {
+        "notification_id": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 300 },
+        "message": { "type": "string", "maxLength": 2000 },
+        "type": { "type": "string", "maxLength": 50 },
+        "target_type": { "type": "string", "maxLength": 50 },
+        "target_id": { "type": "string", "maxLength": 100 },
+        "unit_id": { "type": "string", "maxLength": 100 },
+        "lesson_id": { "type": "string", "maxLength": 100 },
+        "link_url": { "type": "string", "maxLength": 500 },
+        "link_text": { "type": "string", "maxLength": 150 },
+        "created_at": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["notification_id", "title", "type"]
     }
   },
   "firestore": {
@@ -173,6 +193,10 @@
     "/announcements/{announcementId}": {
       "schema": "Announcement",
       "description": "Global platform announcements"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Platform notifications for students"
     }
   }
 }
