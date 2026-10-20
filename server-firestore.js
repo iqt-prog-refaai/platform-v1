@@ -425,7 +425,7 @@ export const FirestoreService = {
   async submitQuiz(data) {
     const id = generateId();
     const answers = Array.isArray(data.answers) ? data.answers : [];
-    const isGraded = !answers.some(a => a.type === 'essay');
+    const isGraded = !answers.some(a => a && a.type === 'essay');
 
     await setDoc(doc(db, 'quiz_attempts', id), {
       attempt_id: id,

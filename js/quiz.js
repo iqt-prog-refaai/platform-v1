@@ -903,6 +903,19 @@ async function submitQuiz() {
     saveCurrentAnswer(false);
   }
 
+  // Normalize any unanswered (null) slots so every question has a structured answer object
+  quiz.answers = quiz.questions.map((q, i) => {
+    const existing = quiz.answers[i];
+    if (existing && typeof existing === 'object') return existing;
+    return {
+      question_id: q.question_id,
+      type: q.type,
+      answer: q.type === 'matching' ? [] : '',
+      isCorrect: q.type === 'essay' ? null : false,
+      points: 0
+    };
+  });
+
   // Recalculate total score accurately
   quiz.score = quiz.questions.reduce((acc, q, i) => {
     const a = quiz.answers[i];
@@ -912,7 +925,7 @@ async function submitQuiz() {
     return acc;
   }, 0);
 
-  const hasEssay  = quiz.answers.some(a => a?.type === 'essay');
+  const hasEssay  = quiz.questions.some(q => q.type === 'essay') || quiz.answers.some(a => a?.type === 'essay');
   const color     = _scoreColor(quiz.score, quiz.maxScore);
   const pct       = quiz.maxScore ? Math.round(quiz.score / quiz.maxScore * 100) : 0;
 

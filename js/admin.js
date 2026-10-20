@@ -2196,62 +2196,303 @@ async function viewStudentDetails(username) {
 // GRADING
 // ==========================================
 async function renderAdminGrading(container) {
-  container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل الدرجات المعلقة...</div>';
+  container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل الإجابات المقالية بانتظار التصحيح...</div>';
 
-  let attempts = [];
-  if (!MOCK_MODE) {
-    const res = await API.get('getQuizAttempts', { username: '', quizId: '' });
-    if (res.success) {
-      attempts = res.attempts.filter(a => !a.is_graded && a.answers.some(ans => ans.type === 'essay'));
+  try {
+    let attempts = [];
+    let usersList = state.cachedAdminUsers || state.students || [];
+
+    if (!MOCK_MODE) {
+      const [attRes, usersRes] = await Promise.all([
+        API.get('getQuizAttempts', { username: '', quizId: '' }, { forceFresh: true }),
+        usersList.length ? Promise.resolve({ success: true, users: usersList }) : API.get('getAllUsers').catch(() => ({ success: false }))
+      ]);
+
+      if (usersRes && usersRes.success && Array.isArray(usersRes.users)) {
+        usersList = usersRes.users;
+        state.cachedAdminUsers = usersList;
+      }
+
+      if (attRes && attRes.success && Array.isArray(attRes.attempts)) {
+        attempts = attRes.attempts.filter(a => {
+          if (!a || a.is_graded) return false;
+          let ansList = a.answers;
+          if (typeof ansList === 'string') {
+            try { ansList = JSON.parse(ansList); } catch { ansList = []; }
+          }
+          if (!Array.isArray(ansList)) ansList = [];
+          a.answers = ansList;
+          // Show any attempt marked !is_graded (whether essay answers are answered or left blank)
+          return true;
+        });
+      }
     }
-  }
 
-  container.innerHTML = `
-    <h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">بانتظار التصحيح</h2>
-    ${attempts.length
-      ? attempts.map(att => `
-        <div class="glass" style="padding: 24px; margin-bottom: 16px;">
-          <div class="flex justify-between items-center" style="margin-bottom: 16px;">
-            <div>
-              <h4>@${att.username}</h4>
-              <p style="color: var(--text-muted); font-size: 0.85rem;">${formatDate(att.attempt_date)}</p>
-            </div>
-            <span style="color: var(--warning); display:inline-flex; align-items:center; gap:6px;">${ICONS.clock} معلق</span>
-          </div>
-          ${att.answers.filter(a => a.type === 'essay').map((ans, i) => `
-            <div style="margin-bottom: 16px; padding: 16px; background: rgba(0,0,0,0.02); border-radius: 10px;">
-              <p style="font-weight: 700; margin-bottom: 8px;">إجابة مقالية ${i + 1}:</p>
-              <p style="color: var(--text-muted);">${ans.answer}</p>
-            </div>
-          `).join('')}
-          <div class="flex gap-2" style="margin-top: 16px;">
-            <input type="number" style="width: 100px; padding: 10px 14px; border-radius: 10px; border: 2px solid var(--border); font-family: 'Tajawal', sans-serif; font-size: 1rem;" placeholder="الدرجة" id="grade-${att.attempt_id}">
-            <button class="btn btn-success" onclick="submitGrade('${att.attempt_id}')">تسليم الدرجة</button>
-          </div>
+    // Build student name lookup
+    const userByUsername = {};
+    (usersList || []).forEach(u => {
+      if (u && u.username) {
+        userByUsername[String(u.username).trim().toLowerCase()] = u.full_name || u.name || u.username;
+      }
+    });
+
+    // Build quiz title lookup
+    const matTitleById = {};
+    (state.allMaterials || []).forEach(m => {
+      if (m && m.material_id) matTitleById[String(m.material_id)] = m.title;
+    });
+    const quizTitleByQuizId = {};
+    Object.entries(state.quizzes || {}).forEach(([matId, qz]) => {
+      if (qz && qz.quiz_id) {
+        quizTitleByQuizId[String(qz.quiz_id)] = matTitleById[String(matId)] || qz.title || 'اختبار';
+      }
+    });
+
+    // Fetch questions for all unique quizIds present in ungraded attempts
+    const uniqueQuizIds = [...new Set(attempts.map(a => String(a.quiz_id || '')).filter(Boolean))];
+    const questionsByQuizId = {};
+    if (!MOCK_MODE && uniqueQuizIds.length > 0) {
+      await Promise.all(uniqueQuizIds.map(async qid => {
+        try {
+          const qRes = await API.get('getQuestions', { quizId: qid });
+          if (qRes && qRes.success && Array.isArray(qRes.questions)) {
+            questionsByQuizId[qid] = qRes.questions;
+          }
+        } catch (e) {
+          console.warn('Could not load questions for quiz:', qid, e);
+        }
+      }));
+    }
+
+    if (!attempts.length) {
+      container.innerHTML = `
+        <h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">بانتظار التصحيح</h2>
+        <div class="glass text-center" style="padding: 48px 24px;">
+          <p style="font-size: 1.05rem; color: var(--text-muted); margin: 0;">لا توجد إجابات مقالية معلقة بانتظار التصحيح حالياً. عمل رائع!</p>
         </div>
-      `).join('')
-      : '<div class="glass text-center" style="padding: 40px;"><p>لا توجد درجات معلقة. عمل رائع!</p></div>'}
-  `;
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">
+          إجابات مقالية بانتظار التصحيح (${attempts.length})
+        </h2>
+      </div>
+      ${attempts.map(att => {
+        const uKey = String(att.username || '').trim().toLowerCase();
+        const studentName = userByUsername[uKey] || att.username || 'طالب';
+        const quizTitle = quizTitleByQuizId[String(att.quiz_id)] || matTitleById[String(att.material_id)] || 'اختبار';
+        const quizQuestions = questionsByQuizId[String(att.quiz_id)] || [];
+        const qById = {};
+        quizQuestions.forEach(q => {
+          if (q && q.question_id != null) qById[String(q.question_id)] = q;
+        });
+
+        const safeAnswers = Array.isArray(att.answers) ? att.answers : [];
+        // Collect essay items from both the quiz questions and the student's submitted answers
+        const essayItems = [];
+        const seenQuestionIds = new Set();
+
+        safeAnswers.forEach((ans, idx) => {
+          if (!ans || typeof ans !== 'object') return;
+          const qObj = (ans.question_id != null && qById[String(ans.question_id)]) || quizQuestions[idx] || null;
+          if (ans.type === 'essay' || (qObj && qObj.type === 'essay')) {
+            if (ans.question_id != null) seenQuestionIds.add(String(ans.question_id));
+            essayItems.push({
+              question_id: ans.question_id || qObj?.question_id || `idx_${idx}`,
+              question_text: qObj?.question_text || `سؤال مقالي رقم ${essayItems.length + 1}`,
+              points: Number(qObj?.points) || 1,
+              explanation: qObj?.explanation || qObj?.correct_answer || '',
+              student_answer: ans.answer
+            });
+          }
+        });
+
+        // Also include any essay questions from the quiz that the student left completely unanswered (null slot)
+        quizQuestions.forEach((qObj, idx) => {
+          if (qObj && qObj.type === 'essay' && !seenQuestionIds.has(String(qObj.question_id))) {
+            const rawSlot = safeAnswers[idx];
+            essayItems.push({
+              question_id: qObj.question_id,
+              question_text: qObj.question_text || `سؤال مقالي رقم ${essayItems.length + 1}`,
+              points: Number(qObj.points) || 1,
+              explanation: qObj.explanation || qObj.correct_answer || '',
+              student_answer: (rawSlot && typeof rawSlot === 'object') ? rawSlot.answer : ''
+            });
+          }
+        });
+
+        const autoObjectiveScore = Number(att.score) || 0;
+        const maxQuizScore = Number(att.max_score) || 0;
+        const totalEssayMaxPoints = essayItems.reduce((sum, item) => sum + (Number(item.points) || 1), 0);
+
+        return `
+          <div class="glass" style="padding: 24px; margin-bottom: 20px; border-radius: 16px;">
+            <!-- Header: Student & Quiz Info -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid var(--border);">
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                  <h3 style="margin: 0; font-size: 1.15rem;">${studentName}</h3>
+                  <span style="font-size: 0.84rem; color: var(--text-muted); direction: ltr;">@${att.username}</span>
+                </div>
+                <div style="font-size: 0.9rem; color: var(--primary); font-weight: 700; margin-top: 4px;">
+                  ${quizTitle}
+                  <span style="color: var(--text-muted); font-weight: 400; font-size: 0.82rem;"> · ${formatDate(att.attempt_date)}</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <div style="background: rgba(99, 102, 241, 0.07); border: 1px solid rgba(99, 102, 241, 0.2); padding: 8px 14px; border-radius: 10px; font-size: 0.85rem; font-variant-numeric: tabular-nums;">
+                  <span style="color: var(--text-muted);">درجة الأسئلة الموضوعية (تلقائي): </span>
+                  <strong style="color: var(--primary); font-size: 1rem;">${autoObjectiveScore}</strong>
+                  <span style="color: var(--text-muted);"> / الدرجة الكلية للاختبار: ${maxQuizScore}</span>
+                </div>
+                <span style="color: #d97706; background: rgba(245, 158, 11, 0.12); padding: 6px 12px; border-radius: 8px; font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+                  ${ICONS.clock} بانتظار التقييم
+                </span>
+              </div>
+            </div>
+
+            <!-- Essay Questions List -->
+            <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
+              ${essayItems.length ? essayItems.map((item, idx) => {
+                const hasText = item.student_answer !== null && item.student_answer !== undefined && String(item.student_answer).trim() !== '';
+                return `
+                  <div style="padding: 18px; background: rgba(0, 0, 0, 0.02); border: 1px solid var(--border); border-radius: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 10px;">
+                      <div style="font-weight: 700; font-size: 0.98rem; line-height: 1.5; flex: 1;">
+                        <span style="color: var(--primary);">سؤال مقالي ${idx + 1}:</span> ${item.question_text}
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; font-variant-numeric: tabular-nums;">
+                        <label style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600;">درجة السؤال (من ${item.points}):</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="${item.points}"
+                          step="0.5"
+                          placeholder="0 - ${item.points}"
+                          class="essay-part-score-${att.attempt_id}"
+                          oninput="recalculateAttemptTotalGrade('${att.attempt_id}', ${autoObjectiveScore}, ${maxQuizScore})"
+                          style="width: 85px; padding: 6px 10px; border-radius: 8px; border: 1.5px solid var(--border); font-weight: 700; text-align: center;"
+                        >
+                      </div>
+                    </div>
+
+                    <div style="padding: 12px 14px; background: var(--bg-card, #fff); border: 1px solid rgba(0,0,0,0.06); border-radius: 10px; margin-bottom: ${item.explanation ? '10px' : '0'};">
+                      <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600;">إجابة الطالب:</div>
+                      <div style="font-size: 0.95rem; line-height: 1.65; white-space: pre-line; color: ${hasText ? 'var(--text-primary)' : 'var(--danger)'};">
+                        ${hasText ? item.student_answer : '(لم يقم الطالب بكتابة إجابة لهذا السؤال)'}
+                      </div>
+                    </div>
+
+                    ${item.explanation ? `
+                      <div style="padding: 10px 14px; background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.22); border-radius: 8px; font-size: 0.84rem; color: var(--text-secondary);">
+                        <strong style="color: #059669;">الإجابة النموذجية / معيار التصحيح:</strong> ${item.explanation}
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('') : `
+                <div style="padding: 16px; background: rgba(0,0,0,0.02); border-radius: 10px; color: var(--text-muted);">
+                  هذه المحاولة مسجلة كغير مصححة (الدرجة الحالية: ${autoObjectiveScore} من ${maxQuizScore}). يمكنك اعتماد الدرجة النهائية بالأسفل.
+                </div>
+              `}
+            </div>
+
+            <!-- Final Score & Feedback Controls -->
+            <div style="padding-top: 16px; border-top: 1px solid var(--border); display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; align-items: end;">
+              <div class="input-group" style="margin: 0;">
+                <label style="font-size: 0.85rem; font-weight: 700;">
+                  الدرجة النهائية الكلية للاختبار (من ${maxQuizScore})
+                  ${totalEssayMaxPoints > 0 ? `<span style="font-weight: 400; color: var(--text-muted);"> — تشمل ${autoObjectiveScore} موضوعي + درجة المقالي</span>` : ''}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="${maxQuizScore || 1000}"
+                  step="0.5"
+                  value="${autoObjectiveScore}"
+                  id="grade-${att.attempt_id}"
+                  style="padding: 10px 14px; border-radius: 10px; border: 2px solid var(--primary); font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums;"
+                >
+              </div>
+
+              <div class="input-group" style="margin: 0;">
+                <label style="font-size: 0.85rem; font-weight: 700;">ملاحظات وتعليق المعلم للطالب (اختياري)</label>
+                <input
+                  type="text"
+                  id="feedback-${att.attempt_id}"
+                  placeholder="مثال: إجابة ممتازة، يرجى التركيز على النقطة الثانية..."
+                  style="padding: 10px 14px; border-radius: 10px; border: 1.5px solid var(--border); font-size: 0.92rem;"
+                >
+              </div>
+
+              <div style="display: flex; justify-content: flex-end;">
+                <button type="button" class="btn btn-primary" style="width: 100%; padding: 11px 20px; background: var(--success); border-color: var(--success); font-weight: 700;" onclick="submitGrade('${att.attempt_id}')">
+                  ${ICONS.check} اعتماد وتسليم الدرجة النهائية
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    `;
+  } catch (err) {
+    console.error('Error rendering grading section:', err);
+    container.innerHTML = `
+      <h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">بانتظار التصحيح</h2>
+      <div class="glass text-center" style="padding: 40px; color: var(--danger);">
+        حدث خطأ أثناء تحميل الإجابات المعلقة. يرجى تحديث الصفحة والمحاولة مرة أخرى.
+      </div>
+    `;
+  }
+}
+
+function recalculateAttemptTotalGrade(attemptId, autoObjectiveScore, maxQuizScore) {
+  const inputs = document.querySelectorAll(`.essay-part-score-${attemptId}`);
+  let essaySum = 0;
+  inputs.forEach(inp => {
+    const val = parseFloat(inp.value);
+    if (!isNaN(val) && val >= 0) {
+      essaySum += val;
+    }
+  });
+  const totalInput = $(`grade-${attemptId}`);
+  if (totalInput) {
+    const computed = Number(autoObjectiveScore || 0) + essaySum;
+    totalInput.value = maxQuizScore > 0 ? Math.min(maxQuizScore, computed) : computed;
+  }
 }
 
 async function submitGrade(attemptId) {
-  const score = $(`grade-${attemptId}`).value;
-  if (!score) {
-    showToast('يرجى إدخال درجة', 'error');
+  const scoreVal = $(`grade-${attemptId}`)?.value;
+  const feedbackVal = $(`feedback-${attemptId}`)?.value?.trim() || '';
+
+  if (scoreVal === '' || scoreVal === null || scoreVal === undefined || isNaN(parseFloat(scoreVal))) {
+    showToast('يرجى إدخال الدرجة النهائية', 'error');
     return;
   }
 
-  if (!MOCK_MODE) {
-    await API.post('gradeEssay', {
-      attempt_id: attemptId,
-      score: parseFloat(score),
-      graded_by: state.user.username,
-      feedback: ''
-    });
-  }
+  showLoading();
+  try {
+    if (!MOCK_MODE) {
+      await API.post('gradeEssay', {
+        attempt_id: attemptId,
+        score: parseFloat(scoreVal),
+        graded_by: state.user?.name || state.user?.username || 'admin',
+        feedback: feedbackVal
+      });
+    }
 
-  showToast('تم تسليم الدرجة!');
-  await refreshAndRenderAdmin();
+    showToast('تم اعتماد وتسليم الدرجة للطالب بنجاح!');
+    await refreshAndRenderAdmin();
+  } catch (err) {
+    console.error('Error submitting grade:', err);
+    showToast('حدث خطأ أثناء حفظ الدرجة', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 // ==========================================
