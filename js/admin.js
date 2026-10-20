@@ -1202,6 +1202,25 @@ async function renderAdminContent(container) {
       </div>
     </div>
 
+    <!-- Built-in Interactive Web Lesson Ready to Publish -->
+    <div class="glass" style="padding: 18px 22px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.24);">
+      <div>
+        <div style="font-size: 0.78rem; font-weight: 800; color: #0284c7; margin-bottom: 2px;">صفحة درس ويب تفاعلية جاهزة</div>
+        <h4 style="margin: 0 0 4px 0; font-size: 1.05rem;">الدرس 3-2: طرق اتصال تطبيقات الويب (Web Application Communication)</h4>
+        <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">
+          يتضمن 4 مختبرات محاكاة تفاعلية (Client-Server، أمان TLS/HTTPS، طرق GET/POST ورموز 200/404/500، ومحلل API/JSON) بالإضافة لحلول أنشطة الكتاب المدرسي واختبار ذاتي.
+        </p>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="/lessons/lesson-3-2.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 9px 16px; font-size: 0.88rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+          ${ICONS.externalLink} معاينة الصفحة التفاعلية
+        </a>
+        <button type="button" class="btn btn-primary" style="padding: 9px 16px; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px;" onclick="openPublishLesson32Modal()">
+          ${ICONS.plus} إدراج كدرس داخل المنصة بضغطة واحدة
+        </button>
+      </div>
+    </div>
+
     <div style="margin-bottom: 32px;">
       <h3 style="margin-bottom: 16px; color: var(--text-muted);">الوحدات والدروس</h3>
       ${state.units.map(unit => {
@@ -2704,3 +2723,157 @@ async function toggleQuizQuestions(quizId) {
     </div>
   `).join('');
 }
+
+function openPublishLesson32Modal() {
+  const existing = document.getElementById('publishLesson32Modal');
+  if (existing) existing.remove();
+
+  const notifyChecked = typeof getAdminNotifyPref === 'function' ? getAdminNotifyPref() : true;
+  const units = state.units || [];
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'publishLesson32Modal';
+  modal.innerHTML = `
+    <div class="glass modal-content" style="max-width: 540px;">
+      <div class="flex justify-between items-center" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+        <h3 style="margin: 0;">إدراج الدرس 3-2 التفاعلي في المنصة</h3>
+        <button type="button" class="btn btn-secondary" style="padding: 6px 10px;" onclick="document.getElementById('publishLesson32Modal')?.remove()">
+          ${ICONS.close}
+        </button>
+      </div>
+
+      <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6;">
+        سيقوم هذا الإجراء بإنشاء درس <strong>«طرق اتصال تطبيقات الويب»</strong> وإرفاق صفحة الويب التفاعلية (<span style="direction:ltr;display:inline-block;">/lessons/lesson-3-2.html</span>) التي تحتوي على المحاكاة التفاعلية والأنشطة مباشرة داخل الدرس.
+      </p>
+
+      <div class="input-group">
+        <label>الوحدة المستهدفة</label>
+        <select id="pub32UnitSelect">
+          <option value="__create_unit_3__">+ إنشاء/اختيار تلقائي: «الوحدة الثالثة: تطبيقات الويب»</option>
+          <option value="">-- بدون وحدة (درس مستقل) --</option>
+          ${units.map(u => `<option value="${u.unit_id}">الوحدة ${u.unit_number}: ${u.unit_name}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label>اسم الدرس</label>
+        <input type="text" id="pub32LessonName" value="طرق اتصال تطبيقات الويب">
+      </div>
+
+      <div class="input-group">
+        <label>رقم الدرس</label>
+        <input type="number" id="pub32LessonNumber" value="2" min="1">
+      </div>
+
+      <div class="input-group" style="margin-top: 10px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="pub32IncludePdf" checked style="width:18px;height:18px;">
+          <span>إرفاق ملف ملخص الـ PDF الأصلي أيضاً داخل نفس الدرس</span>
+        </label>
+      </div>
+
+      <div class="input-group" style="margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.2);">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+          <input type="checkbox" id="pub32SendNotif" ${notifyChecked ? 'checked' : ''} onchange="if(typeof setAdminNotifyPref==='function') setAdminNotifyPref(this.checked)" style="width:18px;height:18px;">
+          <strong>إرسال إشعار للطلاب بإضافة هذا الدرس التفاعلي</strong>
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" onclick="executePublishLesson32()">إنشاء الدرس وإرفاق الصفحة التفاعلية</button>
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('publishLesson32Modal')?.remove()">إلغاء</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function executePublishLesson32() {
+  const unitChoice = $('pub32UnitSelect')?.value || '';
+  const lessonName = $('pub32LessonName')?.value?.trim() || 'طرق اتصال تطبيقات الويب';
+  const lessonNumber = parseInt($('pub32LessonNumber')?.value, 10) || 2;
+  const includePdf = $('pub32IncludePdf')?.checked !== false;
+  const sendNotif = $('pub32SendNotif') ? $('pub32SendNotif').checked : true;
+  if (typeof setAdminNotifyPref === 'function') setAdminNotifyPref(sendNotif);
+
+  showLoading();
+  try {
+    let targetUnitId = unitChoice;
+
+    if (unitChoice === '__create_unit_3__') {
+      const existingUnit3 = (state.units || []).find(u => Number(u.unit_number) === 3 || String(u.unit_name).includes('تطبيقات الويب'));
+      if (existingUnit3) {
+        targetUnitId = String(existingUnit3.unit_id);
+      } else {
+        const uRes = await API.post('addUnit', {
+          unit_number: 3,
+          unit_name: 'تطبيقات الويب',
+          is_hidden: false
+        });
+        if (uRes && uRes.success) {
+          targetUnitId = String(uRes.unit_id);
+        } else {
+          targetUnitId = '';
+        }
+      }
+    }
+
+    const lRes = await API.post('addLesson', {
+      unit_id: targetUnitId,
+      lesson_number: lessonNumber,
+      lesson_name: lessonName,
+      is_hidden: false
+    });
+
+    if (!lRes || !lRes.success) {
+      showToast('تعذر إنشاء الدرس: ' + (lRes?.message || ''), 'error');
+      return;
+    }
+
+    const createdLessonId = String(lRes.lesson_id);
+
+    // 1. Add Interactive Web Page Material
+    await API.post('addMaterial', {
+      lesson_id: createdLessonId,
+      title: 'الدرس 3-2: طرق اتصال تطبيقات الويب (صفحة شرح ومختبر تفاعلي)',
+      type: 'article',
+      content: '/lessons/lesson-3-2.html',
+      is_hidden: false
+    });
+
+    // 2. Optionally Add Attached PDF Summary
+    if (includePdf) {
+      await API.post('addMaterial', {
+        lesson_id: createdLessonId,
+        title: 'ملخص الدرس 3-2: طرق اتصال تطبيقات الويب (ملف PDF)',
+        type: 'pdf',
+        content: '/public/assets/aistudio/____19e9a610.pdf',
+        is_hidden: false
+      });
+    }
+
+    // 3. Send Notification if checked
+    if (sendNotif) {
+      await API.post('addNotification', {
+        title: 'درس تفاعلي جديد متاح الآن',
+        message: `الدرس ${lessonNumber}: ${lessonName} (يتضمن محاكاة تفاعلية وأنشطة تدريبية)`,
+        type: 'lesson',
+        target_type: 'lesson',
+        target_id: createdLessonId,
+        unit_id: targetUnitId,
+        lesson_id: createdLessonId
+      }).catch(console.warn);
+    }
+
+    document.getElementById('publishLesson32Modal')?.remove();
+    showToast('تم إنشاء الدرس 3-2 وإرفاق الصفحة التفاعلية بنجاح!');
+    await refreshAndRenderAdmin();
+  } catch (e) {
+    console.error('Error publishing Lesson 3-2:', e);
+    showToast('حدث خطأ أثناء نشر الدرس التفاعلي', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+

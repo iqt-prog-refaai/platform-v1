@@ -137,7 +137,14 @@ async function renderMaterialViewer(lessonId, specificMaterialId = null) {
 // ------ FORMAT EXTERNAL LINK ------
 function formatExternalUrl(url) {
   if (!url) return '#';
-  const trimmed = url.trim();
+  const trimmed = String(url).trim();
+  if (!trimmed) return '#';
+  if (trimmed.startsWith('/') || trimmed.startsWith('./')) {
+    return trimmed;
+  }
+  if (/^(lessons|public|assets)\//i.test(trimmed)) {
+    return '/' + trimmed;
+  }
   if (!/^https?:\/\//i.test(trimmed)) {
     return 'https://' + trimmed;
   }
@@ -157,6 +164,7 @@ function renderLinkMaterial(mat, isCompleted) {
   const targetUrl = formatExternalUrl(mat.content);
   const embedUrl = getSlidesEmbedUrl(mat.content);
   const isGoogleSlides = targetUrl.includes('docs.google.com/presentation');
+  const isLocalInteractive = targetUrl.startsWith('/lessons/') || targetUrl.endsWith('.html');
 
   return `
     <div class="material-header">
@@ -187,13 +195,13 @@ function renderLinkMaterial(mat, isCompleted) {
       </div>
     </div>
 
-    ${isGoogleSlides ? `
-      <!-- Embedded Slide Viewer for Google Slides -->
+    ${(isGoogleSlides || isLocalInteractive) ? `
+      <!-- Embedded Viewer for Google Slides or Local Interactive Page -->
       <div style="margin-bottom: 24px;">
         <div style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
-          ${ICONS.presentation} معاينة مباشرة للشرائح:
+          ${ICONS.presentation} معاينة تفاعلية مباشرة داخل المنصة:
         </div>
-        <div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; border-radius:14px; border: 1px solid var(--border); box-shadow: var(--shadow);">
+        <div style="position:relative; height:${isLocalInteractive ? '80vh' : '0'}; ${isLocalInteractive ? 'min-height:680px;' : 'padding-bottom:56.25%;'} overflow:hidden; border-radius:14px; border: 1px solid var(--border); box-shadow: var(--shadow);">
           <iframe
             src="${embedUrl}"
             style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:#fff;"
@@ -466,16 +474,32 @@ function renderVideoMaterial(mat, isCompleted) {
   `;
 }
 
-// ------ ARTICLE ------
+// ------ ARTICLE / INTERACTIVE WEB PAGE ------
 function renderArticleMaterial(mat, isCompleted) {
   const targetUrl = formatExternalUrl(mat.content);
   return `
     <div class="material-header">
-      <span class="material-type-badge" style="background: var(--primary-light); color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">${ICONS.document} مقال تفاعلي</span>
-      <h2>${mat.title}</h2>
-      ${isCompleted ? `<span style="color: var(--success); display:inline-flex; align-items:center; gap:6px; margin-top:8px;">${ICONS.check} مكتمل</span>` : ''}
+      <span class="material-type-badge" style="background: var(--primary-light); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.82rem; font-weight: 700;">${ICONS.document} درس ويب تفاعلي</span>
+      <h2 style="margin-top:8px;">${mat.title}</h2>
+      ${isCompleted ? `<span style="color: var(--success); display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-weight:700;">${ICONS.check} مكتمل</span>` : ''}
     </div>
-    <div style="position:relative; height: 75vh; overflow:hidden; border-radius:16px; margin-bottom:20px; border: 1px solid var(--border); box-shadow: var(--shadow);">
+
+    <div class="glass" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 20px; border-radius: 14px; margin-bottom: 16px; border: 1px solid rgba(2, 132, 199, 0.2); background: linear-gradient(135deg, rgba(2,132,199,0.05), rgba(255,255,255,0.85));">
+      <div style="display: flex; align-items: center; gap: 10px; font-size: 0.95rem; font-weight: 700;">
+        <span style="color: var(--primary);">${ICONS.document}</span>
+        <span>صفحة شرح تفاعلية مدمجة (تتضمن محاكاة وأنشطة وأسئلة تدريبية)</span>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+          ${ICONS.externalLink} فتح في شاشة كاملة
+        </a>
+        <button class="btn btn-success" onclick="markComplete('${mat.material_id}')" style="padding: 8px 16px; font-size: 0.9rem;">
+          ${ICONS.check} تحديد كمكتمل
+        </button>
+      </div>
+    </div>
+
+    <div style="position:relative; height: 82vh; min-height: 700px; overflow:hidden; border-radius:16px; margin-bottom:20px; border: 1px solid var(--border); box-shadow: var(--shadow);">
       <iframe
         src="${targetUrl}"
         style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:white;"
@@ -484,7 +508,7 @@ function renderArticleMaterial(mat, isCompleted) {
     </div>
     <div style="display:flex; gap:10px; justify-content:center; flex-wrap: wrap;">
       <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
-        ${ICONS.document} فتح في نافذة جديدة
+        ${ICONS.externalLink} فتح الصفحة التفاعلية في نافذة جديدة
       </a>
       <button class="btn btn-success" onclick="markComplete('${mat.material_id}')">
         ${ICONS.check} تحديد كمكتمل

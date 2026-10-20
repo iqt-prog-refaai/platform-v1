@@ -184,14 +184,25 @@ function showModal(type, id = null) {
           <option value="pdf" ${isEdit && data.type === 'pdf' ? 'selected' : ''}>📄 PDF / مستند (جوجل درايف)</option>
           <option value="video" ${isEdit && data.type === 'video' ? 'selected' : ''}>🎥 فيديو (YouTube / Drive / مباشر)</option>
           <option value="quiz" ${isEdit && data.type === 'quiz' ? 'selected' : ''}>📝 اختبار تفاعلي</option>
-          <option value="article" ${isEdit && data.type === 'article' ? 'selected' : ''}>🌐 مقال / صفحة ويب</option>
+          <option value="article" ${isEdit && data.type === 'article' ? 'selected' : ''}>🌐 درس ويب تفاعلي / مقال</option>
         </select>
       </div>
       <div class="input-group" id="contentField" style="display: ${isEdit && data.type === 'quiz' ? 'none' : 'block'}">
-        <label id="materialContentLabel">${isEdit && data.type === 'pdf' ? 'رابط ملف PDF (Google Drive)' : (isEdit && data.type === 'video' ? 'رابط الفيديو' : 'رابط المحتوى / الشرائح')}</label>
-        <input type="text" id="materialLinkInput" value="${isEdit ? (data.content || '') : ''}" placeholder="${isEdit && data.type === 'pdf' ? 'https://drive.google.com/file/d/...' : 'https://... (مثال: رابط شرائح Google Slides أو Canva)'}">
+        <label id="materialContentLabel">${isEdit && data.type === 'pdf' ? 'رابط ملف PDF (Google Drive أو محلي)' : (isEdit && data.type === 'video' ? 'رابط الفيديو' : 'رابط المحتوى / الصفحة التفاعلية')}</label>
+        <input type="text" id="materialLinkInput" value="${isEdit ? (data.content || '') : ''}" placeholder="${isEdit && data.type === 'pdf' ? 'https://drive.google.com/file/d/...' : '/lessons/lesson-3-2.html أو https://...'}">
+        <div style="margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(2, 132, 199, 0.06); border: 1px dashed rgba(2, 132, 199, 0.3);">
+          <div style="font-size: 0.78rem; font-weight: 700; color: var(--primary); margin-bottom: 6px;">⚡ محتويات تفاعلية جاهزة بالمنصة (تعبئة تلقائية بضغطة واحدة):</div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.78rem;" onclick="applyBuiltInLessonPreset('lesson_3_2_web')">
+              🌐 الدرس 3-2: طرق اتصال تطبيقات الويب (صفحة تفاعلية)
+            </button>
+            <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.78rem;" onclick="applyBuiltInLessonPreset('lesson_3_2_pdf')">
+              📄 ملخص الدرس 3-2 (ملف PDF المرفق)
+            </button>
+          </div>
+        </div>
         <p id="materialContentHint" style="margin-top: 6px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;">
-          ${isEdit && data.type === 'pdf' ? '📌 يمكنك لصق رابط المشاركة من Google Drive كما هو — سيتم استخراج معرّف الملف تلقائياً.<br><strong style="color: var(--danger);">تنبيه:</strong> تأكد من إعداد المشاركة: "أي شخص لديه الرابط".' : '🔗 <strong>رابط خارجي:</strong> يمكنك وضع رابط شرائح Google Slides أو Canva أو Notion أو أي موقع خارجي.<br>سيتوفر للطالب زر بارز للانتقال للمحتوى مباشرة في نافذة جديدة مع إمكانية عرض معاينة.'}
+          ${isEdit && data.type === 'pdf' ? '📌 يمكنك لصق رابط المشاركة من Google Drive أو مسار PDF محلي.' : '🔗 يمكنك وضع مسار صفحة تفاعلية محلية (مثل <code>/lessons/lesson-3-2.html</code>) أو رابط شرائح Google Slides أو Canva.'}
         </p>
       </div>
       <div class="input-group" style="margin-top: 14px;">
@@ -518,9 +529,41 @@ function toggleMaterialFields() {
     if (input) input.placeholder = 'مثال: https://www.youtube.com/watch?v=...';
     if (hint) hint.innerHTML = '🎥 يدعم روابط يوتيوب العادية، روابط Shorts، روابط Google Drive للمرئيات، وروابط mp4 المباشرة.';
   } else if (type === 'article') {
-    if (label) label.textContent = 'رابط الصفحة أو المقال';
-    if (input) input.placeholder = 'مثال: https://example.com/article';
-    if (hint) hint.innerHTML = '🌐 سيتم عرض الصفحة داخل إطار تفاعلي مع إتاحة زر للفتح المباشر في صفحة جديدة.';
+    if (label) label.textContent = 'رابط الصفحة التفاعلية أو المقال';
+    if (input) input.placeholder = 'مثال: /lessons/lesson-3-2.html أو https://example.com';
+    if (hint) hint.innerHTML = '🌐 سيتم عرض الصفحة التفاعلية كاملة داخل إطار الدرس بالمنصة مع إتاحة زر للفتح المباشر في شاشة كاملة.';
+  }
+}
+
+function applyBuiltInLessonPreset(presetKey) {
+  const titleInput = $('materialTitle');
+  const typeSelect = $('materialType');
+  const linkInput = $('materialLinkInput');
+
+  if (presetKey === 'lesson_3_2_web') {
+    if (typeSelect) {
+      typeSelect.value = 'article';
+      toggleMaterialFields();
+    }
+    if (titleInput && !titleInput.value.trim()) {
+      titleInput.value = 'الدرس 3-2: طرق اتصال تطبيقات الويب (شرح ومختبر تفاعلي)';
+    }
+    if (linkInput) {
+      linkInput.value = '/lessons/lesson-3-2.html';
+    }
+    showToast('تم اختيار الصفحة التفاعلية للدرس 3-2');
+  } else if (presetKey === 'lesson_3_2_pdf') {
+    if (typeSelect) {
+      typeSelect.value = 'pdf';
+      toggleMaterialFields();
+    }
+    if (titleInput && !titleInput.value.trim()) {
+      titleInput.value = 'ملخص الدرس 3-2: طرق اتصال تطبيقات الويب (PDF)';
+    }
+    if (linkInput) {
+      linkInput.value = '/public/assets/aistudio/____19e9a610.pdf';
+    }
+    showToast('تم اختيار ملف PDF للدرس 3-2');
   }
 }
 

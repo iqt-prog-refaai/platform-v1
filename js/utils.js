@@ -107,6 +107,12 @@ function formatExternalUrl(url) {
   if (!url) return '#';
   const trimmed = String(url).trim();
   if (!trimmed) return '#';
+  if (trimmed.startsWith('/') || trimmed.startsWith('./')) {
+    return trimmed;
+  }
+  if (/^(lessons|public|assets)\//i.test(trimmed)) {
+    return '/' + trimmed;
+  }
   if (!/^https?:\/\//i.test(trimmed)) {
     return 'https://' + trimmed;
   }
