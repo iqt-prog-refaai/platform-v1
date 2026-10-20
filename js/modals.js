@@ -189,7 +189,7 @@ function showModal(type, id = null) {
       </div>
       <div class="input-group" id="contentField" style="display: ${isEdit && data.type === 'quiz' ? 'none' : 'block'}">
         <label id="materialContentLabel">${isEdit && data.type === 'pdf' ? 'رابط ملف PDF (Google Drive أو محلي)' : (isEdit && data.type === 'video' ? 'رابط الفيديو' : 'رابط المحتوى / الصفحة التفاعلية')}</label>
-        <input type="text" id="materialLinkInput" value="${isEdit ? (data.content || '') : ''}" placeholder="${isEdit && data.type === 'pdf' ? 'https://drive.google.com/file/d/...' : '/lessons/lesson-3-2.html أو https://...'}">
+        <input type="text" id="materialLinkInput" dir="ltr" style="direction: ltr; text-align: left;" value="${isEdit ? (data.content || '') : ''}" placeholder="${isEdit && data.type === 'pdf' ? 'https://drive.google.com/file/d/...' : 'lessons/lesson-3-2.html أو https://...'}">
         <div style="margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(2, 132, 199, 0.06); border: 1px dashed rgba(2, 132, 199, 0.3);">
           <div style="font-size: 0.78rem; font-weight: 700; color: var(--primary); margin-bottom: 6px;">⚡ محتويات تفاعلية جاهزة بالمنصة (تعبئة تلقائية بضغطة واحدة):</div>
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
@@ -202,7 +202,7 @@ function showModal(type, id = null) {
           </div>
         </div>
         <p id="materialContentHint" style="margin-top: 6px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;">
-          ${isEdit && data.type === 'pdf' ? '📌 يمكنك لصق رابط المشاركة من Google Drive أو مسار PDF محلي.' : '🔗 يمكنك وضع مسار صفحة تفاعلية محلية (مثل <code>/lessons/lesson-3-2.html</code>) أو رابط شرائح Google Slides أو Canva.'}
+          ${isEdit && data.type === 'pdf' ? '📌 يمكنك لصق رابط المشاركة من Google Drive أو مسار PDF محلي.' : '🔗 يمكنك وضع مسار صفحة تفاعلية محلية (مثل <code>lessons/lesson-3-2.html</code>) أو رابط شرائح Google Slides أو Canva.'}
         </p>
       </div>
       <div class="input-group" style="margin-top: 14px;">
@@ -530,9 +530,20 @@ function toggleMaterialFields() {
     if (hint) hint.innerHTML = '🎥 يدعم روابط يوتيوب العادية، روابط Shorts، روابط Google Drive للمرئيات، وروابط mp4 المباشرة.';
   } else if (type === 'article') {
     if (label) label.textContent = 'رابط الصفحة التفاعلية أو المقال';
-    if (input) input.placeholder = 'مثال: /lessons/lesson-3-2.html أو https://example.com';
-    if (hint) hint.innerHTML = '🌐 سيتم عرض الصفحة التفاعلية كاملة داخل إطار الدرس بالمنصة مع إتاحة زر للفتح المباشر في شاشة كاملة.';
+    if (input) input.placeholder = 'مثال: lessons/lesson-3-2.html أو https://example.com';
+    if (hint) hint.innerHTML = '🌐 سيتم عرض الصفحة التفاعلية كاملة داخل إطار الدرس بالمنصة مع إتاحة زر للتكبير ملء الشاشة وفتحها في تبويب مستقل.';
   }
+}
+
+function _sanitizeMaterialContentUrl(raw) {
+  if (!raw) return '';
+  let s = String(raw).trim();
+  s = s.replace(/\.(html?|pdf)\/+$/i, '.$1');
+  s = s.replace(/^https?:\/\/[^/]+\.github\.io\/(lessons|public|assets)\//i, '$1/');
+  if (/^(\.?\/+)?(lessons|public|assets)\//i.test(s)) {
+    return s.replace(/^\.?\/+/, '');
+  }
+  return s;
 }
 
 function applyBuiltInLessonPreset(presetKey) {
@@ -549,7 +560,7 @@ function applyBuiltInLessonPreset(presetKey) {
       titleInput.value = 'الدرس 3-2: طرق اتصال تطبيقات الويب (شرح ومختبر تفاعلي)';
     }
     if (linkInput) {
-      linkInput.value = '/lessons/lesson-3-2.html';
+      linkInput.value = 'lessons/lesson-3-2.html';
     }
     showToast('تم اختيار الصفحة التفاعلية للدرس 3-2');
   } else if (presetKey === 'lesson_3_2_pdf') {
@@ -561,7 +572,7 @@ function applyBuiltInLessonPreset(presetKey) {
       titleInput.value = 'ملخص الدرس 3-2: طرق اتصال تطبيقات الويب (PDF)';
     }
     if (linkInput) {
-      linkInput.value = '/public/assets/aistudio/____19e9a610.pdf';
+      linkInput.value = 'public/assets/aistudio/____19e9a610.pdf';
     }
     showToast('تم اختيار ملف PDF للدرس 3-2');
   }
@@ -663,7 +674,7 @@ async function submitMaterial() {
   const lessonId = $('materialLessonIdSelect')?.value || $('materialLessonId')?.value || '';
   const title = $('materialTitle')?.value?.trim() || '';
   const type = $('materialType')?.value || 'link';
-  const rawContent = $('materialLinkInput')?.value?.trim() || '';
+  const rawContent = _sanitizeMaterialContentUrl($('materialLinkInput')?.value?.trim() || '');
   const isHidden = $('materialIsHidden')?.checked || false;
   const sendNotif = $('materialSendNotification') ? $('materialSendNotification').checked : getAdminNotifyPref();
   setAdminNotifyPref(sendNotif);
@@ -1126,7 +1137,7 @@ async function submitEditMaterial() {
   const targetLessonId = $('materialLessonIdSelect')?.value;
   const title = $('materialTitle').value.trim();
   const type = $('materialType').value;
-  const rawContent = $('materialLinkInput')?.value?.trim() || '';
+  const rawContent = _sanitizeMaterialContentUrl($('materialLinkInput')?.value?.trim() || '');
   const isHidden = $('materialIsHidden')?.checked || false;
   if (!title) { showToast('يرجى ملء العنوان', 'error'); return; }
 

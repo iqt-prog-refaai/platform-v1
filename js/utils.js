@@ -101,18 +101,35 @@ function createConfetti() {
 }
 
 /**
- * Formats any external URL to ensure it has https:// prefix.
+ * Formats any external or local URL:
+ * - Strips accidental trailing slashes after .html or .pdf (e.g. "lessons/lesson-3-2.html/")
+ * - Keeps local paths ("lessons/...", "public/...", "assets/...") relative without a leading slash
+ *   so they resolve properly on both root domains (AI Studio) and subpath deployments (GitHub Pages).
  */
 function formatExternalUrl(url) {
   if (!url) return '#';
-  const trimmed = String(url).trim();
+  let trimmed = String(url).trim();
   if (!trimmed) return '#';
-  if (trimmed.startsWith('/') || trimmed.startsWith('./')) {
-    return trimmed;
+
+  // Strip accidental trailing slashes on file extensions (caused by RTL input editing)
+  trimmed = trimmed.replace(/\.(html?|pdf)\/+$/i, '.$1');
+
+  // Convert root-domain github.io/lessons/... back to relative lessons/... so repo subpath is preserved
+  trimmed = trimmed.replace(/^https?:\/\/[^/]+\.github\.io\/(lessons|public|assets)\//i, '$1/');
+
+  // Normalize local project paths to relative (no leading slash)
+  if (/^(\.?\/+)?(lessons|public|assets)\//i.test(trimmed)) {
+    return trimmed.replace(/^\.?\/+/, '');
   }
-  if (/^(lessons|public|assets)\//i.test(trimmed)) {
-    return '/' + trimmed;
+
+  if (trimmed.startsWith('./')) {
+    return trimmed.replace(/^\.\//, '');
   }
+
+  if (trimmed.startsWith('/')) {
+    return trimmed.replace(/^\/+/, '');
+  }
+
   if (!/^https?:\/\//i.test(trimmed)) {
     return 'https://' + trimmed;
   }

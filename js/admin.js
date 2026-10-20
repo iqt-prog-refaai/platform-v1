@@ -1212,8 +1212,11 @@ async function renderAdminContent(container) {
         </p>
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <a href="/lessons/lesson-3-2.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 9px 16px; font-size: 0.88rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+        <a href="lessons/lesson-3-2.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 9px 16px; font-size: 0.88rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
           ${ICONS.externalLink} معاينة الصفحة التفاعلية
+        </a>
+        <a href="lessons/lesson-3-2.html" download="lesson-3-2.html" class="btn btn-secondary" style="padding: 9px 14px; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" title="تحميل ملف HTML المستقل لرفعه على GitHub إذا رغبت">
+          ${ICONS.download} تحميل ملف HTML
         </a>
         <button type="button" class="btn btn-primary" style="padding: 9px 16px; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px;" onclick="openPublishLesson32Modal()">
           ${ICONS.plus} إدراج كدرس داخل المنصة بضغطة واحدة
@@ -2838,7 +2841,7 @@ async function executePublishLesson32() {
       lesson_id: createdLessonId,
       title: 'الدرس 3-2: طرق اتصال تطبيقات الويب (صفحة شرح ومختبر تفاعلي)',
       type: 'article',
-      content: '/lessons/lesson-3-2.html',
+      content: 'lessons/lesson-3-2.html',
       is_hidden: false
     });
 
@@ -2848,7 +2851,7 @@ async function executePublishLesson32() {
         lesson_id: createdLessonId,
         title: 'ملخص الدرس 3-2: طرق اتصال تطبيقات الويب (ملف PDF)',
         type: 'pdf',
-        content: '/public/assets/aistudio/____19e9a610.pdf',
+        content: 'public/assets/aistudio/____19e9a610.pdf',
         is_hidden: false
       });
     }

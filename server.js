@@ -147,6 +147,16 @@ app.post('/api', async (req, res) => {
   }
 });
 
+// Strip accidental trailing slashes on static file extensions (e.g. /lessons/lesson-3-2.html/)
+app.use((req, res, next) => {
+  if (/\.(html?|pdf)\/+$/i.test(req.path)) {
+    const cleanPath = req.path.replace(/\/+$/, '');
+    const queryIndex = req.url.indexOf('?');
+    req.url = cleanPath + (queryIndex !== -1 ? req.url.slice(queryIndex) : '');
+  }
+  next();
+});
+
 // Serve frontend static files with no-cache headers to prevent stale browser caching
 app.use(express.static(__dirname, {
   setHeaders: (res) => {

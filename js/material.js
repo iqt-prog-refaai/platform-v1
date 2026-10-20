@@ -137,14 +137,28 @@ async function renderMaterialViewer(lessonId, specificMaterialId = null) {
 // ------ FORMAT EXTERNAL LINK ------
 function formatExternalUrl(url) {
   if (!url) return '#';
-  const trimmed = String(url).trim();
+  let trimmed = String(url).trim();
   if (!trimmed) return '#';
-  if (trimmed.startsWith('/') || trimmed.startsWith('./')) {
-    return trimmed;
+
+  // Strip accidental trailing slashes on file extensions (e.g. "lessons/lesson-3-2.html/")
+  trimmed = trimmed.replace(/\.(html?|pdf)\/+$/i, '.$1');
+
+  // Convert root-domain github.io/lessons/... back to relative lessons/... so repo subpath is preserved
+  trimmed = trimmed.replace(/^https?:\/\/[^/]+\.github\.io\/(lessons|public|assets)\//i, '$1/');
+
+  // Normalize local project paths to relative (no leading slash)
+  if (/^(\.?\/+)?(lessons|public|assets)\//i.test(trimmed)) {
+    return trimmed.replace(/^\.?\/+/, '');
   }
-  if (/^(lessons|public|assets)\//i.test(trimmed)) {
-    return '/' + trimmed;
+
+  if (trimmed.startsWith('./')) {
+    return trimmed.replace(/^\.\//, '');
   }
+
+  if (trimmed.startsWith('/')) {
+    return trimmed.replace(/^\/+/, '');
+  }
+
   if (!/^https?:\/\//i.test(trimmed)) {
     return 'https://' + trimmed;
   }
@@ -164,7 +178,7 @@ function renderLinkMaterial(mat, isCompleted) {
   const targetUrl = formatExternalUrl(mat.content);
   const embedUrl = getSlidesEmbedUrl(mat.content);
   const isGoogleSlides = targetUrl.includes('docs.google.com/presentation');
-  const isLocalInteractive = targetUrl.startsWith('/lessons/') || targetUrl.endsWith('.html');
+  const isLocalInteractive = targetUrl.startsWith('lessons/') || targetUrl.endsWith('.html');
 
   return `
     <div class="material-header">
@@ -475,6 +489,38 @@ function renderVideoMaterial(mat, isCompleted) {
 }
 
 // ------ ARTICLE / INTERACTIVE WEB PAGE ------
+function toggleInteractiveFullscreen(materialId) {
+  const wrap = document.getElementById(`interactive-wrap-${materialId}`);
+  const closeBar = document.getElementById(`interactive-fs-bar-${materialId}`);
+  if (!wrap) return;
+
+  const isFull = wrap.getAttribute('data-fullscreen') === 'true';
+  if (!isFull) {
+    wrap.setAttribute('data-fullscreen', 'true');
+    wrap.style.position = 'fixed';
+    wrap.style.inset = '0';
+    wrap.style.width = '100vw';
+    wrap.style.height = '100vh';
+    wrap.style.zIndex = '99999';
+    wrap.style.borderRadius = '0';
+    wrap.style.margin = '0';
+    wrap.style.background = '#F8FAFC';
+    if (closeBar) closeBar.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  } else {
+    wrap.setAttribute('data-fullscreen', 'false');
+    wrap.style.position = 'relative';
+    wrap.style.inset = 'auto';
+    wrap.style.width = '100%';
+    wrap.style.height = '82vh';
+    wrap.style.zIndex = '1';
+    wrap.style.borderRadius = '16px';
+    wrap.style.marginBottom = '20px';
+    if (closeBar) closeBar.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+}
+
 function renderArticleMaterial(mat, isCompleted) {
   const targetUrl = formatExternalUrl(mat.content);
   return `
@@ -490,8 +536,11 @@ function renderArticleMaterial(mat, isCompleted) {
         <span>صفحة شرح تفاعلية مدمجة (تتضمن محاكاة وأنشطة وأسئلة تدريبية)</span>
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
-          ${ICONS.externalLink} فتح في شاشة كاملة
+        <button type="button" class="btn btn-primary" onclick="toggleInteractiveFullscreen('${mat.material_id}')" style="padding: 8px 16px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px;">
+          ⛶ تكبير ملء الشاشة داخل المنصة
+        </button>
+        <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+          ${ICONS.externalLink} فتح في تبويب مستقل
         </a>
         <button class="btn btn-success" onclick="markComplete('${mat.material_id}')" style="padding: 8px 16px; font-size: 0.9rem;">
           ${ICONS.check} تحديد كمكتمل
@@ -499,16 +548,30 @@ function renderArticleMaterial(mat, isCompleted) {
       </div>
     </div>
 
-    <div style="position:relative; height: 82vh; min-height: 700px; overflow:hidden; border-radius:16px; margin-bottom:20px; border: 1px solid var(--border); box-shadow: var(--shadow);">
+    <div id="interactive-wrap-${mat.material_id}" data-fullscreen="false" style="position:relative; height: 82vh; min-height: 700px; overflow:hidden; border-radius:16px; margin-bottom:20px; border: 1px solid var(--border); box-shadow: var(--shadow); display:flex; flex-direction:column;">
+      <div id="interactive-fs-bar-${mat.material_id}" style="display:none; align-items:center; justify-content:space-between; padding:10px 20px; background:#0F172A; color:#fff; font-weight:700; font-size:0.92rem; z-index:2; flex-shrink:0;">
+        <span>🌐 ${mat.title} (وضع ملء الشاشة)</span>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button type="button" class="btn btn-success" onclick="markComplete('${mat.material_id}')" style="padding:6px 14px; font-size:0.84rem;">
+            ${ICONS.check} تحديد كمكتمل
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="toggleInteractiveFullscreen('${mat.material_id}')" style="padding:6px 14px; font-size:0.84rem; background:#334155; color:#fff; border:none;">
+            ✕ إغلاق ملء الشاشة والعودة للدرس
+          </button>
+        </div>
+      </div>
       <iframe
         src="${targetUrl}"
-        style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:white;"
+        style="width:100%; flex:1; height:100%; border:none; background:white;"
         allowfullscreen>
       </iframe>
     </div>
     <div style="display:flex; gap:10px; justify-content:center; flex-wrap: wrap;">
+      <button type="button" class="btn btn-primary" onclick="toggleInteractiveFullscreen('${mat.material_id}')">
+        ⛶ تكبير الصفحة التفاعلية ملء الشاشة
+      </button>
       <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
-        ${ICONS.externalLink} فتح الصفحة التفاعلية في نافذة جديدة
+        ${ICONS.externalLink} فتح في نافذة جديدة
       </a>
       <button class="btn btn-success" onclick="markComplete('${mat.material_id}')">
         ${ICONS.check} تحديد كمكتمل
