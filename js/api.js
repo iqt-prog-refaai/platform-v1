@@ -30,11 +30,12 @@ const DirectFirestore = {
     const fb = _getFb();
     const { db, collection, getDocs, doc, getDoc } = fb;
 
-    const [unitsSnap, lessonsSnap, matsSnap, quizzesSnap] = await Promise.all([
+    const [unitsSnap, lessonsSnap, matsSnap, quizzesSnap, annSnap] = await Promise.all([
       getDocs(collection(db, 'units')),
       getDocs(collection(db, 'lessons')),
       getDocs(collection(db, 'materials')),
-      getDocs(collection(db, 'quizzes'))
+      getDocs(collection(db, 'quizzes')),
+      getDoc(doc(db, 'announcements', 'global_announcement')).catch(() => null)
     ]);
 
     const units = unitsSnap.docs
@@ -50,6 +51,7 @@ const DirectFirestore = {
       .sort((a, b) => (Number(a.order_index) || 0) - (Number(b.order_index) || 0));
 
     const quizzes = quizzesSnap.docs.map(d => d.data());
+    const announcement = (annSnap && annSnap.exists()) ? annSnap.data() : null;
 
     let progress = null;
     if (username) {
@@ -69,7 +71,8 @@ const DirectFirestore = {
       lessons,
       materials,
       quizzes,
-      progress
+      progress,
+      announcement
     };
   },
 
@@ -283,10 +286,17 @@ const DirectFirestore = {
 
     if (type === 'unit') {
       await fb.deleteDoc(fb.doc(fb.db, 'units', _sanitizeDocId(id))).catch(() => {});
-      const lessonsSnap = await fb.getDocs(fb.collection(fb.db, 'lessons'));
-      const unitLessons = lessonsSnap.docs.filter(d => d.data().unit_id === id);
+      const [lessonsSnap, matsSnap] = await Promise.all([
+        fb.getDocs(fb.collection(fb.db, 'lessons')),
+        fb.getDocs(fb.collection(fb.db, 'materials'))
+      ]);
+      const unitLessons = lessonsSnap.docs.filter(d => String(d.data().unit_id) === id);
       for (const lDoc of unitLessons) {
         await this.deleteItem({ itemType: 'lesson', id: lDoc.id });
+      }
+      const unitDirectMats = matsSnap.docs.filter(d => String(d.data().lesson_id) === `unit_${id}`);
+      for (const mDoc of unitDirectMats) {
+        await this.deleteItem({ itemType: 'material', id: mDoc.id });
       }
     } else if (type === 'lesson') {
       await fb.deleteDoc(fb.doc(fb.db, 'lessons', _sanitizeDocId(id))).catch(() => {});
@@ -582,6 +592,33 @@ const DirectFirestore = {
     const snap = await fb.getDoc(ref);
     if (!snap.exists()) return { success: false, message: 'المستخدم غير موجود' };
 
+    const existingData = snap.data();
+
+    if (data.new_username) {
+      const newRaw = String(data.new_username).trim();
+      const newDocKey = _sanitizeDocId(newRaw.toLowerCase());
+      if (newDocKey !== docKey) {
+        const newRef = fb.doc(fb.db, 'users', newDocKey);
+        const newSnap = await fb.getDoc(newRef);
+        if (newSnap.exists()) {
+          return { success: false, message: 'اسم المستخدم الجديد مستخدم بالفعل' };
+        }
+        await fb.setDoc(newRef, { ...existingData, username: newRaw });
+        await fb.deleteDoc(ref).catch(() => {});
+
+        const oldProgRef = fb.doc(fb.db, 'student_progress', docKey);
+        const oldProgSnap = await fb.getDoc(oldProgRef);
+        if (oldProgSnap.exists()) {
+          await fb.setDoc(fb.doc(fb.db, 'student_progress', newDocKey), {
+            ...oldProgSnap.data(),
+            username: newRaw.toLowerCase()
+          });
+          await fb.deleteDoc(oldProgRef).catch(() => {});
+        }
+        return { success: true };
+      }
+    }
+
     const patch = {};
     if (data.name !== undefined) patch.name = data.name;
     if (data.full_name !== undefined) patch.full_name = data.full_name;
@@ -627,6 +664,169 @@ const DirectFirestore = {
     const docKey = _sanitizeDocId(rawUsername.toLowerCase());
     await fb.deleteDoc(fb.doc(fb.db, 'users', docKey)).catch(() => {});
     return { success: true, message: 'تم حذف الحساب نهائياً بنجاح' };
+  },
+
+  async getAnnouncement() {
+    const fb = _getFb();
+    const snap = await fb.getDoc(fb.doc(fb.db, 'announcements', 'global_announcement'));
+    return {
+      success: true,
+      announcement: snap.exists() ? snap.data() : null
+    };
+  },
+
+  async saveAnnouncement(data) {
+    const fb = _getFb();
+    const payload = {
+      title: String(data.title || '').trim(),
+      message: String(data.message || '').trim(),
+      type: data.type || 'info',
+      is_active: Boolean(data.is_active),
+      link_url: String(data.link_url || '').trim(),
+      link_text: String(data.link_text || '').trim(),
+      updated_at: new Date().toISOString()
+    };
+    await fb.setDoc(fb.doc(fb.db, 'announcements', 'global_announcement'), payload, { merge: true });
+    return { success: true, announcement: payload };
+  },
+
+  async getAdminAnalytics() {
+    const fb = _getFb();
+    const [usersSnap, progSnap, attemptsSnap, annSnap] = await Promise.all([
+      fb.getDocs(fb.collection(fb.db, 'users')),
+      fb.getDocs(fb.collection(fb.db, 'student_progress')),
+      fb.getDocs(fb.collection(fb.db, 'quiz_attempts')),
+      fb.getDoc(fb.doc(fb.db, 'announcements', 'global_announcement')).catch(() => null)
+    ]);
+
+    const users = usersSnap.docs.map(d => d.data());
+    const allProgress = progSnap.docs.map(d => d.data());
+    const allAttempts = attemptsSnap.docs.map(d => d.data());
+    const announcement = (annSnap && annSnap.exists()) ? annSnap.data() : null;
+
+    return {
+      success: true,
+      users,
+      allProgress,
+      allAttempts,
+      announcement
+    };
+  },
+
+  async exportAllCurriculum() {
+    const fb = _getFb();
+    const [unitsSnap, lessonsSnap, matsSnap, quizzesSnap, questionsSnap] = await Promise.all([
+      fb.getDocs(fb.collection(fb.db, 'units')),
+      fb.getDocs(fb.collection(fb.db, 'lessons')),
+      fb.getDocs(fb.collection(fb.db, 'materials')),
+      fb.getDocs(fb.collection(fb.db, 'quizzes')),
+      fb.getDocs(fb.collection(fb.db, 'questions'))
+    ]);
+
+    const units = unitsSnap.docs.map(d => d.data()).sort((a, b) => (Number(a.unit_number) || 0) - (Number(b.unit_number) || 0));
+    const lessons = lessonsSnap.docs.map(d => d.data()).sort((a, b) => (Number(a.lesson_number) || 0) - (Number(b.lesson_number) || 0));
+    const materials = matsSnap.docs.map(d => d.data()).sort((a, b) => (Number(a.order_index) || 0) - (Number(b.order_index) || 0));
+    const quizzes = quizzesSnap.docs.map(d => d.data());
+    const questions = questionsSnap.docs.map(d => d.data()).sort((a, b) => (Number(a.order_index) || 0) - (Number(b.order_index) || 0));
+
+    return {
+      success: true,
+      units,
+      lessons,
+      materials,
+      quizzes,
+      questions
+    };
+  },
+
+  async clearAllCurriculum(data = {}) {
+    const fb = _getFb();
+    const resetStudentProgress = data.resetStudentProgress !== false;
+
+    const [unitsSnap, lessonsSnap, matsSnap, quizzesSnap, questionsSnap] = await Promise.all([
+      fb.getDocs(fb.collection(fb.db, 'units')),
+      fb.getDocs(fb.collection(fb.db, 'lessons')),
+      fb.getDocs(fb.collection(fb.db, 'materials')),
+      fb.getDocs(fb.collection(fb.db, 'quizzes')),
+      fb.getDocs(fb.collection(fb.db, 'questions'))
+    ]);
+
+    const allDocs = [
+      ...unitsSnap.docs,
+      ...lessonsSnap.docs,
+      ...matsSnap.docs,
+      ...quizzesSnap.docs,
+      ...questionsSnap.docs
+    ];
+
+    await Promise.all(allDocs.map(d => fb.deleteDoc(d.ref).catch(() => {})));
+
+    if (resetStudentProgress) {
+      const progSnap = await fb.getDocs(fb.collection(fb.db, 'student_progress'));
+      await Promise.all(progSnap.docs.map(d => fb.updateDoc(d.ref, {
+        current_unit_id: '',
+        current_lesson_id: '',
+        completed_lessons: [],
+        completed_materials: [],
+        completed_lesson_details: [],
+        updated_at: new Date().toISOString()
+      }).catch(() => {})));
+    }
+
+    return {
+      success: true,
+      deleted_counts: {
+        units: unitsSnap.size,
+        lessons: lessonsSnap.size,
+        materials: matsSnap.size,
+        quizzes: quizzesSnap.size,
+        questions: questionsSnap.size
+      }
+    };
+  },
+
+  async importAllCurriculum(data = {}) {
+    const fb = _getFb();
+    const raw = data.raw_data || data;
+    const units = Array.isArray(raw.units) ? raw.units : [];
+    const lessons = Array.isArray(raw.lessons) ? raw.lessons : [];
+    const materials = Array.isArray(raw.materials) ? raw.materials : [];
+    const quizzes = Array.isArray(raw.quizzes) ? raw.quizzes : [];
+    const questions = Array.isArray(raw.questions) ? raw.questions : [];
+
+    await Promise.all([
+      ...units.map(u => {
+        const id = _sanitizeDocId(u.unit_id || _generateId());
+        return fb.setDoc(fb.doc(fb.db, 'units', id), { ...u, unit_id: id });
+      }),
+      ...lessons.map(l => {
+        const id = _sanitizeDocId(l.lesson_id || _generateId());
+        return fb.setDoc(fb.doc(fb.db, 'lessons', id), { ...l, lesson_id: id });
+      }),
+      ...materials.map(m => {
+        const id = _sanitizeDocId(m.material_id || _generateId());
+        return fb.setDoc(fb.doc(fb.db, 'materials', id), { ...m, material_id: id });
+      }),
+      ...quizzes.map(q => {
+        const id = _sanitizeDocId(q.quiz_id || _generateId());
+        return fb.setDoc(fb.doc(fb.db, 'quizzes', id), { ...q, quiz_id: id });
+      }),
+      ...questions.map(qn => {
+        const id = _sanitizeDocId(qn.question_id || _generateId());
+        return fb.setDoc(fb.doc(fb.db, 'questions', id), { ...qn, question_id: id });
+      })
+    ]);
+
+    return {
+      success: true,
+      imported_counts: {
+        units: units.length,
+        lessons: lessons.length,
+        materials: materials.length,
+        quizzes: quizzes.length,
+        questions: questions.length
+      }
+    };
   }
 };
 
@@ -689,6 +889,12 @@ const API = {
             result = await DirectFirestore.getAllStudents();
           } else if (action === 'getStudentDetails') {
             result = await DirectFirestore.getStudentDetails(params.username);
+          } else if (action === 'getAnnouncement') {
+            result = await DirectFirestore.getAnnouncement();
+          } else if (action === 'getAdminAnalytics') {
+            result = await DirectFirestore.getAdminAnalytics();
+          } else if (action === 'exportAllCurriculum') {
+            result = await DirectFirestore.exportAllCurriculum();
           } else if (action === 'login') {
             result = await DirectFirestore.login(params.username, params.password);
           }

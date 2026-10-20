@@ -120,6 +120,21 @@
         "attempt_date": { "type": "string", "maxLength": 100 }
       },
       "required": ["attempt_id", "username", "quiz_id"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Platform-wide announcements and alerts published by admin for students",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 300 },
+        "message": { "type": "string", "maxLength": 2000 },
+        "type": { "type": "string", "maxLength": 50 },
+        "is_active": { "type": "boolean" },
+        "link_url": { "type": "string", "maxLength": 500 },
+        "link_text": { "type": "string", "maxLength": 150 },
+        "updated_at": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["is_active"]
     }
   },
   "firestore": {
@@ -154,6 +169,10 @@
     "/quiz_attempts/{attemptId}": {
       "schema": "QuizAttempt",
       "description": "Quiz attempts and evaluations"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Global platform announcements"
     }
   }
 }

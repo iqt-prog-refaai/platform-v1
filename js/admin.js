@@ -9,8 +9,14 @@
 // ==========================================
 function showAdminSection(section) {
   state.adminSection = section;
-  document.querySelectorAll('.admin-nav-item').forEach(el => el.classList.remove('active'));
-  event.target.closest('.admin-nav-item').classList.add('active');
+  document.querySelectorAll('.admin-nav-item').forEach(el => {
+    const onclickAttr = el.getAttribute('onclick') || '';
+    if (onclickAttr.includes(`'${section}'`)) {
+      el.classList.add('active');
+    } else {
+      el.classList.remove('active');
+    }
+  });
   renderAdmin();
 }
 
@@ -33,7 +39,7 @@ async function renderAdmin() {
   }
 
   switch(state.adminSection) {
-    case 'overview':  renderAdminOverview(container);          break;
+    case 'overview':  await renderAdminOverview(container);    break;
     case 'content':   await renderAdminContent(container);     break;
     case 'quizzes':   await renderAdminQuizzes(container);     break;
     case 'users':     
@@ -102,38 +108,915 @@ async function toggleItemVisibility(itemType, id, currentHidden) {
 }
 
 // ==========================================
-// OVERVIEW
+// OVERVIEW, ANALYTICS, ANNOUNCEMENTS & EXPORT
 // ==========================================
-function renderAdminOverview(container) {
+async function renderAdminOverview(container) {
   const totalUnits = state.units.length;
   const totalLessons = Object.values(state.lessons).flat().length;
   const totalMaterials = Object.values(state.materials).flat().length;
 
+  container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل إحصائيات المنصة...</div>';
+
+  let users = [];
+  let allProgress = [];
+  let allAttempts = [];
+  let announcement = state.announcement || null;
+
+  if (!MOCK_MODE) {
+    try {
+      const res = await API.get('getAdminAnalytics', {}, { forceFresh: true });
+      if (res && res.success) {
+        users = res.users || [];
+        allProgress = res.allProgress || [];
+        allAttempts = res.allAttempts || [];
+        if (res.announcement !== undefined) {
+          announcement = res.announcement;
+          state.announcement = announcement;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading admin analytics:', e);
+    }
+  }
+
+  // Filter active students
+  const activeStudents = users.filter(u => {
+    const r = String(u.role || '').toLowerCase();
+    const uname = String(u.username || '');
+    if (r === 'deleted' || uname.startsWith('__deleted_')) return false;
+    const isFrozen = !!u.is_frozen || u.status === 'frozen' || r.startsWith('frozen');
+    const effRole = isFrozen ? (u.originalRole || r.replace(/^frozen:?/i, '') || 'student') : r;
+    return effRole === 'student' && !isFrozen;
+  });
+
+  // Cache students for details lookup
+  state.students = activeStudents;
+
+  const pendingGradingCount = allAttempts.filter(a => !a.is_graded).length;
+  const gradedAttempts = allAttempts.filter(a => a.is_graded && Number(a.max_score) > 0);
+  const avgPlatformScore = gradedAttempts.length
+    ? Math.round(gradedAttempts.reduce((acc, a) => acc + (Number(a.score) / Number(a.max_score)) * 100, 0) / gradedAttempts.length)
+    : null;
+
+  // Map progress & attempts by lowercase username for leaderboard
+  const progByUser = {};
+  allProgress.forEach(p => {
+    if (p && p.username) progByUser[String(p.username).trim().toLowerCase()] = p;
+  });
+
+  const attemptsByUser = {};
+  allAttempts.forEach(a => {
+    if (!a || !a.username) return;
+    const k = String(a.username).trim().toLowerCase();
+    if (!attemptsByUser[k]) attemptsByUser[k] = [];
+    attemptsByUser[k].push(a);
+  });
+
+  // Build student rankings
+  const leaderboard = activeStudents.map(st => {
+    const uKey = String(st.username || '').trim().toLowerCase();
+    const prog = progByUser[uKey] || {};
+    const stAttempts = attemptsByUser[uKey] || [];
+    const stGraded = stAttempts.filter(a => a.is_graded && Number(a.max_score) > 0);
+    const stAvg = stGraded.length
+      ? Math.round(stGraded.reduce((acc, a) => acc + (Number(a.score) / Number(a.max_score)) * 100, 0) / stGraded.length)
+      : null;
+
+    const compLessons = Array.isArray(prog.completed_lessons) ? prog.completed_lessons.length : 0;
+    const compMaterials = Array.isArray(prog.completed_materials) ? prog.completed_materials.length : 0;
+    // Composite activity score for ranking
+    const activityScore = (compLessons * 15) + (compMaterials * 5) + (stAttempts.length * 10) + (stAvg || 0);
+
+    return {
+      username: st.username,
+      name: st.full_name || st.name || st.username,
+      compLessons,
+      compMaterials,
+      attemptsCount: stAttempts.length,
+      avgScore: stAvg,
+      activityScore
+    };
+  }).filter(s => s.compLessons > 0 || s.compMaterials > 0 || s.attemptsCount > 0)
+    .sort((a, b) => b.activityScore - a.activityScore)
+    .slice(0, 8);
+
+  const annTitle = announcement?.title || '';
+  const annMessage = announcement?.message || '';
+  const annType = announcement?.type || 'info';
+  const annActive = Boolean(announcement?.is_active);
+  const annLinkUrl = announcement?.link_url || '';
+  const annLinkText = announcement?.link_text || '';
+
   container.innerHTML = `
-    <h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">نظرة عامة على لوحة التحكم</h2>
-    <div class="stats-grid">
-      <div class="glass stat-card blue">
-        <div class="stat-label">إجمالي الوحدات</div>
-        <div class="stat-value">${totalUnits}</div>
-      </div>
-      <div class="glass stat-card pink">
-        <div class="stat-label">إجمالي الدروس</div>
-        <div class="stat-value">${totalLessons}</div>
-      </div>
-      <div class="glass stat-card green">
-        <div class="stat-label">إجمالي المحتويات</div>
-        <div class="stat-value">${totalMaterials}</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;">
+      <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">نظرة عامة وإحصائيات المنصة</h2>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-secondary" onclick="exportFullCurriculumJSON()" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700;">
+          ${ICONS.download} تصدير كل المحتوى (JSON)
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="exportStudentsReportCSV()" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700;">
+          ${ICONS.download} تصدير تقرير الطلاب (CSV / Excel)
+        </button>
       </div>
     </div>
-    <div class="glass" style="padding: 32px;">
-      <h3 style="margin-bottom: 16px;">إجراءات سريعة</h3>
+
+    <!-- Primary Stats Grid -->
+    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 16px; margin-bottom: 24px;">
+      <div class="glass stat-card blue" style="padding: 20px;">
+        <div class="stat-label">الطلاب النشطين</div>
+        <div class="stat-value" style="font-variant-numeric: tabular-nums;">${activeStudents.length}</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">حساب طالب فعال</div>
+      </div>
+      <div class="glass stat-card green" style="padding: 20px;">
+        <div class="stat-label">الوحدات والدروس</div>
+        <div class="stat-value" style="font-variant-numeric: tabular-nums;">${totalLessons}<span style="font-size: 1rem; color: var(--text-muted); font-weight: 500;"> درس</span></div>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums;">ضمن ${totalUnits} وحدات و ${totalMaterials} محتوى</div>
+      </div>
+      <div class="glass stat-card pink" style="padding: 20px;">
+        <div class="stat-label">محاولات الاختبارات</div>
+        <div class="stat-value" style="font-variant-numeric: tabular-nums;">${allAttempts.length}</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums;">
+          متوسط الدرجات: ${avgPlatformScore !== null ? `${avgPlatformScore}%` : '—'}
+        </div>
+      </div>
+      <div class="glass stat-card" style="padding: 20px; border: 1px solid ${pendingGradingCount > 0 ? 'rgba(245, 158, 11, 0.45)' : 'var(--border)'}; background: ${pendingGradingCount > 0 ? 'rgba(245, 158, 11, 0.05)' : 'var(--bg-glass)'};">
+        <div class="stat-label" style="color: ${pendingGradingCount > 0 ? '#d97706' : 'var(--text-muted)'};">مقالي بانتظار التصحيح</div>
+        <div class="stat-value" style="color: ${pendingGradingCount > 0 ? '#f59e0b' : 'var(--success)'}; font-variant-numeric: tabular-nums;">${pendingGradingCount}</div>
+        <div style="margin-top: 6px;">
+          ${pendingGradingCount > 0
+            ? `<button type="button" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.78rem; background: #f59e0b; border-color: #f59e0b;" onclick="showAdminSection('grading')">الانتقال للتصحيح</button>`
+            : `<span style="font-size: 0.78rem; color: var(--success);">تم تصحيح كافة المحاولات</span>`
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="glass" style="padding: 24px; margin-bottom: 24px;">
+      <h3 style="margin-bottom: 14px; font-size: 1.05rem;">إجراءات سريعة</h3>
       <div class="flex gap-4" style="flex-wrap: wrap;">
         <button class="btn btn-primary" onclick="showModal('addUnit')">${ICONS.plus} إضافة وحدة</button>
         <button class="btn btn-primary" onclick="showModal('addLesson')">${ICONS.plus} إضافة درس</button>
         <button class="btn btn-primary" onclick="showModal('addMaterial')">${ICONS.plus} إضافة محتوى</button>
+        <button class="btn btn-secondary" onclick="showAdminSection('users')">إدارة الطلاب والمستخدمين</button>
+      </div>
+    </div>
+
+    <!-- Two-Column Layout: Announcement Manager & Top Students Leaderboard -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; align-items: start;">
+      
+      <!-- Announcement Manager -->
+      <div class="glass" style="padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0; font-size: 1.1rem;">نشر إعلان أو تنبيه للطلاب</h3>
+          <span style="font-size: 0.8rem; font-weight: 700; color: ${annActive ? 'var(--success)' : 'var(--text-muted)'};">
+            ${annActive ? 'مفعّل حالياً للطلاب' : 'غير مفعّل'}
+          </span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
+          يظهر هذا الإعلان في شريط بارز أعلى الصفحة الرئيسية لجميع الطلاب فور دخولهم للمنصة.
+        </p>
+
+        <div class="input-group" style="margin-bottom: 12px;">
+          <label>عنوان الإعلان</label>
+          <input type="text" id="annTitleInput" value="${annTitle.replace(/"/g, '&quot;')}" placeholder="مثال: موعد الاختبار الشامل للوحدة الأولى">
+        </div>
+
+        <div class="input-group" style="margin-bottom: 12px;">
+          <label>تفاصيل الإعلان أو التنبيه</label>
+          <textarea id="annMessageInput" rows="3" placeholder="اكتب تفاصيل التنبيه هنا...">${annMessage}</textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div class="input-group" style="margin: 0;">
+            <label>نوع التنبيه</label>
+            <select id="annTypeSelect">
+              <option value="info" ${annType === 'info' ? 'selected' : ''}>تنبيه عام (أزرق)</option>
+              <option value="warning" ${annType === 'warning' ? 'selected' : ''}>تنبيه هام (برتقالي)</option>
+              <option value="success" ${annType === 'success' ? 'selected' : ''}>تحديث جديد (أخضر)</option>
+              <option value="urgent" ${annType === 'urgent' ? 'selected' : ''}>إعلان عاجل (أحمر)</option>
+            </select>
+          </div>
+          <div class="input-group" style="margin: 0;">
+            <label>نص الزر الإضافي (اختياري)</label>
+            <input type="text" id="annLinkTextInput" value="${annLinkText.replace(/"/g, '&quot;')}" placeholder="مثال: فتح جدول المراجعة">
+          </div>
+        </div>
+
+        <div class="input-group" style="margin-bottom: 14px;">
+          <label>رابط خارجي مرفق بالإعلان (اختياري)</label>
+          <input type="text" id="annLinkUrlInput" value="${annLinkUrl.replace(/"/g, '&quot;')}" placeholder="https://..." style="direction: ltr;">
+        </div>
+
+        <div style="margin-bottom: 18px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; font-size: 0.92rem;">
+            <input type="checkbox" id="annIsActiveCheckbox" ${annActive ? 'checked' : ''} style="width: 18px; height: 18px;">
+            <span>تفعيل وإظهار الإعلان في لوحة تحكم الطلاب</span>
+          </label>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-primary" onclick="saveAdminAnnouncement()">
+            ${ICONS.check} حفظ وتحديث الإعلان
+          </button>
+          ${annActive ? `
+            <button type="button" class="btn btn-secondary" style="color: var(--danger);" onclick="deactivateAdminAnnouncement()">
+              إيقاف عرض الإعلان
+            </button>
+          ` : ''}
+        </div>
+      </div>
+
+      <!-- Top Students Leaderboard -->
+      <div class="glass" style="padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0; font-size: 1.1rem;">أفضل الطلاب التزاماً وأداءً</h3>
+          <button type="button" class="btn btn-secondary" style="padding: 5px 12px; font-size: 0.8rem;" onclick="showAdminSection('users')">عرض الكل</button>
+        </div>
+
+        ${leaderboard.length === 0 ? `
+          <div class="text-center" style="padding: 40px 20px; color: var(--text-muted);">
+            لا توجد بيانات نشاط كافية للطلاب حتى الآن.
+          </div>
+        ` : `
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border); color: var(--text-muted); text-align: right;">
+                  <th style="padding: 10px 6px;">#</th>
+                  <th style="padding: 10px 6px;">الطالب</th>
+                  <th style="padding: 10px 6px; text-align: center;">الدروس</th>
+                  <th style="padding: 10px 6px; text-align: center;">الاختبارات</th>
+                  <th style="padding: 10px 6px; text-align: center;">المتوسط</th>
+                  <th style="padding: 10px 6px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${leaderboard.map((st, idx) => `
+                  <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);">
+                    <td style="padding: 10px 6px; font-weight: 800; color: ${idx < 3 ? 'var(--primary)' : 'var(--text-muted)'}; font-variant-numeric: tabular-nums;">
+                      ${idx + 1}
+                    </td>
+                    <td style="padding: 10px 6px;">
+                      <div style="font-weight: 700;">${st.name}</div>
+                      <div style="font-size: 0.76rem; color: var(--text-muted); direction: ltr; text-align: right;">@${st.username}</div>
+                    </td>
+                    <td style="padding: 10px 6px; text-align: center; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums;">
+                      ${st.compLessons}/${totalLessons}
+                    </td>
+                    <td style="padding: 10px 6px; text-align: center; font-variant-numeric: tabular-nums;">
+                      ${st.attemptsCount}
+                    </td>
+                    <td style="padding: 10px 6px; text-align: center; font-weight: 700; color: ${st.avgScore !== null ? (st.avgScore >= 70 ? 'var(--success)' : st.avgScore >= 50 ? 'var(--warning)' : 'var(--danger)') : 'var(--text-muted)'}; font-variant-numeric: tabular-nums;">
+                      ${st.avgScore !== null ? `${st.avgScore}%` : '—'}
+                    </td>
+                    <td style="padding: 10px 6px; text-align: left;">
+                      <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.78rem;" onclick="viewStudentDetails('${st.username}')">
+                        السجل
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `}
+      </div>
+
+    </div>
+  `;
+}
+
+async function saveAdminAnnouncement() {
+  const title = $('annTitleInput')?.value?.trim() || '';
+  const message = $('annMessageInput')?.value?.trim() || '';
+  const type = $('annTypeSelect')?.value || 'info';
+  const link_url = $('annLinkUrlInput')?.value?.trim() || '';
+  const link_text = $('annLinkTextInput')?.value?.trim() || '';
+  const is_active = $('annIsActiveCheckbox')?.checked || false;
+
+  if (is_active && !title && !message) {
+    showToast('يرجى كتابة عنوان أو نص الإعلان قبل تفعيله', 'error');
+    return;
+  }
+
+  showLoading();
+  try {
+    const payload = { title, message, type, link_url, link_text, is_active };
+    const res = await API.post('saveAnnouncement', payload);
+    if (res && res.success) {
+      state.announcement = res.announcement || payload;
+      saveCurriculumToLocal();
+      showToast(is_active ? 'تم حفظ وتفعيل الإعلان لجميع الطلاب بنجاح!' : 'تم حفظ إعدادات الإعلان بنجاح');
+      await renderAdminOverview($('adminContent'));
+    } else {
+      showToast('فشل في حفظ الإعلان', 'error');
+    }
+  } catch (e) {
+    console.error(e);
+    showToast('حدث خطأ أثناء حفظ الإعلان', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function deactivateAdminAnnouncement() {
+  if ($('annIsActiveCheckbox')) $('annIsActiveCheckbox').checked = false;
+  await saveAdminAnnouncement();
+}
+
+async function exportStudentsReportCSV() {
+  showLoading();
+  try {
+    const res = await API.get('getAdminAnalytics', {}, { forceFresh: true });
+    if (!res || !res.success) {
+      showToast('تعذر تحميل بيانات التقرير', 'error');
+      return;
+    }
+
+    const users = res.users || [];
+    const allProgress = res.allProgress || [];
+    const allAttempts = res.allAttempts || [];
+    const totalLessons = Object.values(state.lessons || {}).flat().length;
+
+    const progByUser = {};
+    allProgress.forEach(p => {
+      if (p && p.username) progByUser[String(p.username).trim().toLowerCase()] = p;
+    });
+
+    const attemptsByUser = {};
+    allAttempts.forEach(a => {
+      if (!a || !a.username) return;
+      const k = String(a.username).trim().toLowerCase();
+      if (!attemptsByUser[k]) attemptsByUser[k] = [];
+      attemptsByUser[k].push(a);
+    });
+
+    const studentsList = users.filter(u => {
+      const r = String(u.role || '').toLowerCase();
+      const uname = String(u.username || '');
+      if (r === 'deleted' || uname.startsWith('__deleted_')) return false;
+      const isFrozen = !!u.is_frozen || u.status === 'frozen' || r.startsWith('frozen');
+      const effRole = isFrozen ? (u.originalRole || r.replace(/^frozen:?/i, '') || 'student') : r;
+      return effRole === 'student';
+    });
+
+    if (!studentsList.length) {
+      showToast('لا يوجد طلاب مسجلون لتصدير بياناتهم', 'warning');
+      return;
+    }
+
+    function escapeCsv(val) {
+      const s = String(val ?? '').replace(/"/g, '""');
+      return `"${s}"`;
+    }
+
+    const headers = [
+      'الاسم الظاهر',
+      'الاسم بالكامل',
+      'اسم المستخدم',
+      'حالة الحساب',
+      'الدروس المكتملة',
+      'إجمالي الدروس',
+      'نسبة إنجاز الدروس',
+      'المحتويات المنجزة',
+      'إجمالي محاولات الاختبارات',
+      'متوسط درجات الاختبارات',
+      'أعلى درجة اختبار',
+      'آخر نشاط مسجل'
+    ];
+
+    const rows = [headers.map(escapeCsv).join(',')];
+
+    studentsList.forEach(st => {
+      const uKey = String(st.username || '').trim().toLowerCase();
+      const isFrozen = !!st.is_frozen || st.status === 'frozen' || String(st.role || '').toLowerCase().startsWith('frozen');
+      const prog = progByUser[uKey] || {};
+      const stAttempts = attemptsByUser[uKey] || [];
+      const compLessons = Array.isArray(prog.completed_lessons) ? prog.completed_lessons.length : 0;
+      const compMaterials = Array.isArray(prog.completed_materials) ? prog.completed_materials.length : 0;
+      const lessonPct = totalLessons > 0 ? Math.min(100, Math.round((compLessons / totalLessons) * 100)) + '%' : '0%';
+
+      const graded = stAttempts.filter(a => a.is_graded && Number(a.max_score) > 0);
+      const avgScore = graded.length
+        ? Math.round(graded.reduce((acc, a) => acc + (Number(a.score) / Number(a.max_score)) * 100, 0) / graded.length) + '%'
+        : 'لا يوجد';
+
+      const bestScore = graded.length
+        ? Math.max(...graded.map(a => Math.round((Number(a.score) / Number(a.max_score)) * 100))) + '%'
+        : 'لا يوجد';
+
+      const lastActive = prog.updated_at || stAttempts[0]?.attempt_date || st.created_at || '';
+      const formattedLastActive = lastActive ? formatDate(lastActive) : 'غير مسجل';
+
+      rows.push([
+        st.name || '',
+        st.full_name || st.name || '',
+        st.username || '',
+        isFrozen ? 'مجمد' : 'نشط',
+        compLessons,
+        totalLessons,
+        lessonPct,
+        compMaterials,
+        stAttempts.length,
+        avgScore,
+        bestScore,
+        formattedLastActive
+      ].map(escapeCsv).join(','));
+    });
+
+    // Prepend UTF-8 BOM so Microsoft Excel opens Arabic characters properly
+    const csvContent = '\uFEFF' + rows.join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `تقرير_طلاب_IQT_${dateStr}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    showToast('تم تصدير وتحميل تقرير الطلاب بصيغة CSV بنجاح!');
+  } catch (e) {
+    console.error('Error exporting CSV:', e);
+    showToast('حدث خطأ أثناء تصدير التقرير', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+// ==========================================
+// FULL CURRICULUM EXPORT, IMPORT & CLEAR ALL
+// ==========================================
+async function _fetchFullCurriculumSnapshot() {
+  if (MOCK_MODE) {
+    return {
+      units: state.units || [],
+      lessons: Object.values(state.lessons || {}).flat(),
+      materials: state.allMaterials || [],
+      quizzes: Object.values(state.quizzes || {}),
+      questions: []
+    };
+  }
+  const res = await API.get('exportAllCurriculum', {}, { forceFresh: true });
+  if (!res || !res.success) {
+    throw new Error(res?.message || 'تعذر جلب بيانات محتوى المنصة');
+  }
+  return {
+    units: res.units || [],
+    lessons: res.lessons || [],
+    materials: res.materials || [],
+    quizzes: res.quizzes || [],
+    questions: res.questions || []
+  };
+}
+
+function _buildStructuredCurriculumTree(data) {
+  const { units, lessons, materials, quizzes, questions } = data;
+
+  const quizByMatId = {};
+  quizzes.forEach(q => {
+    quizByMatId[String(q.material_id || '')] = q;
+  });
+
+  const questionsByQuizId = {};
+  questions.forEach(qn => {
+    const qid = String(qn.quiz_id || '');
+    if (!questionsByQuizId[qid]) questionsByQuizId[qid] = [];
+    questionsByQuizId[qid].push(qn);
+  });
+
+  function enrichMaterial(mat) {
+    const item = {
+      material_id: mat.material_id,
+      lesson_id: mat.lesson_id,
+      title: mat.title,
+      type: mat.type,
+      content: mat.content || '',
+      order_index: mat.order_index || 0,
+      is_hidden: Boolean(mat.is_hidden)
+    };
+    if (mat.type === 'quiz') {
+      let quizSettings = {};
+      try { quizSettings = JSON.parse(mat.content || '{}'); } catch {}
+      const quizObj = quizByMatId[String(mat.material_id)] || null;
+      const qList = quizObj ? (questionsByQuizId[String(quizObj.quiz_id)] || []) : [];
+      item.quiz_details = {
+        quiz_id: quizObj?.quiz_id || '',
+        title: quizObj?.title || mat.title,
+        description: quizObj?.description || '',
+        settings: quizSettings,
+        questions_count: qList.length,
+        questions: qList.map(qn => ({
+          question_id: qn.question_id,
+          type: qn.type,
+          question_text: qn.question_text,
+          options: qn.options,
+          correct_answer: qn.correct_answer,
+          points: qn.points,
+          order_index: qn.order_index,
+          explanation: qn.explanation || ''
+        }))
+      };
+    }
+    return item;
+  }
+
+  const matsByLessonId = {};
+  materials.forEach(m => {
+    const lid = String(m.lesson_id != null ? m.lesson_id : '');
+    if (!matsByLessonId[lid]) matsByLessonId[lid] = [];
+    matsByLessonId[lid].push(enrichMaterial(m));
+  });
+
+  const lessonsByUnitId = {};
+  lessons.forEach(l => {
+    const uid = String(l.unit_id != null ? l.unit_id : '');
+    if (!lessonsByUnitId[uid]) lessonsByUnitId[uid] = [];
+    lessonsByUnitId[uid].push({
+      lesson_id: l.lesson_id,
+      unit_id: uid,
+      lesson_number: l.lesson_number,
+      lesson_name: l.lesson_name,
+      is_hidden: Boolean(l.is_hidden),
+      materials: matsByLessonId[String(l.lesson_id)] || []
+    });
+  });
+
+  const structuredUnits = units.map(u => ({
+    unit_id: u.unit_id,
+    unit_number: u.unit_number,
+    unit_name: u.unit_name,
+    is_hidden: Boolean(u.is_hidden),
+    unit_direct_materials: matsByLessonId[`unit_${u.unit_id}`] || [],
+    lessons: lessonsByUnitId[String(u.unit_id)] || []
+  }));
+
+  return {
+    units: structuredUnits,
+    standalone_lessons: lessonsByUnitId[''] || [],
+    standalone_materials: matsByLessonId[''] || []
+  };
+}
+
+async function exportFullCurriculumJSON() {
+  showLoading();
+  try {
+    const data = await _fetchFullCurriculumSnapshot();
+    const tree = _buildStructuredCurriculumTree(data);
+
+    const exportPayload = {
+      platform: 'IQT Educational Platform',
+      exported_at: new Date().toISOString(),
+      summary: {
+        total_units: data.units.length,
+        total_lessons: data.lessons.length,
+        total_materials: data.materials.length,
+        total_quizzes: data.quizzes.length,
+        total_questions: data.questions.length
+      },
+      curriculum_tree: tree,
+      raw_data: data
+    };
+
+    const jsonString = JSON.stringify(exportPayload, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `نسخة_محتوى_منصة_IQT_${dateStr}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    showToast(`تم تصدير كامل محتوى المنصة (${data.units.length} وحدة، ${data.lessons.length} درس، ${data.materials.length} محتوى، ${data.questions.length} سؤال) بنجاح!`);
+  } catch (e) {
+    console.error('Error exporting curriculum JSON:', e);
+    showToast('حدث خطأ أثناء تصدير محتوى المنصة', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function exportFullCurriculumCSV() {
+  showLoading();
+  try {
+    const data = await _fetchFullCurriculumSnapshot();
+    const { units, lessons, materials, quizzes, questions } = data;
+
+    if (!units.length && !lessons.length && !materials.length) {
+      showToast('لا يوجد محتوى مسجل حالياً لتصديره', 'warning');
+      return;
+    }
+
+    const unitMap = {};
+    units.forEach(u => { unitMap[String(u.unit_id)] = u; });
+
+    const lessonMap = {};
+    lessons.forEach(l => { lessonMap[String(l.lesson_id)] = l; });
+
+    const quizByMatId = {};
+    quizzes.forEach(q => { quizByMatId[String(q.material_id)] = q; });
+
+    const questionsByQuizId = {};
+    questions.forEach(qn => {
+      const qid = String(qn.quiz_id || '');
+      if (!questionsByQuizId[qid]) questionsByQuizId[qid] = [];
+      questionsByQuizId[qid].push(qn);
+    });
+
+    function escapeCsv(val) {
+      const s = String(val ?? '').replace(/"/g, '""');
+      return `"${s}"`;
+    }
+
+    function typeLabelAr(type) {
+      if (type === 'pdf') return 'ملف PDF';
+      if (type === 'video') return 'فيديو';
+      if (type === 'link' || type === 'external') return 'شرائح عرض / رابط خارجي';
+      if (type === 'article') return 'مقالة / قراءة';
+      if (type === 'quiz') return 'اختبار (كويز)';
+      return type || 'محتوى';
+    }
+
+    const headers = [
+      'رقم الوحدة',
+      'اسم الوحدة',
+      'رقم الدرس',
+      'اسم الدرس',
+      'عنوان المحتوى',
+      'نوع المحتوى',
+      'الرابط / المحتوى / الإعدادات',
+      'حالة الظهور',
+      'عدد أسئلة الكويز',
+      'أسئلة الكويز أو السورس كود (JSON)'
+    ];
+
+    const rows = [headers.map(escapeCsv).join(',')];
+
+    materials.forEach(mat => {
+      const lid = String(mat.lesson_id || '');
+      let unitNumber = '—';
+      let unitName = 'محتوى مستقل';
+      let lessonNumber = '—';
+      let lessonName = '—';
+
+      if (lid.startsWith('unit_')) {
+        const uid = lid.replace(/^unit_/, '');
+        const u = unitMap[uid];
+        unitNumber = u ? u.unit_number : '—';
+        unitName = u ? u.unit_name : 'وحدة';
+        lessonName = 'محتوى مباشر بالوحدة';
+      } else if (lid && lessonMap[lid]) {
+        const l = lessonMap[lid];
+        lessonNumber = l.lesson_number ?? '—';
+        lessonName = l.lesson_name || '';
+        if (l.unit_id && unitMap[String(l.unit_id)]) {
+          unitNumber = unitMap[String(l.unit_id)].unit_number ?? '—';
+          unitName = unitMap[String(l.unit_id)].unit_name || '';
+        } else {
+          unitName = 'درس مستقل خارج الوحدات';
+        }
+      }
+
+      const quizObj = mat.type === 'quiz' ? quizByMatId[String(mat.material_id)] : null;
+      const qList = quizObj ? (questionsByQuizId[String(quizObj.quiz_id)] || []) : [];
+      const cleanQuestionsJson = qList.length ? JSON.stringify(qList.map(qn => ({
+        type: qn.type,
+        question_text: qn.question_text,
+        options: qn.options,
+        correct_answer: qn.correct_answer,
+        points: qn.points,
+        explanation: qn.explanation || ''
+      }))) : '';
+
+      rows.push([
+        unitNumber,
+        unitName,
+        lessonNumber,
+        lessonName,
+        mat.title || '',
+        typeLabelAr(mat.type),
+        mat.content || '',
+        mat.is_hidden ? 'مخفي عن الطلاب' : 'ظاهر للطلاب',
+        mat.type === 'quiz' ? qList.length : '—',
+        cleanQuestionsJson
+      ].map(escapeCsv).join(','));
+    });
+
+    // Also include empty lessons or units that have no materials yet so nothing is missed
+    const coveredLessonIds = new Set(materials.map(m => String(m.lesson_id || '')));
+    lessons.forEach(l => {
+      if (!coveredLessonIds.has(String(l.lesson_id))) {
+        const u = l.unit_id ? unitMap[String(l.unit_id)] : null;
+        rows.push([
+          u ? u.unit_number : '—',
+          u ? u.unit_name : 'درس مستقل',
+          l.lesson_number ?? '—',
+          l.lesson_name || '',
+          '(درس بدون محتويات مرفقة)',
+          'درس فارغ',
+          '',
+          l.is_hidden ? 'مخفي عن الطلاب' : 'ظاهر للطلاب',
+          '—',
+          ''
+        ].map(escapeCsv).join(','));
+      }
+    });
+
+    const csvContent = '\uFEFF' + rows.join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `جدول_محتوى_منصة_IQT_${dateStr}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    showToast('تم تصدير جدول المحتوى والروابط والكويزات بصيغة CSV / Excel بنجاح!');
+  } catch (e) {
+    console.error('Error exporting curriculum CSV:', e);
+    showToast('حدث خطأ أثناء تصدير جدول المحتوى', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function openClearAllContentModal() {
+  const existing = document.getElementById('clearAllContentModal');
+  if (existing) existing.remove();
+
+  const totalUnits = state.units?.length || 0;
+  const totalLessons = Object.values(state.lessons || {}).flat().length;
+  const totalMaterials = state.allMaterials?.length || 0;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'clearAllContentModal';
+  modal.innerHTML = `
+    <div class="glass modal-content" style="max-width: 540px;">
+      <div class="flex justify-between items-center" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+        <h3 style="margin: 0; color: var(--danger); display: flex; align-items: center; gap: 8px;">
+          ${ICONS.trash} مسح كل محتوى المنصة بالكامل
+        </h3>
+        <button type="button" class="btn btn-secondary" style="padding: 6px 10px;" onclick="document.getElementById('clearAllContentModal')?.remove()">
+          ${ICONS.close}
+        </button>
+      </div>
+
+      <div style="background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.28); border-radius: 12px; padding: 16px; margin-bottom: 18px; line-height: 1.65; font-size: 0.92rem;">
+        <strong>تنبيه هام قبل المسح:</strong>
+        <p style="margin: 6px 0 0 0; color: var(--text-secondary);">
+          سيقوم هذا الإجراء بحذف جميع الوحدات (<strong>${totalUnits}</strong>)، والدروس (<strong>${totalLessons}</strong>)، والمحتويات والملفات والروابط (<strong>${totalMaterials}</strong>)، وكافة الاختبارات وأسئلتها الحالية لكي تتمكن من رفع المنهج الجديد على نظافة.
+          <br><span style="color: var(--success); font-weight: 600;">(لن يتم مسح حسابات الطلاب أو المشرفين).</span>
+        </p>
+      </div>
+
+      <div style="background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.22); border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <div style="font-size: 0.88rem;">
+          <strong>الاحتفاظ بنسخة احتياطية أولاً:</strong>
+          <div style="color: var(--text-muted); font-size: 0.8rem;">احفظ ملفاً شاملاً لكل الروابط والملفات والكويزات الحالية قبل الحذف</div>
+        </div>
+        <button type="button" class="btn btn-primary" style="padding: 8px 14px; font-size: 0.84rem;" onclick="exportFullCurriculumJSON()">
+          ${ICONS.download} تحميل نسخة احتياطية (JSON)
+        </button>
+      </div>
+
+      <div style="margin-bottom: 18px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600;">
+          <input type="checkbox" id="resetStudentsProgressOnClear" checked style="width: 18px; height: 18px;">
+          <span>تصفير عداد الدروس والمحتويات المكتملة للطلاب ليبدأوا المحتوى الجديد من الصفر</span>
+        </label>
+      </div>
+
+      <div class="input-group" style="margin-bottom: 20px;">
+        <label>لتأكيد الحذف النهائي، اكتب كلمة <strong>مسح</strong> في الحقل التالي:</label>
+        <input type="text" id="confirmClearAllInput" placeholder="اكتب: مسح" autocomplete="off">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('clearAllContentModal')?.remove()">إلغاء</button>
+        <button type="button" class="btn btn-primary" style="background: var(--danger); border-color: var(--danger);" onclick="executeClearAllCurriculum()">
+          ${ICONS.trash} تأكيد مسح كل المحتوى
+        </button>
       </div>
     </div>
   `;
+  document.body.appendChild(modal);
+}
+
+async function executeClearAllCurriculum() {
+  const confirmVal = $('confirmClearAllInput')?.value?.trim();
+  if (confirmVal !== 'مسح') {
+    showToast('يرجى كتابة كلمة "مسح" بشكل صحيح لتأكيد العملية', 'error');
+    return;
+  }
+
+  const resetStudentProgress = $('resetStudentsProgressOnClear')?.checked !== false;
+  document.getElementById('clearAllContentModal')?.remove();
+
+  showLoading();
+  try {
+    const res = await API.post('clearAllCurriculum', { resetStudentProgress });
+    if (res && res.success) {
+      state.units = [];
+      state.lessons = {};
+      state.materials = {};
+      state.allMaterials = [];
+      state.quizzes = {};
+      localStorage.removeItem('iqt_curriculum_cache');
+
+      showToast('تم مسح جميع الوحدات والدروس والمحتويات والاختبارات بنجاح! المنصة جاهزة للمحتوى الجديد.');
+      await refreshAndRenderAdmin();
+    } else {
+      showToast(res?.message || 'فشل في مسح المحتوى', 'error');
+    }
+  } catch (e) {
+    console.error('Error clearing curriculum:', e);
+    showToast('حدث خطأ أثناء مسح المحتوى', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function openImportCurriculumModal() {
+  const existing = document.getElementById('importCurriculumModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'importCurriculumModal';
+  modal.innerHTML = `
+    <div class="glass modal-content" style="max-width: 540px;">
+      <div class="flex justify-between items-center" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+        <h3 style="margin: 0;">استيراد نسخة محتوى للمنصة (JSON)</h3>
+        <button type="button" class="btn btn-secondary" style="padding: 6px 10px;" onclick="document.getElementById('importCurriculumModal')?.remove()">
+          ${ICONS.close}
+        </button>
+      </div>
+
+      <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px;">
+        يمكنك رفع ملف النسخة الاحتياطية (<code>.json</code>) الذي قمت بتصديره مسبقاً من المنصة لاستعادة الوحدات والدروس والملفات والروابط والاختبارات دفعة واحدة.
+      </p>
+
+      <div class="input-group" style="margin-bottom: 18px;">
+        <label>اختر ملف النسخة الاحتياطية (JSON)</label>
+        <input type="file" id="importCurriculumFileInput" accept=".json,application/json" style="padding: 10px;">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('importCurriculumModal')?.remove()">إلغاء</button>
+        <button type="button" class="btn btn-primary" onclick="executeImportCurriculumJSON()">
+          استيراد المحتوى الآن
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function executeImportCurriculumJSON() {
+  const fileInput = $('importCurriculumFileInput');
+  const file = fileInput?.files?.[0];
+  if (!file) {
+    showToast('يرجى اختيار ملف JSON أولاً', 'error');
+    return;
+  }
+
+  showLoading();
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const raw = parsed.raw_data || parsed;
+
+    if (!raw || (!Array.isArray(raw.units) && !Array.isArray(raw.lessons) && !Array.isArray(raw.materials))) {
+      showToast('ملف JSON غير صالح أو لا يحتوي على هيكل محتوى المنصة', 'error');
+      hideLoading();
+      return;
+    }
+
+    document.getElementById('importCurriculumModal')?.remove();
+    const res = await API.post('importAllCurriculum', { raw_data: raw });
+    if (res && res.success) {
+      const c = res.imported_counts || {};
+      showToast(`تم استيراد المحتوى بنجاح (${c.units || 0} وحدة، ${c.lessons || 0} درس، ${c.materials || 0} محتوى، ${c.questions || 0} سؤال)!`);
+      await refreshAndRenderAdmin();
+    } else {
+      showToast(res?.message || 'فشل في استيراد المحتوى', 'error');
+    }
+  } catch (e) {
+    console.error('Error importing curriculum JSON:', e);
+    showToast('تأكد من صحة ملف الـ JSON المختار', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 // ==========================================
@@ -158,12 +1041,36 @@ async function renderAdminContent(container) {
   }
 
   container.innerHTML = `
-    <div class="flex justify-between items-center" style="margin-bottom: 24px;">
-      <h2 style="font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة المحتوى</h2>
-      <div class="flex gap-2">
+    <div class="flex justify-between items-center" style="margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+      <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة المحتوى</h2>
+      <div class="flex gap-2" style="flex-wrap: wrap;">
         <button class="btn btn-secondary" onclick="showModal('addUnit')">${ICONS.plus} إضافة وحدة</button>
         <button class="btn btn-secondary" onclick="showModal('addLesson')">${ICONS.plus} إضافة درس</button>
         <button class="btn btn-primary" onclick="showModal('addMaterial')">${ICONS.plus} إضافة محتوى</button>
+      </div>
+    </div>
+
+    <!-- Backup, Export, Import & Reset Curriculum Toolbar -->
+    <div class="glass" style="padding: 18px 22px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; background: rgba(99, 102, 241, 0.04); border: 1px solid rgba(99, 102, 241, 0.18);">
+      <div>
+        <h4 style="margin: 0 0 4px 0; font-size: 1rem;">تصدير، استيراد، وإعادة تهيئة محتوى المنصة</h4>
+        <p style="margin: 0; font-size: 0.84rem; color: var(--text-muted);">
+          احفظ نسخة شاملة من كل الوحدات والدروس والروابط وملفات الدرايف والكويزات (JSON أو Excel)، أو امسح المحتوى الحالي لرفع منهج جديد.
+        </p>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-primary" style="padding: 8px 14px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;" onclick="exportFullCurriculumJSON()">
+          ${ICONS.download} تصدير كل المحتوى (JSON شامل)
+        </button>
+        <button type="button" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;" onclick="exportFullCurriculumCSV()">
+          ${ICONS.download} تصدير جدول المحتوى والروابط (Excel / CSV)
+        </button>
+        <button type="button" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;" onclick="openImportCurriculumModal()">
+          استيراد نسخة محتوى (JSON)
+        </button>
+        <button type="button" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; color: var(--danger); border-color: rgba(239, 68, 68, 0.35); display: inline-flex; align-items: center; gap: 6px;" onclick="openClearAllContentModal()">
+          ${ICONS.trash} مسح كل المحتوى
+        </button>
       </div>
     </div>
 
@@ -618,7 +1525,14 @@ async function renderAdminUsers(container) {
   const isVIP = state.user.role === 'vip';
   const isAdmin = state.user.role === 'admin';
 
-  let html = `<h2 style="margin-bottom: 24px; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة الحسابات والمستخدمين</h2>`;
+  let html = `
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;">
+      <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة الحسابات والمستخدمين</h2>
+      <button type="button" class="btn btn-primary" onclick="exportStudentsReportCSV()" style="display: inline-flex; align-items: center; gap: 8px;">
+        ${ICONS.download} تصدير تقرير الطلاب (CSV / Excel)
+      </button>
+    </div>
+  `;
   
   // Calculate counts
   const totalCount = users.length;

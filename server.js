@@ -81,6 +81,18 @@ async function handleApiAction(action, payload) {
       return await FirestoreService.freezeUser(payload);
     case 'unfreezeUser':
       return await FirestoreService.unfreezeUser(payload);
+    case 'getAnnouncement':
+      return await FirestoreService.getAnnouncement();
+    case 'saveAnnouncement':
+      return await FirestoreService.saveAnnouncement(payload);
+    case 'getAdminAnalytics':
+      return await FirestoreService.getAdminAnalytics();
+    case 'exportAllCurriculum':
+      return await FirestoreService.exportAllCurriculum();
+    case 'clearAllCurriculum':
+      return await FirestoreService.clearAllCurriculum(payload);
+    case 'importAllCurriculum':
+      return await FirestoreService.importAllCurriculum(payload);
     default:
       return { success: false, message: `Unknown action: ${action}` };
   }

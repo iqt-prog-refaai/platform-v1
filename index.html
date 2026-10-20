@@ -85,6 +85,7 @@
 
 <!-- ==================== STUDENT DASHBOARD ==================== -->
 <div class="page" id="page-dashboard">
+  <div id="studentAnnouncementBanner"></div>
   <div style="margin-bottom: 32px;">
     <h1 style="font-family: 'Space Grotesk', 'Tajawal', sans-serif; font-size: 2.2rem; margin-bottom: 8px;">
       مرحباً، <span id="studentName" style="background: linear-gradient(135deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">طالب</span>
@@ -113,7 +114,7 @@
 <div class="page" id="page-profile">
   <h1 style="font-family: 'Space Grotesk', 'Tajawal', sans-serif; font-size: 2rem; margin-bottom: 24px;">ملفي الشخصي</h1>
   <div class="glass" style="padding: 32px; margin-bottom: 24px;">
-    <div class="flex items-center gap-4 mb-4">
+    <div class="flex items-center gap-4 mb-4" style="flex-wrap: wrap;">
       <div id="profileAvatarContainer" style="position: relative;">
         <!-- Avatar will be inserted here -->
         <div class="avatar" style="width: 80px; height: 80px; font-size: 1.8rem;" id="profileAvatar"></div>
@@ -133,24 +134,43 @@
     
     <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
       <h3 style="margin-bottom: 16px;">إعدادات الحساب</h3>
-      <div class="input-group" style="max-width: 400px; margin-top: 16px;">
-        <label>اسم المستخدم (يجب أن يكون حروف وأرقام إنجليزية فقط)</label>
-        <div style="display:flex; gap:8px;">
-          <input type="text" id="profileUsername" pattern="[a-zA-Z0-9_]+" style="direction:ltr;">
-          <button class="btn btn-secondary" onclick="updateUsername()">تحديث</button>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+        <div class="input-group" style="margin: 0;">
+          <label>اسم المستخدم (حروف وأرقام إنجليزية فقط)</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="profileUsername" pattern="[a-zA-Z0-9_]+" style="direction:ltr;">
+            <button class="btn btn-secondary" onclick="updateUsername()" style="white-space: nowrap;">تحديث</button>
+          </div>
         </div>
-      </div>
-      <div class="input-group" style="max-width: 400px; margin-top: 16px;">
-        <label>تغيير كلمة المرور</label>
-        <div style="display:flex; gap:8px;">
-          <input type="password" id="profilePassword" placeholder="كلمة المرور الجديدة">
-          <button class="btn btn-secondary" onclick="updatePassword()">تحديث</button>
+        <div class="input-group" style="margin: 0;">
+          <label>تغيير كلمة المرور</label>
+          <div style="display:flex; gap:8px;">
+            <input type="password" id="profilePassword" placeholder="كلمة المرور الجديدة">
+            <button class="btn btn-secondary" onclick="updatePassword()" style="white-space: nowrap;">تحديث</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
-  <h2 style="margin-bottom: 16px;">سجل الاختبارات</h2>
+
+  <!-- Student Progress & Activity Summary in Profile -->
+  <div id="profileStatsSummary" style="margin-bottom: 24px;"></div>
+
+  <!-- Profile Activity Tabs (Quizzes & Completed Lessons) -->
+  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+    <h2 style="margin: 0;" id="profileSectionHeading">سجل النشاط والإنجازات</h2>
+    <div style="display: inline-flex; gap: 6px; padding: 5px; background: rgba(99, 102, 241, 0.06); border: 1px solid var(--border); border-radius: 12px;">
+      <button type="button" id="profileTabQuizzesBtn" class="btn btn-primary" style="padding: 8px 18px; font-size: 0.9rem; border-radius: 8px;" onclick="switchProfileTab('quizzes')">
+        سجل الاختبارات ومراجعة الإجابات
+      </button>
+      <button type="button" id="profileTabLessonsBtn" class="btn btn-secondary" style="padding: 8px 18px; font-size: 0.9rem; border-radius: 8px; border: none; background: transparent;" onclick="switchProfileTab('lessons')">
+        سجل الدروس المكتملة
+      </button>
+    </div>
+  </div>
+
   <div id="quizHistory"></div>
+  <div id="lessonsHistory" style="display: none;"></div>
 </div>
 
 <!-- ==================== ADMIN DASHBOARD ==================== -->

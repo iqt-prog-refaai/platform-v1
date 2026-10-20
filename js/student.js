@@ -22,6 +22,7 @@ function saveCurriculumToLocal() {
       quizzes: state.quizzes,
       allMaterials: state.allMaterials,
       progress: state.progress,
+      announcement: state.announcement,
       savedAt: Date.now()
     };
     localStorage.setItem(CURRICULUM_CACHE_KEY, JSON.stringify(payload));
@@ -45,6 +46,9 @@ function restoreCurriculumFromLocal() {
     state.materials = data.materials || {};
     state.quizzes = data.quizzes || {};
     state.allMaterials = data.allMaterials || [];
+    if (data.announcement !== undefined) {
+      state.announcement = data.announcement;
+    }
     if (data.progress && (!state.user || !data.progress.username || data.progress.username.toLowerCase() === (state.user?.username || '').toLowerCase())) {
       state.progress = data.progress;
     }
@@ -137,6 +141,10 @@ async function loadStudentData(forceFresh = false) {
         };
       });
 
+      if (initialRes.announcement !== undefined) {
+        state.announcement = initialRes.announcement;
+      }
+
       if (initialRes.progress) {
         state.progress = initialRes.progress;
       } else if (state.user && state.user.role === 'student') {
@@ -225,6 +233,84 @@ function groupMaterials() {
   }
 }
 
+function dismissStudentAnnouncement() {
+  if (state.announcement) {
+    state.dismissedAnnouncementTime = state.announcement.updated_at || 'dismissed';
+  }
+  const bannerEl = $('studentAnnouncementBanner');
+  if (bannerEl) bannerEl.innerHTML = '';
+}
+
+function renderStudentAnnouncementBanner() {
+  const bannerEl = $('studentAnnouncementBanner');
+  if (!bannerEl) return;
+
+  const ann = state.announcement;
+  if (!ann || !ann.is_active || (!ann.title && !ann.message)) {
+    bannerEl.innerHTML = '';
+    return;
+  }
+
+  if (state.dismissedAnnouncementTime && state.dismissedAnnouncementTime === (ann.updated_at || 'dismissed')) {
+    bannerEl.innerHTML = '';
+    return;
+  }
+
+  const typeStyles = {
+    info: {
+      bg: 'rgba(99, 102, 241, 0.08)',
+      border: 'rgba(99, 102, 241, 0.28)',
+      color: 'var(--primary)',
+      label: 'تنبيه عام'
+    },
+    warning: {
+      bg: 'rgba(245, 158, 11, 0.09)',
+      border: 'rgba(245, 158, 11, 0.35)',
+      color: '#d97706',
+      label: 'تنبيه هام'
+    },
+    success: {
+      bg: 'rgba(16, 185, 129, 0.08)',
+      border: 'rgba(16, 185, 129, 0.3)',
+      color: '#059669',
+      label: 'تحديث جديد'
+    },
+    urgent: {
+      bg: 'rgba(239, 68, 68, 0.08)',
+      border: 'rgba(239, 68, 68, 0.32)',
+      color: 'var(--danger)',
+      label: 'إعلان عاجل'
+    }
+  };
+
+  const st = typeStyles[ann.type] || typeStyles.info;
+  const hasLink = ann.link_url && ann.link_url.trim() !== '';
+  const safeLink = hasLink ? formatExternalUrl(ann.link_url) : '';
+
+  bannerEl.innerHTML = `
+    <div class="glass" style="padding: 18px 22px; margin-bottom: 24px; border-radius: 16px; background: ${st.bg}; border: 1px solid ${st.border}; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;">
+      <div style="flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+          <span style="font-size: 0.78rem; font-weight: 700; color: ${st.color};">${st.label}</span>
+          ${ann.updated_at ? `<span style="color: var(--text-muted); font-size: 0.78rem;">· ${formatDate(ann.updated_at)}</span>` : ''}
+        </div>
+        ${ann.title ? `<h3 style="margin: 0 0 6px 0; font-size: 1.1rem; color: var(--text-primary);">${ann.title}</h3>` : ''}
+        ${ann.message ? `<p style="margin: 0; font-size: 0.95rem; color: var(--text-secondary); line-height: 1.65; white-space: pre-line;">${ann.message}</p>` : ''}
+        ${hasLink ? `
+          <div style="margin-top: 12px;">
+            <a href="${safeLink}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding: 6px 16px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+              ${ICONS.externalLink} ${ann.link_text || 'التفاصيل والرابط'}
+            </a>
+          </div>
+        ` : ''}
+      </div>
+      <button type="button" onclick="dismissStudentAnnouncement()" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 8px;" title="إخفاء الإعلان">
+        ${ICONS.close}
+      </button>
+    </div>
+  `;
+}
+
 // ==========================================
 // STUDENT DASHBOARD
 // ==========================================
@@ -232,6 +318,8 @@ function renderDashboard() {
   const container = $('unitsContainer');
   const statsContainer = $('studentStats');
   $('studentName').textContent = state.user?.name || 'طالب';
+
+  renderStudentAnnouncementBanner();
 
   const isStudent = state.user?.role !== 'admin';
   const visibleUnits = isStudent ? state.units.filter(u => !u.is_hidden) : state.units;
@@ -254,11 +342,11 @@ function renderDashboard() {
   statsContainer.innerHTML = `
     <div class="glass stat-card blue">
       <div class="stat-label">الدروس المكتملة</div>
-      <div class="stat-value">${completedLessons}/${totalLessons}</div>
+      <div class="stat-value" style="font-variant-numeric: tabular-nums;">${completedLessons}/${totalLessons}</div>
     </div>
     <div class="glass stat-card pink">
       <div class="stat-label">المحتويات المشاهدة</div>
-      <div class="stat-value">${completedMaterials}</div>
+      <div class="stat-value" style="font-variant-numeric: tabular-nums;">${completedMaterials}</div>
     </div>
     <div class="glass stat-card green">
       <div class="stat-label">الوحدة الحالية</div>

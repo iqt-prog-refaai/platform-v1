@@ -17,5 +17,7 @@ const state = {
   adminSection: 'overview',
   students: [],
   allMaterials: [],
+  announcement: null,
+  dismissedAnnouncementTime: null,
   dragItem: null
 };
