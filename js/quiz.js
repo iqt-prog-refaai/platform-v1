@@ -248,6 +248,16 @@ async function startQuiz(materialId, quizId, isReviewMode = false) {
       resumedFromSaved: isResumed
     };
 
+    const quizTitle = mat?.title || quizRecord?.title || 'اختبار';
+    if (typeof logStudentActivity === 'function') {
+      logStudentActivity(
+        'quiz_start',
+        `بدء ${quizTitle}`,
+        isReviewMode ? `وضع المراجعة (${questions.length} سؤال)` : `وضع الامتحان (${questions.length} سؤال)`,
+        `يؤدي اختبار: ${quizTitle}`
+      );
+    }
+
     navigateTo('quiz');
     renderQuizQuestion();
     if (timeLimitSecs > 0 || isReviewMode) startQuizTimer();
@@ -1043,6 +1053,17 @@ async function submitQuiz() {
         // Auto-mark the quiz material as completed in student's progress record
         if (quiz.materialId && typeof markComplete === 'function') {
           markComplete(quiz.materialId);
+        }
+
+        const matObj = (state.allMaterials || []).find(m => String(m.material_id) === String(quiz.materialId));
+        const quizTitle = matObj?.title || state.quizzes[quiz.materialId]?.title || 'اختبار';
+        if (typeof logStudentActivity === 'function') {
+          logStudentActivity(
+            'quiz_submit',
+            `تسليم ${quizTitle}`,
+            hasEssay ? `الدرجة المبدئية: ${quiz.score}/${quiz.maxScore} (بانتظار تصحيح المقالي)` : `النتيجة: ${quiz.score}/${quiz.maxScore} (${pct}%)`,
+            'متصل في الصفحة الرئيسية'
+          );
         }
       } catch (err) {
         console.error('Error submitting quiz:', err);

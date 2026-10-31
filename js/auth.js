@@ -66,6 +66,7 @@ async function handleLogin(e) {
       state.user = result.user;
       localStorage.setItem('iqt_user', JSON.stringify(result.user));
       setupNavigation();
+      startPresenceHeartbeat();
       showToast(`مرحباً بعودتك، ${result.user.name || result.user.username}!`);
 
       const targetHash = ['student', 'guest'].includes(result.user.role) ? 'dashboard' : 'admin';
@@ -146,7 +147,123 @@ function setupNavigation() {
   }
 }
 
+// ==========================================
+// PRESENCE HEARTBEAT & ACTIVITY TELEMETRY
+// ==========================================
+let _presenceIntervalId = null;
+let _currentActivityLabel = 'متصل في الصفحة الرئيسية';
+
+function logStudentActivity(type, title, detail = '', customCurrentActivity = '') {
+  if (customCurrentActivity) {
+    _currentActivityLabel = customCurrentActivity;
+  } else if (title) {
+    _currentActivityLabel = title;
+  }
+
+  if (!state.user || !state.user.username || MOCK_MODE) return;
+
+  API.post('recordPresenceHeartbeat', {
+    username: state.user.username,
+    is_online: true,
+    study_minutes_delta: 0,
+    current_activity: _currentActivityLabel,
+    event: title ? {
+      type: type || 'view',
+      title: String(title),
+      detail: String(detail || ''),
+      timestamp: new Date().toISOString()
+    } : null
+  }).catch(() => {});
+}
+
+function startPresenceHeartbeat() {
+  if (_presenceIntervalId) {
+    clearInterval(_presenceIntervalId);
+    _presenceIntervalId = null;
+  }
+  if (!state.user || !state.user.username || MOCK_MODE) return;
+
+  // Immediate online ping when session starts or restores
+  API.post('recordPresenceHeartbeat', {
+    username: state.user.username,
+    is_online: true,
+    study_minutes_delta: 0,
+    current_activity: _currentActivityLabel
+  }).catch(() => {});
+
+  // Every 60 seconds, record 1 minute of active study time if tab is visible
+  _presenceIntervalId = setInterval(() => {
+    if (!state.user || !state.user.username || MOCK_MODE) return;
+    const isVisible = document.visibilityState === 'visible';
+    if (!isVisible) return;
+
+    API.post('recordPresenceHeartbeat', {
+      username: state.user.username,
+      is_online: true,
+      study_minutes_delta: 1,
+      current_activity: _currentActivityLabel
+    }).then(res => {
+      if (res && res.success && typeof res.total_study_minutes === 'number') {
+        if (state.progress) state.progress.total_study_minutes = res.total_study_minutes;
+        if (state.user) state.user.total_study_minutes = res.total_study_minutes;
+      }
+    }).catch(() => {});
+  }, 60000);
+}
+
+function stopPresenceHeartbeat(markOffline = true) {
+  if (_presenceIntervalId) {
+    clearInterval(_presenceIntervalId);
+    _presenceIntervalId = null;
+  }
+  if (markOffline && state.user && state.user.username && !MOCK_MODE) {
+    API.post('recordPresenceHeartbeat', {
+      username: state.user.username,
+      is_online: false,
+      study_minutes_delta: 0,
+      current_activity: 'غير متصل'
+    }).catch(() => {});
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!state.user || !state.user.username || MOCK_MODE) return;
+  if (document.visibilityState === 'visible') {
+    API.post('recordPresenceHeartbeat', {
+      username: state.user.username,
+      is_online: true,
+      study_minutes_delta: 0,
+      current_activity: _currentActivityLabel
+    }).catch(() => {});
+  }
+});
+
+window.addEventListener('pagehide', () => {
+  if (state.user && state.user.username && !MOCK_MODE) {
+    stopPresenceHeartbeat(true);
+  }
+});
+
+// Listen for activity messages from embedded interactive web lessons
+window.addEventListener('message', (e) => {
+  if (!e.data || typeof e.data !== 'object') return;
+  if (e.data.type === 'IQT_LESSON_ACTIVITY') {
+    if (e.data.activityLabel) {
+      _currentActivityLabel = String(e.data.activityLabel);
+    }
+    if (e.data.eventTitle) {
+      logStudentActivity(
+        e.data.eventType || 'interactive',
+        e.data.eventTitle,
+        e.data.eventDetail || '',
+        e.data.activityLabel || e.data.eventTitle
+      );
+    }
+  }
+});
+
 function logout() {
+  stopPresenceHeartbeat(true);
   state.user = null;
   state.notifDropdownOpen = false;
   $('navNotifDropdown')?.classList.add('hidden');
@@ -174,6 +291,7 @@ async function checkAuth() {
       }
 
       setupNavigation();
+      startPresenceHeartbeat();
 
       const defaultPage = ['student', 'guest'].includes(state.user.role) ? 'dashboard' : 'admin';
       const targetHash = window.location.hash.replace('#', '') || defaultPage;
@@ -206,3 +324,4 @@ async function checkAuth() {
   }
   hideLoading();
 }
+

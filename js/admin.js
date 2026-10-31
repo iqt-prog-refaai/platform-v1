@@ -176,6 +176,14 @@ async function renderAdminOverview(container) {
     attemptsByUser[k].push(a);
   });
 
+  // Presence & study-time helpers
+  const onlineStudentsCount = activeStudents.filter(u => isUserCurrentlyOnline(u)).length;
+  const totalPlatformStudyMins = activeStudents.reduce((sum, u) => {
+    const uKey = String(u.username || '').trim().toLowerCase();
+    const p = progByUser[uKey] || {};
+    return sum + Math.max(Number(u.total_study_minutes) || 0, Number(p.total_study_minutes) || 0);
+  }, 0);
+
   // Build student rankings
   const leaderboard = activeStudents.map(st => {
     const uKey = String(st.username || '').trim().toLowerCase();
@@ -188,8 +196,10 @@ async function renderAdminOverview(container) {
 
     const compLessons = Array.isArray(prog.completed_lessons) ? prog.completed_lessons.length : 0;
     const compMaterials = Array.isArray(prog.completed_materials) ? prog.completed_materials.length : 0;
+    const studyMins = Math.max(Number(st.total_study_minutes) || 0, Number(prog.total_study_minutes) || 0);
+    const isOnline = isUserCurrentlyOnline({ ...prog, ...st });
     // Composite activity score for ranking
-    const activityScore = (compLessons * 15) + (compMaterials * 5) + (stAttempts.length * 10) + (stAvg || 0);
+    const activityScore = (compLessons * 15) + (compMaterials * 5) + (stAttempts.length * 10) + (stAvg || 0) + Math.min(60, Math.floor(studyMins / 5));
 
     return {
       username: st.username,
@@ -198,9 +208,11 @@ async function renderAdminOverview(container) {
       compMaterials,
       attemptsCount: stAttempts.length,
       avgScore: stAvg,
+      studyMins,
+      isOnline,
       activityScore
     };
-  }).filter(s => s.compLessons > 0 || s.compMaterials > 0 || s.attemptsCount > 0)
+  }).filter(s => s.compLessons > 0 || s.compMaterials > 0 || s.attemptsCount > 0 || s.studyMins > 0)
     .sort((a, b) => b.activityScore - a.activityScore)
     .slice(0, 8);
 
@@ -227,9 +239,16 @@ async function renderAdminOverview(container) {
     <!-- Primary Stats Grid -->
     <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 16px; margin-bottom: 24px;">
       <div class="glass stat-card blue" style="padding: 20px;">
-        <div class="stat-label">الطلاب النشطين</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+          <div class="stat-label">الطلاب النشطين</div>
+          <span style="font-size:0.75rem; font-weight:800; color:#059669; background:rgba(16,185,129,0.12); padding:2px 8px; border-radius:6px; font-variant-numeric:tabular-nums;">
+            ● متصل الآن: ${onlineStudentsCount}
+          </span>
+        </div>
         <div class="stat-value" style="font-variant-numeric: tabular-nums;">${activeStudents.length}</div>
-        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">حساب طالب فعال</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums;">
+          إجمالي وقت الدراسة: ${formatStudyTimeAr(totalPlatformStudyMins)}
+        </div>
       </div>
       <div class="glass stat-card green" style="padding: 20px;">
         <div class="stat-label">الوحدات والدروس</div>
@@ -604,14 +623,17 @@ async function exportStudentsReportCSV() {
       'الاسم بالكامل',
       'اسم المستخدم',
       'حالة الحساب',
+      'حالة الاتصال الآن',
+      'آخر ظهور',
+      'إجمالي وقت الدراسة (دقيقة)',
+      'مرات تسجيل الدخول',
       'الدروس المكتملة',
       'إجمالي الدروس',
       'نسبة إنجاز الدروس',
       'المحتويات المنجزة',
       'إجمالي محاولات الاختبارات',
       'متوسط درجات الاختبارات',
-      'أعلى درجة اختبار',
-      'آخر نشاط مسجل'
+      'أعلى درجة اختبار'
     ];
 
     const rows = [headers.map(escapeCsv).join(',')];
@@ -634,22 +656,29 @@ async function exportStudentsReportCSV() {
         ? Math.max(...graded.map(a => Math.round((Number(a.score) / Number(a.max_score)) * 100))) + '%'
         : 'لا يوجد';
 
-      const lastActive = prog.updated_at || stAttempts[0]?.attempt_date || st.created_at || '';
-      const formattedLastActive = lastActive ? formatDate(lastActive) : 'غير مسجل';
+      const combinedUser = { ...prog, ...st };
+      const isOnline = isUserCurrentlyOnline(combinedUser);
+      const lastSeenIso = st.last_seen_at || prog.last_seen_at || prog.updated_at || stAttempts[0]?.attempt_date || '';
+      const formattedLastSeen = lastSeenIso ? formatDate(lastSeenIso) : 'لم يسجل دخول بعد';
+      const studyMinutes = Math.max(Number(st.total_study_minutes) || 0, Number(prog.total_study_minutes) || 0);
+      const loginCount = Math.max(Number(st.login_count) || 0, Number(prog.login_count) || 0);
 
       rows.push([
         st.name || '',
         st.full_name || st.name || '',
         st.username || '',
         isFrozen ? 'مجمد' : 'نشط',
+        isOnline ? 'متصل الآن' : 'غير متصل',
+        formattedLastSeen,
+        studyMinutes,
+        loginCount,
         compLessons,
         totalLessons,
         lessonPct,
         compMaterials,
         stAttempts.length,
         avgScore,
-        bestScore,
-        formattedLastActive
+        bestScore
       ].map(escapeCsv).join(','));
     });
 
@@ -1641,28 +1670,64 @@ async function createQuizForMaterial(materialId, title) {
 }
 
 // ==========================================
-// USERS
+// USERS & PRESENCE HELPERS
 // ==========================================
+function isUserCurrentlyOnline(u) {
+  if (!u) return false;
+  const isFrozen = !!u.is_frozen || u.status === 'frozen' || String(u.role || '').toLowerCase().startsWith('frozen');
+  if (isFrozen) return false;
+  if (u.is_online === false) return false;
+  const lastSeen = u.last_seen_at;
+  if (!lastSeen) return false;
+  const diffMs = Date.now() - new Date(lastSeen).getTime();
+  return !isNaN(diffMs) && diffMs >= -60000 && diffMs < 180000; // within 3 minutes
+}
+
+function formatStudyTimeAr(totalMins) {
+  const mins = Math.max(0, Math.round(Number(totalMins) || 0));
+  if (mins === 0) return '0 دقيقة';
+  if (mins < 60) return `${mins} دقيقة`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  if (rem === 0) return `${hrs} ساعة`;
+  return `${hrs} س و ${rem} د`;
+}
+
+function formatRelativeLastSeenAr(isoStr) {
+  if (!isoStr) return 'لم يسجل دخول بعد';
+  const ts = new Date(isoStr).getTime();
+  if (isNaN(ts)) return 'غير معروف';
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 90) return 'الآن';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `منذ ${diffMin} دقيقة`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `منذ ${diffHr} ساعة`;
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays < 30) return `منذ ${diffDays} يوم`;
+  return formatDate(isoStr);
+}
+
 async function renderAdminUsers(container) {
   let users = [];
   if (MOCK_MODE) {
-    users = [{ name: 'طالب تجريبي', username: 'student', role: 'student' }];
-  } else if (state.cachedAdminUsers && state.cachedAdminUsers.length) {
-    users = state.cachedAdminUsers;
-    // Silently revalidate in background without blocking UI
-    API.get('getAllUsers').then(res => {
-      if (res && res.success && Array.isArray(res.users)) {
-        state.cachedAdminUsers = res.users;
-      }
-    }).catch(console.error);
+    users = [{ name: 'طالب تجريبي', username: 'student', role: 'student', is_online: true, last_seen_at: new Date().toISOString(), total_study_minutes: 42, login_count: 5 }];
   } else {
-    container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل المستخدمين...</div>';
-    const res = await API.get('getAllUsers');
-    if (res && res.success && Array.isArray(res.users)) {
-      users = res.users;
-    } else {
-      const fallback = await API.get('getAllStudents');
-      if (fallback && fallback.success) users = fallback.students || [];
+    if (!state.cachedAdminUsers || !state.cachedAdminUsers.length) {
+      container.innerHTML = '<div class="loading-text" style="text-align:center;padding:40px;">جاري تحميل المستخدمين وحالة الاتصال...</div>';
+    }
+    try {
+      const res = await API.get('getAllUsers', {}, { forceFresh: true });
+      if (res && res.success && Array.isArray(res.users)) {
+        users = res.users;
+      } else if (state.cachedAdminUsers && state.cachedAdminUsers.length) {
+        users = state.cachedAdminUsers;
+      } else {
+        const fallback = await API.get('getAllStudents', {}, { forceFresh: true });
+        if (fallback && fallback.success) users = fallback.students || [];
+      }
+    } catch (e) {
+      users = state.cachedAdminUsers || [];
     }
   }
 
@@ -1677,10 +1742,15 @@ async function renderAdminUsers(container) {
 
   let html = `
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;">
-      <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة الحسابات والمستخدمين</h2>
-      <button type="button" class="btn btn-primary" onclick="exportStudentsReportCSV()" style="display: inline-flex; align-items: center; gap: 8px;">
-        ${ICONS.download} تصدير تقرير الطلاب (CSV / Excel)
-      </button>
+      <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">إدارة الحسابات ونشاط المستخدمين</h2>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-secondary" onclick="renderAdminUsers($('adminContent'))" style="display: inline-flex; align-items: center; gap: 6px;">
+          🔄 تحديث حالة الاتصال
+        </button>
+        <button type="button" class="btn btn-primary" onclick="exportStudentsReportCSV()" style="display: inline-flex; align-items: center; gap: 8px;">
+          ${ICONS.download} تصدير تقرير الطلاب (CSV / Excel)
+        </button>
+      </div>
     </div>
   `;
   
@@ -1689,23 +1759,29 @@ async function renderAdminUsers(container) {
   const frozenCount = users.filter(u => u.is_frozen || u.status === 'frozen' || String(u.role).startsWith('frozen')).length;
   const studentCount = users.filter(u => (u.role === 'student' || u.originalRole === 'student') && !u.is_frozen && u.status !== 'frozen').length;
   const staffCount = users.filter(u => ['admin', 'manager', 'vip'].includes(u.role)).length;
+  const onlineCount = users.filter(u => isUserCurrentlyOnline(u)).length;
 
   html += `
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
-      <div class="glass text-center" style="padding: 20px;">
-        <h3 style="margin-bottom: 8px; font-size: 0.95rem; color: var(--text-muted);">إجمالي المستخدمين</h3>
-        <div style="font-size: 2.2rem; font-weight: 800; color: var(--primary);">${totalCount}</div>
-        <div style="color: var(--text-muted); font-size: 0.85rem;">جميع الحسابات المسجلة</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(185px, 1fr)); gap:16px; margin-bottom:24px;">
+      <div class="glass text-center" style="padding: 18px;">
+        <h3 style="margin-bottom: 6px; font-size: 0.9rem; color: var(--text-muted);">إجمالي المستخدمين</h3>
+        <div style="font-size: 2rem; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums;">${totalCount}</div>
+        <div style="color: var(--text-muted); font-size: 0.82rem;">جميع الحسابات المسجلة</div>
       </div>
-      <div class="glass text-center" style="padding: 20px;">
-        <h3 style="margin-bottom: 8px; font-size: 0.95rem; color: var(--text-muted);">الطلاب النشطين</h3>
-        <div style="font-size: 2.2rem; font-weight: 800; color: #10b981;">${studentCount}</div>
-        <div style="color: var(--text-muted); font-size: 0.85rem;">حسابات الطلاب الفعالة</div>
+      <div class="glass text-center" style="padding: 18px; border: 1.5px solid rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.04);">
+        <h3 style="margin-bottom: 6px; font-size: 0.9rem; color: #059669;">المتصلون الآن (أونلاين)</h3>
+        <div style="font-size: 2rem; font-weight: 800; color: #059669; font-variant-numeric: tabular-nums;">${onlineCount}</div>
+        <div style="color: var(--text-muted); font-size: 0.82rem;">نشطون خلال آخر 3 دقائق</div>
       </div>
-      <div class="glass text-center" style="padding: 20px; border: 1.5px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.04);">
-        <h3 style="margin-bottom: 8px; font-size: 0.95rem; color: #d97706;">الحسابات المجمدة</h3>
-        <div style="font-size: 2.2rem; font-weight: 800; color: #f59e0b;">${frozenCount}</div>
-        <div style="color: var(--text-muted); font-size: 0.85rem;">منتهية الصلاحية / معطلة</div>
+      <div class="glass text-center" style="padding: 18px;">
+        <h3 style="margin-bottom: 6px; font-size: 0.9rem; color: var(--text-muted);">الطلاب النشطين</h3>
+        <div style="font-size: 2rem; font-weight: 800; color: #0284c7; font-variant-numeric: tabular-nums;">${studentCount}</div>
+        <div style="color: var(--text-muted); font-size: 0.82rem;">حسابات الطلاب الفعالة</div>
+      </div>
+      <div class="glass text-center" style="padding: 18px; border: 1.5px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.04);">
+        <h3 style="margin-bottom: 6px; font-size: 0.9rem; color: #d97706;">الحسابات المجمدة</h3>
+        <div style="font-size: 2rem; font-weight: 800; color: #f59e0b; font-variant-numeric: tabular-nums;">${frozenCount}</div>
+        <div style="color: var(--text-muted); font-size: 0.82rem;">منتهية الصلاحية / معطلة</div>
       </div>
     </div>
   `;
@@ -1738,12 +1814,13 @@ async function renderAdminUsers(container) {
     `;
   }
 
-  // Filter chips and search bar
+  // Filter buttons and search bar
   html += `
     <div class="glass" style="padding: 16px 20px; margin-bottom: 20px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px;">
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <span style="font-size:0.9rem; font-weight:700; color:var(--text-muted); margin-left:6px;">التصفية:</span>
         <button class="btn ${state.adminUserFilterType === 'all' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('all')">الكل (${totalCount})</button>
+        <button class="btn ${state.adminUserFilterType === 'online' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem; border-color:rgba(16,185,129,0.45); ${state.adminUserFilterType === 'online' ? 'background:#059669; border-color:#059669; color:#fff;' : 'color:#059669;'}" onclick="adminSetUserFilter('online')">● متصل الآن (${onlineCount})</button>
         <button class="btn ${state.adminUserFilterType === 'students' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('students')">الطلاب النشطين (${studentCount})</button>
         <button class="btn ${state.adminUserFilterType === 'frozen' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem; border-color:rgba(245,158,11,0.5); ${state.adminUserFilterType === 'frozen' ? 'background:#f59e0b; border-color:#f59e0b;' : 'color:#d97706;'}" onclick="adminSetUserFilter('frozen')">المجمدة (${frozenCount})</button>
         <button class="btn ${state.adminUserFilterType === 'staff' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('staff')">الإدارة (${staffCount})</button>
@@ -1773,11 +1850,20 @@ function adminBuildUserCardsHtml(users, isAdmin) {
     const effectiveRole = isFrozen ? (s.originalRole || String(s.role || '').replace(/^frozen:?/i, '') || 'student') : (s.role || 'student');
     const safeDisplayName = (s.name || s.username || '').replace(/'/g, "\\'");
 
+    const isOnline = isUserCurrentlyOnline(s);
+    const lastSeenText = formatRelativeLastSeenAr(s.last_seen_at);
+    const studyMins = Number(s.total_study_minutes) || 0;
+    const loginCount = Number(s.login_count) || 0;
+    const currentAct = s.current_activity || '';
+
     html += `
-      <div class="glass student-card flex justify-between items-center" style="margin-bottom:12px; padding:16px; ${isFrozen ? 'border: 1.5px dashed rgba(245, 158, 11, 0.7); background: rgba(245, 158, 11, 0.04);' : ''}">
+      <div class="glass student-card flex justify-between items-center" style="margin-bottom:12px; padding:16px; flex-wrap:wrap; gap:12px; ${isFrozen ? 'border: 1.5px dashed rgba(245, 158, 11, 0.7); background: rgba(245, 158, 11, 0.04);' : isOnline ? 'border: 1px solid rgba(16, 185, 129, 0.32);' : ''}">
         <div class="student-info flex items-center gap-4">
-          <div class="avatar" style="width:40px; height:40px; font-size:1.2rem; ${isFrozen ? 'opacity:0.8; filter:grayscale(30%);' : ''}">
-             ${s.avatar ? `<img src="${s.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : (s.name ? s.name.charAt(0).toUpperCase() : '؟')}
+          <div style="position:relative; flex-shrink:0;">
+            <div class="avatar" style="width:42px; height:42px; font-size:1.2rem; ${isFrozen ? 'opacity:0.8; filter:grayscale(30%);' : ''}">
+               ${s.avatar ? `<img src="${s.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : (s.name ? s.name.charAt(0).toUpperCase() : '؟')}
+            </div>
+            <span title="${isOnline ? 'متصل الآن' : 'غير متصل'}" style="position:absolute; bottom:-1px; left:-1px; width:12px; height:12px; border-radius:50%; background:${isOnline ? '#10b981' : '#94a3b8'}; border:2px solid #fff;"></span>
           </div>
           <div>
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -1786,14 +1872,28 @@ function adminBuildUserCardsHtml(users, isAdmin) {
                 <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 800; padding: 2px 8px; border-radius: 6px; font-size: 0.76rem;">
                   مجمد (انتهت الصلاحية)
                 </span>
-              ` : ''}
+              ` : isOnline ? `
+                <span style="background: rgba(16, 185, 129, 0.12); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 800; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;">
+                  ● متصل الآن ${currentAct ? `· ${currentAct}` : ''}
+                </span>
+              ` : `
+                <span style="background: rgba(100, 116, 139, 0.08); color: var(--text-muted); font-weight: 600; padding: 2px 8px; border-radius: 6px; font-size: 0.74rem; font-variant-numeric: tabular-nums;">
+                  آخر ظهور: ${lastSeenText}
+                </span>
+              `}
             </div>
-            <p style="margin:2px 0 0 0; font-size:0.85rem; color:var(--text-muted); direction:ltr; text-align:right;">@${s.username}</p>
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:4px; font-size:0.8rem; color:var(--text-muted); font-variant-numeric:tabular-nums;">
+              <span style="direction:ltr;">@${s.username}</span>
+              <span>·</span>
+              <span>⏱ الدراسة: <strong style="color:var(--text-primary);">${formatStudyTimeAr(studyMins)}</strong></span>
+              <span>·</span>
+              <span>🔑 الدخول: <strong style="color:var(--text-primary);">${loginCount}</strong></span>
+            </div>
           </div>
         </div>
         <div style="display:flex; align-items:center; gap: 8px; flex-wrap:wrap;">
           ${getRoleBadgeSVG(isFrozen ? 'frozen' : effectiveRole)}
-          ${effectiveRole === 'student' ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size:0.85rem;" onclick="viewStudentDetails('${s.username}')">عرض السجل</button>` : ''}
+          ${effectiveRole === 'student' ? `<button class="btn btn-primary" style="padding: 6px 12px; font-size:0.83rem;" onclick="viewStudentDetails('${s.username}')">📊 سجل النشاط والتفاصيل</button>` : ''}
           ${isAdmin ? `
             <button class="btn btn-secondary" style="padding: 6px 10px; font-size:0.82rem;" onclick="adminPromptResetPassword('${s.username}', '${safeDisplayName}')" title="تعديل كلمة المرور">
               كلمة المرور
@@ -1842,8 +1942,10 @@ function adminFilterUsersLive() {
   const filtered = allUsers.filter(u => {
     const isFrozen = !!u.is_frozen || u.status === 'frozen' || String(u.role || '').toLowerCase().startsWith('frozen');
     const effectiveRole = isFrozen ? (u.originalRole || String(u.role || '').replace(/^frozen:?/i, '') || 'student') : (u.role || 'student');
+    const isOnline = isUserCurrentlyOnline(u);
 
     // Filter by type
+    if (filterType === 'online' && !isOnline) return false;
     if (filterType === 'students' && (effectiveRole !== 'student' || isFrozen)) return false;
     if (filterType === 'frozen' && !isFrozen) return false;
     if (filterType === 'staff' && !['admin', 'manager', 'vip'].includes(effectiveRole)) return false;
@@ -2163,8 +2265,8 @@ async function viewStudentDetails(username) {
   hideLoading();
 
   // Find student in local users/students list for proper full name
-  const studentUser = (state.students || []).find(s => String(s.username || '').toLowerCase() === String(username).toLowerCase());
-  const displayName = studentUser?.full_name || studentUser?.name || details?.username || username;
+  const studentUser = (state.cachedAdminUsers || state.students || []).find(s => String(s.username || '').toLowerCase() === String(username).toLowerCase()) || details?.userProfile || {};
+  const displayName = studentUser?.full_name || studentUser?.name || details?.userProfile?.full_name || details?.userProfile?.name || details?.username || username;
 
   // Build lookups
   const matTitleById = {};
@@ -2203,10 +2305,18 @@ async function viewStudentDetails(username) {
     allLessonsList.push(info);
   });
 
-  const completedLessonIds = Array.isArray(details?.progress?.completed_lessons) ? details.progress.completed_lessons : [];
-  const completedMaterialIds = Array.isArray(details?.progress?.completed_materials) ? details.progress.completed_materials : [];
-  const completedLessonDetails = Array.isArray(details?.progress?.completed_lesson_details) ? details.progress.completed_lesson_details : [];
+  const progObj = details?.progress || {};
+  const completedLessonIds = Array.isArray(progObj.completed_lessons) ? progObj.completed_lessons : [];
+  const completedMaterialIds = Array.isArray(progObj.completed_materials) ? progObj.completed_materials : [];
+  const completedLessonDetails = Array.isArray(progObj.completed_lesson_details) ? progObj.completed_lesson_details : [];
+  const activityLog = Array.isArray(progObj.activity_log) ? progObj.activity_log : [];
   const attempts = Array.isArray(details?.attempts) ? details.attempts : [];
+
+  const totalStudyMinutes = Math.max(Number(progObj.total_study_minutes) || 0, Number(studentUser.total_study_minutes) || 0);
+  const loginCount = Math.max(Number(progObj.login_count) || 0, Number(studentUser.login_count) || 0);
+  const lastSeenIso = progObj.last_seen_at || studentUser.last_seen_at || progObj.updated_at || '';
+  const currentActivity = progObj.current_activity || studentUser.current_activity || '';
+  const isOnline = isUserCurrentlyOnline({ ...studentUser, ...progObj });
 
   // Calculate Average Quiz Score
   const gradedAttempts = attempts.filter(a => a.is_graded && Number(a.max_score) > 0);
@@ -2222,45 +2332,120 @@ async function viewStudentDetails(username) {
     return 'var(--danger)';
   }
 
+  function getActivityTypeMeta(type) {
+    const map = {
+      login: { label: 'تسجيل دخول', bg: 'rgba(16, 185, 129, 0.12)', color: '#059669', icon: '🔑' },
+      lesson: { label: 'فتح درس', bg: 'rgba(2, 132, 199, 0.12)', color: '#0284c7', icon: '📘' },
+      material: { label: 'استعراض محتوى', bg: 'rgba(99, 102, 241, 0.12)', color: '#4f46e5', icon: '📄' },
+      interactive: { label: 'تفاعل مع الدرس', bg: 'rgba(14, 165, 233, 0.14)', color: '#0369a1', icon: '⚡' },
+      quiz_start: { label: 'بدء اختبار', bg: 'rgba(245, 158, 11, 0.14)', color: '#d97706', icon: '📝' },
+      quiz_submit: { label: 'تسليم اختبار', bg: 'rgba(139, 92, 246, 0.14)', color: '#7c3aed', icon: '🏆' },
+      complete: { label: 'إتمام عنصر', bg: 'rgba(16, 185, 129, 0.15)', color: '#047857', icon: '✅' }
+    };
+    return map[type] || { label: 'نشاط', bg: 'rgba(100, 116, 139, 0.12)', color: '#475569', icon: '📌' };
+  }
+
+  const existingModal = document.getElementById('studentDetailsModalOverlay');
+  if (existingModal) existingModal.remove();
+
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
+  modal.id = 'studentDetailsModalOverlay';
   modal.innerHTML = `
-    <div class="glass modal-content" style="max-width: 640px; max-height: 90vh; overflow-y: auto;">
-      <div class="flex justify-between items-center" style="margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
+    <div class="glass modal-content" style="max-width: 720px; max-height: 90vh; overflow-y: auto;">
+      <div class="flex justify-between items-center" style="margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 14px; flex-wrap: wrap; gap: 10px;">
         <div>
-          <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">${displayName}</h2>
-          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 8px;">
-            <span>@${details.username}</span>
-            <span>•</span>
-            <span style="color: var(--success); font-weight: 600;">طالب مسجل</span>
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <h2 style="margin: 0; font-family: 'Space Grotesk', 'Tajawal', sans-serif;">${displayName}</h2>
+            ${isOnline ? `
+              <span style="background: rgba(16, 185, 129, 0.14); color: #059669; border: 1px solid rgba(16, 185, 129, 0.35); padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 800;">
+                ● متصل الآن
+              </span>
+            ` : `
+              <span style="background: rgba(100, 116, 139, 0.1); color: var(--text-muted); padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 700;">
+                غير متصل · آخر ظهور: ${formatRelativeLastSeenAr(lastSeenIso)}
+              </span>
+            `}
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums;">
+            <span style="direction: ltr;">@${details.username}</span>
+            ${lastSeenIso ? `<span>•</span><span>آخر تواجد: ${formatDate(lastSeenIso)}</span>` : ''}
+            ${currentActivity ? `<span>•</span><span style="color: var(--primary); font-weight: 700;">النشاط الأخير: ${currentActivity}</span>` : ''}
           </div>
         </div>
-        <button class="btn btn-secondary" style="padding: 8px 12px;" onclick="this.closest('.modal-overlay').remove()">${ICONS.close}</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.82rem;" onclick="viewStudentDetails('${details.username}')">🔄 تحديث</button>
+          <button class="btn btn-secondary" style="padding: 8px 12px;" onclick="this.closest('.modal-overlay').remove()">${ICONS.close}</button>
+        </div>
       </div>
 
-      <!-- Stats Grid -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px;">
-        <div class="glass" style="padding: 14px; text-align: center; border-radius: 12px; background: rgba(99,102,241,0.04); border: 1px solid rgba(99,102,241,0.15);">
-          <div style="font-size: 1.8rem; font-weight: 800; color: var(--primary);">${completedLessonIds.length}</div>
-          <div style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">دروس مكتملة</div>
+      <!-- 6-Card Telemetry & Progress Grid -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; margin-bottom: 24px;">
+        <div class="glass" style="padding: 13px; text-align: center; border-radius: 12px; background: rgba(2,132,199,0.05); border: 1px solid rgba(2,132,199,0.18);">
+          <div style="font-size: 1.35rem; font-weight: 800; color: #0284c7; font-variant-numeric: tabular-nums;">${formatStudyTimeAr(totalStudyMinutes)}</div>
+          <div style="color: var(--text-muted); font-size: 0.78rem; font-weight: 600; margin-top: 2px;">إجمالي وقت الدراسة</div>
         </div>
-        <div class="glass" style="padding: 14px; text-align: center; border-radius: 12px; background: rgba(236,72,153,0.04); border: 1px solid rgba(236,72,153,0.15);">
-          <div style="font-size: 1.8rem; font-weight: 800; color: var(--secondary);">${completedMaterialIds.length}</div>
-          <div style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">محتويات مكتملة</div>
+        <div class="glass" style="padding: 13px; text-align: center; border-radius: 12px; background: rgba(16,185,129,0.05); border: 1px solid rgba(16,185,129,0.18);">
+          <div style="font-size: 1.55rem; font-weight: 800; color: #059669; font-variant-numeric: tabular-nums;">${loginCount}</div>
+          <div style="color: var(--text-muted); font-size: 0.78rem; font-weight: 600;">مرات تسجيل الدخول</div>
         </div>
-        <div class="glass" style="padding: 14px; text-align: center; border-radius: 12px; background: rgba(16,185,129,0.04); border: 1px solid rgba(16,185,129,0.15);">
-          <div style="font-size: 1.8rem; font-weight: 800; color: var(--success);">${attempts.length}</div>
-          <div style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">اختبارات مُجابة</div>
+        <div class="glass" style="padding: 13px; text-align: center; border-radius: 12px; background: rgba(99,102,241,0.04); border: 1px solid rgba(99,102,241,0.15);">
+          <div style="font-size: 1.55rem; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums;">${completedLessonIds.length}</div>
+          <div style="color: var(--text-muted); font-size: 0.78rem; font-weight: 600;">دروس مكتملة</div>
         </div>
-        <div class="glass" style="padding: 14px; text-align: center; border-radius: 12px; background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.15);">
-          <div style="font-size: 1.8rem; font-weight: 800; color: #d97706;">${avgScore !== null ? `${avgScore}%` : '—'}</div>
-          <div style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">متوسط الدرجات</div>
+        <div class="glass" style="padding: 13px; text-align: center; border-radius: 12px; background: rgba(236,72,153,0.04); border: 1px solid rgba(236,72,153,0.15);">
+          <div style="font-size: 1.55rem; font-weight: 800; color: var(--secondary); font-variant-numeric: tabular-nums;">${completedMaterialIds.length}</div>
+          <div style="color: var(--text-muted); font-size: 0.78rem; font-weight: 600;">محتويات مكتملة</div>
         </div>
+        <div class="glass" style="padding: 13px; text-align: center; border-radius: 12px; background: rgba(139,92,246,0.05); border: 1px solid rgba(139,92,246,0.18);">
+          <div style="font-size: 1.55rem; font-weight: 800; color: #7c3aed; font-variant-numeric: tabular-nums;">${attempts.length}</div>
+          <div style="color: var(--text-muted); font-size: 0.78rem; font-weight: 600;">اختبارات مُجابة</div>
+        </div>
+        <div class="glass" style="padding: 13px; text-align: center; border-radius: 12px; background: rgba(245,158,11,0.05); border: 1px solid rgba(245,158,11,0.18);">
+          <div style="font-size: 1.55rem; font-weight: 800; color: #d97706; font-variant-numeric: tabular-nums;">${avgScore !== null ? `${avgScore}%` : '—'}</div>
+          <div style="color: var(--text-muted); font-size: 0.78rem; font-weight: 600;">متوسط الدرجات</div>
+        </div>
+      </div>
+
+      <!-- Section: Detailed Chronological Activity Timeline -->
+      <div style="margin-bottom: 24px;">
+        <h3 style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; font-size: 1rem;">
+          <span style="display: flex; align-items: center; gap: 8px;">⚡ سجل النشاط الزمني التفصيلي (${activityLog.length})</span>
+          <span style="font-size: 0.76rem; color: var(--text-muted); font-weight: 500;">آخر تحركات الطالب على المنصة</span>
+        </h3>
+        ${activityLog.length === 0
+          ? '<div style="padding: 16px; background: rgba(0,0,0,0.02); border-radius: 10px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">سيظهر هنا السجل الزمني التفصيلي لدخول الطالب، فتح الدروس، والتفاعل مع الأنشطة والاختبارات فور استخدامه للمنصة.</div>'
+          : `
+            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; padding-left: 4px;">
+              ${activityLog.map(ev => {
+                const meta = getActivityTypeMeta(ev.type);
+                return `
+                  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(0,0,0,0.018); border: 1px solid var(--border); border-radius: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
+                      <span style="width: 32px; height: 32px; border-radius: 8px; background: ${meta.bg}; color: ${meta.color}; display: inline-flex; align-items: center; justify-content: center; font-size: 0.95rem; flex-shrink: 0;">
+                        ${meta.icon}
+                      </span>
+                      <div style="min-width: 0; flex: 1;">
+                        <div style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary);">${ev.title || meta.label}</div>
+                        ${ev.detail ? `<div style="font-size: 0.78rem; color: var(--text-muted);">${ev.detail}</div>` : ''}
+                      </div>
+                    </div>
+                    <div style="text-align: left; flex-shrink: 0; font-variant-numeric: tabular-nums;">
+                      <span style="display: inline-block; padding: 2px 7px; border-radius: 5px; background: ${meta.bg}; color: ${meta.color}; font-size: 0.72rem; font-weight: 700; margin-bottom: 2px;">
+                        ${meta.label}
+                      </span>
+                      <div style="font-size: 0.74rem; color: var(--text-muted);">${ev.timestamp ? formatDate(ev.timestamp) : ''}</div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
       </div>
 
       <!-- Section: Completed Lessons Log -->
       <div style="margin-bottom: 24px;">
-        <h3 style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+        <h3 style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; font-size: 1rem;">
           <span style="display: flex; align-items: center; gap: 8px;">${ICONS.document} سجل إتمام الدروس (${completedLessonIds.length})</span>
         </h3>
         ${completedLessonIds.length === 0
@@ -2292,7 +2477,7 @@ async function viewStudentDetails(username) {
 
       <!-- Section: Completed Materials -->
       <div style="margin-bottom: 24px;">
-        <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+        <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 1rem;">
           <span>${ICONS.file} المحتويات المشاهدة (${completedMaterialIds.length})</span>
         </h3>
         ${completedMaterialIds.length === 0
@@ -2313,7 +2498,7 @@ async function viewStudentDetails(username) {
 
       <!-- Section: Quizzes History -->
       <div>
-        <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+        <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 1rem;">
           <span>${ICONS.quiz} سجل الاختبارات (${attempts.length})</span>
         </h3>
         ${attempts.length === 0
@@ -2326,9 +2511,9 @@ async function viewStudentDetails(username) {
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(0,0,0,0.02); border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border);">
                   <div>
                     <div style="font-weight: 700; margin-bottom: 2px;">${title}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${formatDate(att.attempt_date)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); font-variant-numeric: tabular-nums;">${formatDate(att.attempt_date)}</div>
                   </div>
-                  <div style="text-align: center;">
+                  <div style="text-align: center; font-variant-numeric: tabular-nums;">
                     <div style="font-size: 1.2rem; font-weight: 800; color: ${color};">
                       ${att.is_graded ? `${att.score}/${att.max_score}` : 'معلق'}
                     </div>

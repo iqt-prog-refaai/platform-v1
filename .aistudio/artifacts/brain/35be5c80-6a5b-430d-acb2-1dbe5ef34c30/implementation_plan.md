@@ -1,132 +1,134 @@
-# نظام الإشعارات التفاعلي للطالب وإشعارات المحتوى والإعلانات
+# Student Activity Analytics & Interactive Lesson Content Protection
 
-إضافة مركز إشعارات متكامل في الشريط العلوي للطالب يتيح استقبال تنبيهات فورية عند إضافة دروس أو محتويات أو اختبارات جديدة والانتقال المباشر إليها بضغطة واحدة، مع دعم إرسال الإعلانات العامة إلى جرس الإشعارات وخيار تثبيتها أعلى الصفحة، وحفظ تفضيل الأدمن لإرسال الإشعارات تلقائياً.
+Deliver real-time student presence tracking (online/offline status, last seen timestamps, total active study time, login counts, and chronological activity logs) alongside multi-layer content protection for interactive web lessons (Firestore HTML rendering, standalone session auth gates, and dynamic student watermarking with copy deterrence).
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> تم بناء هذه الخطة بناءً على اختياراتك المؤكدة، ويرجى مراجعتها والموافقة عليها للبدء في التنفيذ الفوري:
+> Below is the summary of your confirmed preferences from our discussion, plus the recommended default for lesson link protection. Click **Proceed** to build this directly, or let me know if you want any adjustments.
 
-- **نطاق خيار إرسال الإشعار (مؤكد):** يظهر خيار **"إرسال إشعار للطلاب"** عند إضافة **محتوى جديد** (ملف، فيديو، شرائح، رابط، اختبار)، أو **درس جديد**، أو **اختبار سريع**، مع حفظ آخر اختيار للأدمن تلقائياً.
-- **طريقة عرض الإعلانات العامة (مؤكد):** تُرسل الإعلانات العامة مباشرة إلى **جرس الإشعارات** لجميع الطلاب، مع توفير خيار إضافي للأدمن لتثبيت الإعلان أيضاً كشريط تنبيه بارز أعلى لوحة الطالب.
-- **التعامل مع المحتوى المخفي (افتراضي مقترح):** إذا قام الأدمن بتفعيل خيار "إخفاء عن الطلاب مؤقتاً" أثناء إضافة درس أو محتوى جديد، يتم تعطيل إرسال الإشعار تلقائياً حتى لا يصل للطالب تنبيه بمحتوى غير متاح له بعد.
+- **Confirmed Decision 1 — Student Activity & Usage Metrics**: Track live Online/Offline status and "Last Seen" timestamps, total active study time (in minutes) and login counts, and a detailed chronological timeline of opened lessons, materials, and quiz submissions in the Admin Dashboard.
+- **Confirmed Decision 2 — Dynamic Student Watermark & Copy Guard**: Overlay a subtle, non-intrusive repeating watermark displaying the logged-in student's name and username (`Name · @username`) inside interactive lessons, paired with copy/context-menu/source-inspection deterrence.
+- **Recommended Default — Dual-Layer Interactive Lesson Protection**: Combine **Firestore HTML Storage (`srcdoc` / Blob rendering)** inside the platform viewer (so there is no public shareable URL inside the iframe) with a **Session & Firestore Auth Gate** inside the standalone `lesson-3-2.html` file (so if anyone opens or shares the direct link outside an authenticated platform session, content is immediately blocked and redirected to the platform login screen).
 
 ---
 
 ### 1. Overview & Core Concept
 
-- **What It Does:** يوفر جرس إشعارات تفاعلياً في شريط التنقل العلوي للطالب يعرض عدد الإشعارات غير المقروءة وقائمة منسدلة منظمة تنقل الطالب مباشرة إلى الدرس أو الملف أو الاختبار المضاف فور النقر عليه، بالإضافة إلى أداة تحكم مرنة للأدمن لاختيار إرسال إشعار من عدمه عند رفع أي محتوى جديد مع تذكر آخر اختيار.
-- **Target Audience / Persona:**
-  - **الطالب:** يحتاج إلى معرفة ما تم رفعه حديثاً من دروس وملفات واختبارات والوصول إليها فوراً دون البحث اليدوي داخل الوحدات.
-  - **الأدمن (المعلم):** يحتاج إلى إعلام الطلاب بالمحتوى الجديد أو الإعلانات العامة بسرعة، مع إمكانية إيقاف الإشعارات أثناء رفع دفعات كبيرة من التعديلات دون إعادة ضبط الخيار في كل نافذة.
-- **Key Value:** تسريع وصول الطالب للمحتوى الجديد ورفع التفاعل مع الدروس والاختبارات مع توفير تحكم كامل وسلس للأدمن.
+- **What It Does**:
+  1. **Live Presence & Activity Telemetry**: Automatically records student logins, periodic presence heartbeats while the platform tab or interactive lesson is active, accumulated study duration, and granular learning events (opening a lesson, viewing a material, starting/submitting a quiz).
+  2. **Admin Activity Console & Student Drawer**: Upgrades the Admin Users & Overview panels with live Online/Offline indicators, an "Online Now" filter, a comprehensive Student Activity Modal (study time, login count, last seen, and chronological event log), and enriched CSV export columns.
+  3. **Interactive Lesson Content Protection**: Protects interactive HTML lessons against unauthorized link sharing and external scraping through embedded session verification, in-memory `srcdoc` rendering, dynamic student identity watermarks, and keyboard/context-menu copy guards.
+- **Target Audience / Persona**: Platform administrators monitoring student engagement and protecting proprietary curriculum assets, and registered students accessing interactive lessons seamlessly within their accounts.
+- **Key Value**: Gives instructors full visibility into how every student engages with the curriculum while ensuring interactive web lessons cannot be accessed via leaked direct URLs outside the platform.
 
 ---
 
 ### 2. User Experience & Visual Design
 
-- **Key User Flows:**
-  1. **تجربة الطالب (جرس الإشعارات والانتقال المباشر):**
-     - يرى الطالب أيقونة الجرس في الشريط العلوي وبجانبها عداد رقمي (`tabular-nums`) يوضح عدد الإشعارات غير المقروءة.
-     - عند الضغط على الجرس، تفتح قائمة منسدلة تعرض الإشعارات مرتبة من الأحدث للأقدم، مع تمييز غير المقروء منها وزر **"تحديد الكل كمقروء"**.
-     - عند النقر على إشعار خاص بـ **محتوى أو اختبار**: يتم تعليم الإشعار كمقروء، وتُغلق القائمة، ويفتح المحتوى أو صفحة الاختبار مباشرة.
-     - عند النقر على إشعار خاص بـ **درس جديد**: ينتقل الطالب مباشرة إلى لوحة الدراسة مع فتح الوحدة والدرس المعنيين وتمرير الشاشة إليهما.
-     - عند النقر على إشعار **إعلان عام**: يتم تعليمه كمقروء، وإذا كان مرفقاً برابط يتم فتحه أو عرض نص الإعلان كاملاً.
-  2. **تجربة الأدمن عند إضافة محتوى / درس / اختبار:**
-     - في نوافذ إضافة درس جديد، إضافة محتوى جديد، والإنشاء السريع للاختبار، يظهر خيار **"إرسال إشعار للطلاب عند الحفظ"**.
-     - يسترجع النظام تلقائياً آخر حالة اختارها الأدمن (مفعل أو غير مفعل) ويحفظ أي تغيير جديد فوراً للمرات القادمة.
-  3. **تجربة الأدمن عند نشر إعلان عام:**
-     - في قسم الإعلانات بلوحة الأدمن، يكتب الأدمن نص الإعلان ونوعه ورابطه الاختياري، ويحدد ما إذا كان يريد **"إرسال لجرس الإشعارات"** مع خيار **"تثبيت كشريط علوي في لوحة الطالب"**، كما يمكنه استعراض سجل الإشعارات المرسلة وحذف أي إشعار قديم.
+- **Key User Flows**:
+  1. **Automatic Student Heartbeat & Study Timer**:
+     - When a student logs in, the platform increments their `login_count`, logs a `login` event, and starts an active study session timer.
+     - Every 60 seconds (only while `document.visibilityState === 'visible'`), a lightweight heartbeat updates `last_seen_at`, `current_activity` (e.g., viewing a specific lesson or taking a quiz), and increments `total_study_minutes`.
+     - Opening any lesson, material, or quiz records a structured entry in the student's activity timeline.
+  2. **Admin Live Presence & Activity Inspection**:
+     - In the Admin Users view, summary KPI cards display **Online Now** alongside Total Users, Active Students, and Frozen Accounts.
+     - Each student row displays a clear status indicator (`● Online` in emerald when active within the last 3 minutes, or `Last seen: [time ago]` in muted tabular text) plus quick metrics (`Study Time`, `Logins`).
+     - Admins can filter the user list by **Online Now** (`متصل الآن`) to see active learners immediately.
+     - Clicking **"عرض السجل" (View Record)** opens the enhanced Student Analytics Modal showing:
+       - Top KPI strip: **Online/Last Seen Status**, **Total Study Time (mins/hrs)**, **Total Logins**, **Completed Lessons**, and **Average Quiz Score**.
+       - **Chronological Activity Timeline**: Filterable stream of the student's recent actions (logins, lessons opened, interactive lessons studied, quizzes submitted with scores) with exact timestamps.
+  3. **Protected Interactive Lesson Viewing**:
+     - When a student opens an interactive lesson inside the platform, the platform injects their identity (`name`, `username`, and a short-lived session signature) and renders the lesson with a subtle diagonal watermark grid and copy guard.
+     - If an unauthenticated visitor opens the direct `.html` URL in a browser tab without an active, non-frozen student/admin session in `localStorage` (verified against Firestore), the page blocks rendering immediately and displays an access-restricted screen with a button to log in on the main platform.
 
-- **Visual Identity & Theme:**
-  - *Aesthetic Direction:* تصميم متناغم مع الهوية الزجاجية العصرية للمنصة (`Glassmorphism`) مع تباين واضح وسهولة قراءة باللغة العربية (`RTL`).
-  - *Color Palette & Mood:* استخدام ألوان المنصة الأساسية (`--primary: #0284c7`, `--secondary: #4f46e5`) لتمييز الإشعارات غير المقروءة، واللون الأحمر الدلالي (`--danger: #ef4444`) لشارة عداد الإشعارات الجديدة، مع أسطح نظيفة أحادية الارتفاع وخطوط فاصلة دقيقة (`1px solid var(--border)`).
-  - *Typography & Hierarchy:* استخدام خط `Tajawal` للنصوص العربية مع `Outfit` و `tabular-nums` للأرقام والتواريخ والعدادات لضمان ثبات المحاذاة البصرية، وعرض البيانات الوصفية (مثل اسم الوحدة والوقت المنقضي) كنص هادئ مفصول بعلامة `·` دون صناديق مزدحمة.
-  - *Component Styling & Layout:* قائمة منسدلة بعرض متجاوب (`360px` على سطح المكتب وعرض كامل متكيف على الهواتف) مع أقصى ارتفاع قابل للتمرير السلس، وتجنب تداخل البطاقات أو الحواف الجانبية السميكة.
-
-- **Interactive Feedback & Motion:**
-  - استجابة فورية ($\le 150\text{ms}$) عند فتح قائمة الإشعارات أو تحديدها كمقروءة باستخدام انتقالات `opacity` و `transform`، مع حالات واضحة عند عدم وجود إشعارات (Empty State).
+- **Visual Identity & Theme**:
+  - *Aesthetic Direction*: High-craft dark/light adaptive EdTech dashboard following the SaaS & Education design constitution—clean hairline borders (`1px solid var(--border)`), single-elevation surfaces, and zero nested card clutter.
+  - *Color Palette & Mood*:
+    - Dominant neutral canvas (`#0f172a` dark / `#f8fafc` light) with subdued structural glass surfaces.
+    - Semantic status tokens paired with explicit text labels: Emerald (`#10b981`) for `متصل الآن (Online)`, Amber (`#f59e0b`) for frozen/warning states, and Indigo (`#6366f1`) for primary actions and study time metrics.
+  - *Typography & Hierarchy*:
+    - `Tajawal` and `Space Grotesk` for Arabic/English headings and UI controls.
+    - `IBM Plex Mono` / `tabular-nums` for all numeric counters, study durations, login counts, percentages, and timestamps so columns align cleanly without layout jitter.
+  - *Interactive Feedback & Motion*: Instantaneous filter switching ($\le 150\text{ms}$) and smooth modal transitions using compositor-only `opacity` and `transform` properties.
 
 ---
 
 ### 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: حفظ تفضيل الأدمن لإرسال الإشعارات**
-  - *Chosen Approach:* تخزين آخر اختيار للأدمن محلياً واسترجاعه تلقائياً في جميع نوافذ الإضافة (درس، محتوى، اختبار سريع)، مع تعطيل الإرسال تلقائياً إذا كان العنصر المضاف مخفياً عن الطلاب.
-  - *Why:* يوفر وقت الأدمن عند إضافة عدة ملفات متتالية (سواء أراد إشعار الطلاب بكل ملف أو إيقاف الإشعارات أثناء هيكلة المنهج)، ويمنع وصول تنبيهات لعناصر مخفية.
-  - *Alternatives Considered:* تفعيل الخيار دائماً بشكل افتراضي دون حفظ (مزعج عند رفع تعديلات كثيرة).
+- **Decision 1: Visibility-Aware 60-Second Heartbeat over Continuous WebSockets**
+  - *Chosen Approach*: Send presence heartbeats to Firestore every 60 seconds only when the browser tab is visible (`document.visibilityState === 'visible'`), plus immediate updates on login, navigation, and logout.
+  - *Why*: Works identically on static GitHub Pages and AI Studio without requiring a persistent WebSocket server, prevents inflating study time when a student leaves a tab minimized overnight, and keeps Firestore write operations well within free-tier quotas.
+  - *Alternatives Considered*: High-frequency 5-second polling was rejected because it would rapidly exhaust Firestore daily free quota limits.
 
-- **Decision 2: تتبع حالة قراءة الإشعارات لكل طالب**
-  - *Chosen Approach:* تخزين الإشعارات العامة في مجموعة `notifications` في قاعدة البيانات، وحفظ معرفات الإشعارات المقروءة لكل طالب في حسابه ومزامنتها محلياً.
-  - *Why:* يضمن عدم تكرار نسخ الإشعار الواحد لكل طالب في قاعدة البيانات مع الحفاظ على دقة عداد الإشعارات غير المقروءة لكل طالب بشكل مستقل.
-  - *Alternatives Considered:* إنشاء وثيقة إشعار منفصلة لكل طالب عند كل إضافة (يستهلك عمليات كتابة كبيرة في قاعدة البيانات).
+- **Decision 2: Dual-Layer Content Protection (In-App `srcdoc`/Firestore + Standalone HTML Auth Gate)**
+  - *Chosen Approach*: Store the interactive lesson HTML payload inside Firestore (or fetch and inject via `srcdoc` with session context) when viewed inside the platform, AND embed a synchronous pre-render Auth Gate script inside the standalone `lesson-3-2.html` file.
+  - *Why*: `srcdoc` hides the file path inside the platform's embedded viewer, while the standalone HTML Auth Gate guarantees that even if someone guesses or shares the GitHub Pages URL (`.../lessons/lesson-3-2.html`), the page refuses to render unless the browser has a valid, non-frozen platform session.
+  - *Alternatives Considered*: Server-only HTTP cookie middleware was not used as the sole guard because GitHub Pages serves static files directly without executing Express middleware.
+
+- **Decision 3: Bounded Activity Log Array on `student_progress` + Dedicated Summary Fields**
+  - *Chosen Approach*: Store aggregated counters (`last_seen_at`, `login_count`, `total_study_minutes`, `current_activity`, `is_online_flag`) directly on the user/progress document and maintain a bounded list of the latest 100 chronological activity events (`activity_log`) per student.
+  - *Why*: Allows the Admin Users list and Student Details modal to load all presence and analytics data in a single fast Firestore read (`<60ms`) without expensive N+1 subcollection queries.
 
 ---
 
 ### 4. Technical Architecture & Data Strategy *(Technical Reference)*
 
-- **Architecture & Component Diagram:**
+- **Architecture & Component Diagram**:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        واجهة الأدمن (Admin Flow)                        │
-│                                                                         │
-│  ┌──────────────────────────┐         ┌──────────────────────────────┐  │
-│  │ نوافذ إضافة درس / محتوى  │         │  لوحة نشر الإعلانات والتنبيهات │  │
-│  │ + خيار إرسال إشعار       │         │  (إرسال للجرس + خيار التثبيت) │  │
-│  │ (يحفظ آخر اختيار تلقائياً) │         └──────────────┬───────────────┘  │
-│  └────────────┬─────────────┘                        │                  │
-└───────────────┼──────────────────────────────────────┼──────────────────┘
-                │                                      │
-                ▼                                      ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                طبقة البيانات وقاعدة البيانات (Firestore)                 │
-│                                                                         │
-│   [ notifications ]                 [ announcements ]                   │
-│   - notification_id                 - announcement_id ('active_banner') │
-│   - title, message, type            - message, type, is_active          │
-│   - target_type ('material'|        - link_url, link_text               │
-│     'lesson'|'quiz'|'announcement')                                     │
-│   - target_id, unit_id, lesson_id                                       │
-│   - created_at                                                          │
-└───────────────┬──────────────────────────────────────┬──────────────────┘
-                │                                      │
-                ▼                                      ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        واجهة الطالب (Student Flow)                      │
-│                                                                         │
-│  ┌────────────────────────────────────┐   ┌──────────────────────────┐  │
-│  │ جرس الإشعارات في الشريط العلوي     │   │ شريط الإعلان المثبت أعلى │  │
-│  │ - عداد غير المقروء (Badge)         │   │ لوحة الطالب (إن تم تثبيته)│  │
-│  │ - قائمة منسدلة + تحديد الكل كمقروء │   └──────────────────────────┘  │
-│  └────────────┬───────────────────────┘                                 │
-│               │ عند الضغط على الإشعار                                    │
-│               ▼                                                         │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │ الموجه الذكي (Deep Navigation Handler)                             │ │
-│  │ - محتوى / اختبار ──► فتح عارض المحتوى أو صفحة الاختبار مباشرة       │ │
-│  │ - درس جديد      ──► فتح الوحدة وتحديد الدرس والتمرير إليه           │ │
-│  │ - إعلان عام     ──► فتح الرابط المرفق أو عرض تفاصيل الإعلان         │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                        STUDENT BROWSER SESSION                             │
+│                                                                            │
+│  ┌──────────────────────┐   ┌───────────────────────┐   ┌───────────────┐  │
+│  │ Presence & Study     │   │ Activity Event Logger │   │ Interactive   │  │
+│  │ Heartbeat Engine     │   │ (Login / Lesson /     │   │ Lesson Viewer │  │
+│  │ (60s Visible Tab)    │   │  Material / Quiz)     │   │ (srcdoc +     │  │
+│  └──────────┬───────────┘   └───────────┬───────────┘   │  Watermark +  │  │
+│             │                           │               │  Auth Gate)   │  │
+└─────────────┼───────────────────────────┼───────────────┴───────┬───────┘  │
+              │                           │                       │
+              ▼                           ▼                       ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                     FIREBASE FIRESTORE DATA LAYER                          │
+│                                                                            │
+│  • users/{username}             -> last_seen_at, login_count, study_mins   │
+│  • student_progress/{username}  -> activity_log[], current_activity,       │
+│                                    completed_lessons, total_study_minutes  │
+│  • materials/{materialId}       -> content (path) + html_content (guarded) │
+└─────────────────────────────────────────┬──────────────────────────────────┘
+                                          │
+                                          ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         ADMIN ANALYTICS CONSOLE                            │
+│                                                                            │
+│  ┌──────────────────────┐   ┌───────────────────────┐   ┌───────────────┐  │
+│  │ Live Presence KPIs   │   │ Student Activity &    │   │ Enriched CSV  │  │
+│  │ & "Online Now"       │   │ Timeline Modal        │   │ Report Export │  │
+│  │ User List Filter     │   │ (Study Time + Events) │   │               │  │
+│  └──────────────────────┘   └───────────────────────┘   └───────────────┘  │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Data Model & State:**
-  - **كيان `Notification` (مجموعة `notifications`):**
-    - `notification_id`: معرف فريد للإشعار.
-    - `title`: عنوان الإشعار (مثال: `"درس جديد"`, `"محتوى جديد"`, `"اختبار جديد"`, `"إعلان هام"`).
-    - `message`: النص التفصيلي للإشعار (يشمل اسم الدرس أو المحتوى والوحدة التابع لها).
-    - `type`: تصنيف الإشعار (`lesson`, `pdf`, `video`, `slides`, `link`, `quiz`, `announcement`).
-    - `target_type`: نوع الوجهة عند النقر (`lesson`, `material`, `announcement`).
-    - `target_id`: معرف الدرس أو المحتوى للانتقال المباشر إليه.
-    - `unit_id` & `lesson_id`: معرفات الوحدة والدرس لفتح المسار الصحيح عند ضغط الطالب.
-    - `link_url`: رابط خارجي اختياري (للإعلانات العامة).
-    - `created_at`: الطابع الزمني للإنشاء للترتيب التنازلي.
-  - **حالة القراءة وتفضيل الأدمن:**
-    - حفظ تفضيل الأدمن (`adminNotifyPref`: `true`/`false`) بحيث يُقرأ تلقائياً عند فتح أي نافذة إضافة ويُحدَّث فور تغيير مربع الاختيار.
-    - تتبع قائمة `readNotificationIds` للطالب لتحديث الشارة الرقمية وحالة القراءة فوراً.
+- **Data Model & State**:
+  - **User / Student Presence Fields (`users` & `student_progress` documents)**:
+    - `last_seen_at`: ISO timestamp updated on login, navigation, and every 60-second active heartbeat.
+    - `is_online`: Boolean flag set `true` on active heartbeat and `false` on explicit logout / `pagehide`. (Online status is computed dynamically as `is_online !== false && (Date.now() - Date.parse(last_seen_at)) < 180000`).
+    - `login_count`: Integer counter incremented each time `handleLogin` succeeds.
+    - `total_study_minutes`: Integer counter incremented by 1 for each active 60-second study heartbeat while viewing platform content or an interactive lesson.
+    - `current_activity`: Short descriptive string of what the student is currently doing (e.g., `"يدرس: الدرس 3-2"`, `"يؤدي اختبار: مراجعة الوحدة"`).
+    - `activity_log`: Bounded array (up to 100 latest entries) of `{ type: 'login' | 'lesson' | 'material' | 'quiz', title: string, detail: string, timestamp: string }`.
 
-- **Interactive Component & State Mapping:**
-  - **تبديل خيار الإشعار في نوافذ الإضافة:** يقرأ القيمة المحفوظة مسبقاً عند فتح النافذة، وعند التغيير يحفظ القيمة الجديدة فوراً، وعند الحفظ ينشئ سجل الإشعار تلقائياً إذا كان الخيار مفعلاً والعنصر غير مخفي.
-  - **تفاعل القائمة المنسدلة للجرس:** النقر على زر الجرس يفتح/يغلق القائمة مع إغلاقها تلقائياً عند النقر خارجها؛ النقر على "تحديد الكل كمقروء" يصفر العداد فوراً ويحدث حالة جميع العناصر؛ النقر على أي إشعار يعلمه كمقروء وينفذ الانتقال المباشر للوجهة.
-  - **نشر الإعلانات الموحد:** يتيح للأدمن إرسال الإعلان إلى الجرس فقط أو إرساله للجرس مع تثبيته كشريط علوي في آنٍ واحد، بالإضافة إلى إمكانية حذف أي إشعار من سجل الإشعارات المرسلة.
+- **Interactive Component & State Mapping**:
+  - **Heartbeat & Activity Tracker**:
+    - Starts automatically upon login or session restore (`initApp` / `handleLogin`).
+    - Hooks into `visibilitychange` and `beforeunload` / `pagehide` to pause time accumulation when the tab is hidden and mark the session offline when closed.
+    - Hooks into `openLesson`, `openMaterial`, `startQuiz`, and `submitQuiz` to record real-time `current_activity` and append to `activity_log`.
+    - Listens to `window.postMessage` from embedded interactive lessons (`lesson-3-2.html`) so interactions inside the lesson iframe keep the student's heartbeat and study timer active.
+  - **Interactive Lesson Auth Gate, Watermark & Copy Guard**:
+    - Standalone `lesson-3-2.html` checks `localStorage.getItem('iqt_user')` (and parent window session if embedded) before revealing `document.body`. If missing or frozen, it replaces the document body with an "Access Restricted — Members Only" screen linking back to the platform login page.
+    - Injects a fixed, pointer-events-none repeating diagonal watermark layer displaying the student's `name` and `@username` across the lesson viewport.
+    - Blocks context menu (`contextmenu`), text-copy shortcuts (`Ctrl+C`, `Ctrl+U`, `Ctrl+S`, `F12` / `Ctrl+Shift+I` outside interactive code-simulator inputs) to deter casual source copying.
+  - **Admin Users & Student Record Modal**:
+    - Adds an **"Online Now" (`متصل الآن`)** KPI card and filter button in the Users management bar.
+    - Displays live Online badge or relative "Last Seen" time, total study duration, and login count on each user card and in the Student Details modal, plus a scrollable **Activity Timeline (`سجل النشاط الزمني`)** tab/section.

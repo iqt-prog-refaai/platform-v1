@@ -1,6 +1,6 @@
 {
-  "summary": "خطة تنفيذ نظام جرس الإشعارات التفاعلي في الشريط العلوي للطالب مع الانتقال المباشر للمحتوى/الدروس/الاختبارات الجديدة، وخيار إرسال إشعار مع حفظ آخر اختيار للأدمن تلقائياً، وربط نشر الإعلانات بجرس الإشعارات مع خيار تثبيتها كشريط علوي.",
-  "updatedAt": "2026-10-20T10:04:32.171320965Z",
-  "requestFeedback": true,
-  "userFacing": true
+  "summary":  "Implementation plan for real-time student presence tracking (online/offline status, last seen, active study time, login counts, and chronological activity timeline) and multi-layer content protection for interactive web lessons (Firestore HTML storage with srcdoc/Blob rendering, session & token auth gate inside standalone lesson pages, and dynamic student watermarking with copy guard).",
+  "updatedAt":  "2026-10-31T08:10:29.063946233Z",
+  "requestFeedback":  true,
+  "userFacing":  true
 }

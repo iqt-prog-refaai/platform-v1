@@ -496,15 +496,120 @@ export const FirestoreService = {
   },
 
   async getStudentDetails(username) {
-    const [progRes, attRes] = await Promise.all([
+    const uKey = sanitizeDocId(String(username || '').trim().toLowerCase());
+    const [progRes, attRes, userSnap] = await Promise.all([
       this.getStudentProgress(username),
-      this.getQuizAttempts(username, null)
+      this.getQuizAttempts(username, null),
+      getDoc(doc(db, 'users', uKey)).catch(() => null)
     ]);
+
+    const userData = (userSnap && userSnap.exists()) ? userSnap.data() : {};
+    const rawProg = progRes.progress || {
+      username,
+      completed_lessons: [],
+      completed_materials: [],
+      completed_lesson_details: [],
+      activity_log: []
+    };
+
+    const mergedProgress = {
+      ...rawProg,
+      login_count: Math.max(Number(userData.login_count) || 0, Number(rawProg.login_count) || 0),
+      total_study_minutes: Math.max(Number(userData.total_study_minutes) || 0, Number(rawProg.total_study_minutes) || 0),
+      last_seen_at: userData.last_seen_at || rawProg.last_seen_at || rawProg.updated_at || '',
+      is_online: userData.is_online !== undefined ? Boolean(userData.is_online) : Boolean(rawProg.is_online),
+      current_activity: userData.current_activity || rawProg.current_activity || '',
+      activity_log: Array.isArray(rawProg.activity_log) ? rawProg.activity_log : []
+    };
+
     return {
       success: true,
       username,
-      progress: progRes.progress,
+      userProfile: userData,
+      progress: mergedProgress,
       attempts: attRes.attempts
+    };
+  },
+
+  async recordPresenceHeartbeat(data = {}) {
+    const rawUser = String(data.username || '').trim();
+    if (!rawUser) return { success: false, message: 'Missing username' };
+    const docKey = sanitizeDocId(rawUser.toLowerCase());
+    const nowIso = new Date().toISOString();
+    const isOnline = data.is_online !== false;
+    const studyDelta = Math.max(0, Math.min(10, Number(data.study_minutes_delta) || 0));
+
+    const userRef = doc(db, 'users', docKey);
+    const progRef = doc(db, 'student_progress', docKey);
+
+    const [userSnap, progSnap] = await Promise.all([
+      getDoc(userRef).catch(() => null),
+      getDoc(progRef).catch(() => null)
+    ]);
+
+    const userData = (userSnap && userSnap.exists()) ? userSnap.data() : null;
+    const progData = (progSnap && progSnap.exists()) ? progSnap.data() : null;
+
+    const currentStudyMins = Math.max(
+      Number(userData?.total_study_minutes) || 0,
+      Number(progData?.total_study_minutes) || 0
+    );
+    const nextStudyMins = currentStudyMins + studyDelta;
+    const currentLoginCount = Math.max(
+      Number(userData?.login_count) || 0,
+      Number(progData?.login_count) || 0
+    );
+
+    if (userData) {
+      const userPatch = {
+        last_seen_at: nowIso,
+        is_online: isOnline,
+        total_study_minutes: nextStudyMins
+      };
+      if (data.current_activity !== undefined) {
+        userPatch.current_activity = String(data.current_activity || '');
+      }
+      await updateDoc(userRef, userPatch).catch(() => {});
+    }
+
+    const progPatch = {
+      username: userData?.username || progData?.username || rawUser,
+      last_seen_at: nowIso,
+      is_online: isOnline,
+      total_study_minutes: nextStudyMins,
+      login_count: currentLoginCount
+    };
+
+    if (data.current_activity !== undefined) {
+      progPatch.current_activity = String(data.current_activity || '');
+    }
+
+    if (data.event && typeof data.event === 'object' && data.event.title) {
+      const existingLog = Array.isArray(progData?.activity_log) ? progData.activity_log : [];
+      const newEntry = {
+        id: 'act_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        type: String(data.event.type || 'view'),
+        title: String(data.event.title || ''),
+        detail: String(data.event.detail || ''),
+        timestamp: data.event.timestamp || nowIso
+      };
+      const latest = existingLog[0];
+      const isDuplicate = latest &&
+        latest.type === newEntry.type &&
+        latest.title === newEntry.title &&
+        Math.abs(new Date(newEntry.timestamp).getTime() - new Date(latest.timestamp || 0).getTime()) < 30000;
+
+      if (!isDuplicate) {
+        progPatch.activity_log = [newEntry, ...existingLog].slice(0, 100);
+      }
+    }
+
+    await setDoc(progRef, progPatch, { merge: true }).catch(() => {});
+    return {
+      success: true,
+      last_seen_at: nowIso,
+      is_online: isOnline,
+      total_study_minutes: nextStudyMins
     };
   },
 
@@ -547,7 +652,48 @@ export const FirestoreService = {
       return { success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
     }
 
-    return this.verifyUserLogin(userData);
+    const res = this.verifyUserLogin(userData);
+    if (res.success && res.user) {
+      const nowIso = new Date().toISOString();
+      const newLoginCount = (Number(userData.login_count) || 0) + 1;
+      const totalStudyMins = Number(userData.total_study_minutes) || 0;
+
+      updateDoc(docRef, {
+        last_seen_at: nowIso,
+        is_online: true,
+        login_count: newLoginCount,
+        current_activity: 'متصل في الصفحة الرئيسية'
+      }).catch(() => {});
+
+      const progKey = sanitizeDocId(String(userData.username || username).trim().toLowerCase());
+      const progRef = doc(db, 'student_progress', progKey);
+      getDoc(progRef).then(pSnap => {
+        const pData = pSnap.exists() ? pSnap.data() : {};
+        const existingLog = Array.isArray(pData.activity_log) ? pData.activity_log : [];
+        const loginEvent = {
+          id: 'act_' + Date.now() + '_login',
+          type: 'login',
+          title: 'تسجيل دخول إلى المنصة',
+          detail: `تسجيل الدخول رقم #${newLoginCount}`,
+          timestamp: nowIso
+        };
+        return setDoc(progRef, {
+          username: userData.username,
+          last_seen_at: nowIso,
+          is_online: true,
+          login_count: newLoginCount,
+          total_study_minutes: Math.max(totalStudyMins, Number(pData.total_study_minutes) || 0),
+          current_activity: 'متصل في الصفحة الرئيسية',
+          activity_log: [loginEvent, ...existingLog].slice(0, 100)
+        }, { merge: true });
+      }).catch(() => {});
+
+      res.user.login_count = newLoginCount;
+      res.user.total_study_minutes = totalStudyMins;
+      res.user.last_seen_at = nowIso;
+      res.user.is_online = true;
+    }
+    return res;
   },
 
   verifyUserLogin(userData) {
@@ -595,6 +741,11 @@ export const FirestoreService = {
       avatar: data.avatar || '',
       status: 'active',
       is_frozen: false,
+      is_online: false,
+      login_count: 0,
+      total_study_minutes: 0,
+      last_seen_at: '',
+      current_activity: '',
       created_at: new Date().toISOString()
     });
 

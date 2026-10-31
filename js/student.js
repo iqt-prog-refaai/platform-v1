@@ -494,13 +494,22 @@ function toggleUnit(unitId) {
 function openLesson(lessonId) {
   state.currentLesson = lessonId;
   
-  // Find unit id
+  // Find unit id & lesson object
   let unitId = null;
+  let lessonObj = null;
   for (const [uId, lessons] of Object.entries(state.lessons)) {
-    if (lessons.some(l => l.lesson_id === lessonId)) {
+    const found = lessons.find(l => String(l.lesson_id) === String(lessonId));
+    if (found) {
       unitId = uId;
+      lessonObj = found;
       break;
     }
+  }
+
+  const unitObj = unitId ? (state.units || []).find(u => String(u.unit_id) === String(unitId)) : null;
+  const lessonTitle = lessonObj ? `الدرس ${lessonObj.lesson_number || ''}: ${lessonObj.lesson_name}` : `درس #${lessonId}`;
+  if (typeof logStudentActivity === 'function') {
+    logStudentActivity('lesson', `فتح ${lessonTitle}`, unitObj ? unitObj.unit_name : 'درس مستقل', `يدرس: ${lessonTitle}`);
   }
 
   // Update progress tracking
@@ -522,6 +531,11 @@ function openLesson(lessonId) {
 function openMaterialDirectly(materialId, fakeLessonId) {
   // We mock a lesson environment for this standalone material
   state.currentLesson = fakeLessonId;
+  const matObj = (state.allMaterials || []).find(m => String(m.material_id) === String(materialId));
+  if (matObj && typeof logStudentActivity === 'function') {
+    logStudentActivity('material', `استعراض محتوى: ${matObj.title}`, matObj.type === 'quiz' ? 'اختبار' : 'محتوى تعليمي', `يستعرض: ${matObj.title}`);
+  }
+
   if (!state.progress) {
     state.progress = { username: state.user.username, completed_lessons: [], completed_materials: [], completed_lesson_details: [] };
   }

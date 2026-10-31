@@ -69,6 +69,8 @@ async function handleApiAction(action, payload) {
       return await FirestoreService.getAllUsers();
     case 'getStudentDetails':
       return await FirestoreService.getStudentDetails(payload.username);
+    case 'recordPresenceHeartbeat':
+      return await FirestoreService.recordPresenceHeartbeat(payload);
     case 'login':
       return await FirestoreService.login(payload.username, payload.password);
     case 'addUser':
