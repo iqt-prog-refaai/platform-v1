@@ -79,10 +79,18 @@ export const FirestoreService = {
 
     let progress = null;
     if (username) {
-      const progDoc = await getDoc(doc(db, 'student_progress', sanitizeDocId(String(username).toLowerCase())));
+      const cleanUser = String(username).trim();
+      const progDoc = await getDoc(doc(db, 'student_progress', sanitizeDocId(cleanUser.toLowerCase())));
       if (progDoc.exists()) {
         progress = progDoc.data();
       }
+      this.recordPresenceHeartbeat({
+        username: cleanUser,
+        is_online: true,
+        is_session_init: true,
+        study_minutes_delta: 0,
+        current_activity: progress?.current_activity || 'متصل في الصفحة الرئيسية'
+      }).catch(() => {});
     }
 
     return {
@@ -408,11 +416,164 @@ export const FirestoreService = {
     return { success: true, progress: snap.data() };
   },
 
+  _synthesizeStudentTelemetry(userData = {}, progData = null, userAttempts = [], lessonsMap = {}, materialsMap = {}) {
+    const rawProg = progData || {};
+    const attempts = Array.isArray(userAttempts) ? userAttempts : [];
+    const compLessons = Array.isArray(rawProg.completed_lessons) ? rawProg.completed_lessons : [];
+    const compMaterials = Array.isArray(rawProg.completed_materials) ? rawProg.completed_materials : [];
+    const compDetails = Array.isArray(rawProg.completed_lesson_details) ? rawProg.completed_lesson_details : [];
+    const readNotifs = Array.isArray(rawProg.read_notifications) ? rawProg.read_notifications : [];
+
+    const candidateTimestamps = [
+      userData?.last_seen_at,
+      rawProg?.last_seen_at,
+      rawProg?.updated_at,
+      ...compDetails.map(d => d?.completed_at),
+      ...attempts.map(a => a?.attempt_date)
+    ].filter(ts => ts && !isNaN(new Date(ts).getTime()));
+
+    let latestSeenIso = '';
+    let latestSeenMs = 0;
+    for (const ts of candidateTimestamps) {
+      const ms = new Date(ts).getTime();
+      if (ms > latestSeenMs) {
+        latestSeenMs = ms;
+        latestSeenIso = ts;
+      }
+    }
+
+    const r = String(userData?.role || '').toLowerCase();
+    const isFrozen = Boolean(userData?.is_frozen) || userData?.status === 'frozen' || r.startsWith('frozen');
+    const explicitLogout = rawProg?.explicit_logout === true || userData?.explicit_logout === true;
+    const ageMs = latestSeenMs > 0 ? (Date.now() - latestSeenMs) : Infinity;
+    const isRecentlyActive = ageMs >= -60000 && ageMs < 210000;
+    const isOnline = !isFrozen && !explicitLogout && isRecentlyActive;
+
+    const storedLog = Array.isArray(rawProg.activity_log) ? [...rawProg.activity_log] : [];
+    const synthEvents = [];
+
+    for (const att of attempts) {
+      if (!att || !att.attempt_date) continue;
+      const matTitle = materialsMap[String(att.material_id || '')] || 'اختبار تفاعلي';
+      const scoreText = att.is_graded ? `النتيجة: ${att.score}/${att.max_score}` : 'بانتظار تصحيح المقالي';
+      const exists = storedLog.some(e =>
+        (e.type === 'quiz_submit' || e.type === 'quiz') &&
+        Math.abs(new Date(e.timestamp || 0).getTime() - new Date(att.attempt_date).getTime()) < 120000
+      );
+      if (!exists) {
+        synthEvents.push({
+          id: 'synth_att_' + (att.attempt_id || Math.random().toString(36).slice(2, 7)),
+          type: 'quiz_submit',
+          title: `تسليم اختبار: ${matTitle}`,
+          detail: scoreText,
+          timestamp: att.attempt_date
+        });
+      }
+    }
+
+    for (const det of compDetails) {
+      if (!det || !det.completed_at) continue;
+      const lTitle = det.lesson_name || lessonsMap[String(det.lesson_id || '')] || `درس #${det.lesson_id}`;
+      const exists = storedLog.some(e =>
+        e.type === 'complete' &&
+        Math.abs(new Date(e.timestamp || 0).getTime() - new Date(det.completed_at).getTime()) < 120000
+      );
+      if (!exists) {
+        synthEvents.push({
+          id: 'synth_les_' + (det.lesson_id || Math.random().toString(36).slice(2, 7)),
+          type: 'complete',
+          title: `إتمام الدرس: ${lTitle}`,
+          detail: det.unit_name || 'المنهج الدراسي',
+          timestamp: det.completed_at
+        });
+      }
+    }
+
+    if (rawProg.updated_at) {
+      const curLessonName = lessonsMap[String(rawProg.current_lesson_id || '')] || '';
+      const existsNearUpdate = storedLog.some(e =>
+        Math.abs(new Date(e.timestamp || 0).getTime() - new Date(rawProg.updated_at).getTime()) < 180000
+      );
+      if (!existsNearUpdate) {
+        synthEvents.push({
+          id: 'synth_prog_' + new Date(rawProg.updated_at).getTime(),
+          type: curLessonName ? 'lesson' : 'login',
+          title: curLessonName ? `فتح ودراسة: ${curLessonName}` : 'فتح المنصة واستعراض المحتوى الدراسي',
+          detail: compMaterials.length > 0 ? `أنجز ${compMaterials.length} محتوى تعليمي` : 'تصفح الوحدات والدروس',
+          timestamp: rawProg.updated_at
+        });
+      }
+    }
+
+    const combinedLog = [...storedLog, ...synthEvents]
+      .filter(e => e && e.title)
+      .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+      .slice(0, 100);
+
+    const sessionTimestamps = combinedLog
+      .map(e => new Date(e.timestamp || 0).getTime())
+      .filter(ms => ms > 0)
+      .sort((a, b) => a - b);
+    let derivedSessions = 0;
+    let lastSessMs = 0;
+    for (const ms of sessionTimestamps) {
+      if (!lastSessMs || (ms - lastSessMs) > 25 * 60 * 1000) {
+        derivedSessions++;
+        lastSessMs = ms;
+      }
+    }
+    if (derivedSessions === 0 && latestSeenMs > 0) {
+      derivedSessions = 1;
+    }
+
+    const loginCount = Math.max(
+      Number(userData?.login_count) || 0,
+      Number(rawProg?.login_count) || 0,
+      derivedSessions
+    );
+
+    const hasUsedPlatform = latestSeenMs > 0 || compLessons.length > 0 || compMaterials.length > 0 || attempts.length > 0;
+    const estimatedStudyMins =
+      (compLessons.length * 15) +
+      (compMaterials.length * 8) +
+      (attempts.length * 10) +
+      (rawProg.current_lesson_id ? 6 : (hasUsedPlatform ? 3 : 0));
+
+    const totalStudyMinutes = Math.max(
+      Number(userData?.total_study_minutes) || 0,
+      Number(rawProg?.total_study_minutes) || 0,
+      estimatedStudyMins
+    );
+
+    let currentActivity = rawProg?.current_activity || userData?.current_activity || '';
+    if ((!currentActivity || currentActivity === 'غير متصل') && latestSeenMs > 0) {
+      if (rawProg.current_lesson_id && lessonsMap[String(rawProg.current_lesson_id)]) {
+        currentActivity = `يدرس: ${lessonsMap[String(rawProg.current_lesson_id)]}`;
+      } else if (combinedLog.length > 0) {
+        currentActivity = combinedLog[0].title;
+      } else {
+        currentActivity = 'تصفح المنصة';
+      }
+    }
+
+    return {
+      last_seen_at: latestSeenIso,
+      is_online: isOnline,
+      login_count: loginCount,
+      total_study_minutes: totalStudyMinutes,
+      current_activity: currentActivity,
+      activity_log: combinedLog
+    };
+  },
+
   async updateStudentProgress(data) {
     const rawUser = String(data.username || '').trim();
     if (!rawUser) return { success: false, message: 'Missing username' };
     const userKey = sanitizeDocId(rawUser.toLowerCase());
+    const nowIso = new Date().toISOString();
     const docRef = doc(db, 'student_progress', userKey);
+    const userRef = doc(db, 'users', userKey);
+
     const payload = {
       username: rawUser,
       current_unit_id: data.current_unit_id || '',
@@ -420,34 +581,61 @@ export const FirestoreService = {
       completed_lessons: Array.isArray(data.completed_lessons) ? data.completed_lessons : [],
       completed_materials: Array.isArray(data.completed_materials) ? data.completed_materials : [],
       completed_lesson_details: Array.isArray(data.completed_lesson_details) ? data.completed_lesson_details : [],
-      updated_at: new Date().toISOString()
+      updated_at: nowIso,
+      last_seen_at: nowIso,
+      is_online: true,
+      explicit_logout: false
     };
     if (Array.isArray(data.read_notifications)) {
       payload.read_notifications = data.read_notifications;
     }
     await setDoc(docRef, payload, { merge: true });
+    updateDoc(userRef, {
+      last_seen_at: nowIso,
+      is_online: true,
+      explicit_logout: false
+    }).catch(() => {});
     return { success: true };
   },
 
   // ====== QUIZ ATTEMPTS ======
   async submitQuiz(data) {
     const id = generateId();
+    const nowIso = new Date().toISOString();
     const answers = Array.isArray(data.answers) ? data.answers : [];
     const isGraded = !answers.some(a => a && a.type === 'essay');
+    const cleanUser = String(data.username || '').trim();
+    const score = Number(data.score) || 0;
+    const maxScore = Number(data.max_score) || 0;
 
     await setDoc(doc(db, 'quiz_attempts', id), {
       attempt_id: id,
-      username: String(data.username || '').toLowerCase(),
+      username: cleanUser.toLowerCase(),
       quiz_id: String(data.quiz_id || ''),
       material_id: String(data.material_id || ''),
       answers: answers,
-      score: Number(data.score) || 0,
-      max_score: Number(data.max_score) || 0,
+      score: score,
+      max_score: maxScore,
       is_graded: isGraded,
       graded_by: '',
       feedback: '',
-      attempt_date: new Date().toISOString()
+      attempt_date: nowIso
     });
+
+    if (cleanUser) {
+      this.recordPresenceHeartbeat({
+        username: cleanUser,
+        is_online: true,
+        study_minutes_delta: 3,
+        current_activity: `أنهى اختبار (${score}/${maxScore})`,
+        event: {
+          type: 'quiz_submit',
+          title: 'تسليم اختبار تفاعلي',
+          detail: isGraded ? `النتيجة: ${score}/${maxScore}` : 'بانتظار تصحيح الأسئلة المقالية',
+          timestamp: nowIso
+        }
+      }).catch(() => {});
+    }
 
     return { success: true, attempt_id: id, needs_grading: !isGraded };
   },
@@ -480,28 +668,101 @@ export const FirestoreService = {
     return { success: true };
   },
 
+  async _fetchEnrichedUsers() {
+    const [usersSnap, progSnap, attemptsSnap, lessonsSnap, matsSnap] = await Promise.all([
+      getDocs(collection(db, 'users')),
+      getDocs(collection(db, 'student_progress')).catch(() => ({ docs: [] })),
+      getDocs(collection(db, 'quiz_attempts')).catch(() => ({ docs: [] })),
+      getDocs(collection(db, 'lessons')).catch(() => ({ docs: [] })),
+      getDocs(collection(db, 'materials')).catch(() => ({ docs: [] }))
+    ]);
+
+    const lessonsMap = {};
+    lessonsSnap.docs.forEach(d => {
+      const l = d.data();
+      if (l && l.lesson_id) lessonsMap[String(l.lesson_id)] = l.lesson_name || `درس ${l.lesson_number || ''}`;
+    });
+
+    const materialsMap = {};
+    matsSnap.docs.forEach(d => {
+      const m = d.data();
+      if (m && m.material_id) materialsMap[String(m.material_id)] = m.title || 'محتوى';
+    });
+
+    const progByUser = {};
+    progSnap.docs.forEach(d => {
+      const p = d.data();
+      const key = String(p?.username || d.id || '').trim().toLowerCase();
+      if (key) progByUser[key] = p;
+    });
+
+    const attemptsByUser = {};
+    attemptsSnap.docs.forEach(d => {
+      const a = d.data();
+      const key = String(a?.username || '').trim().toLowerCase();
+      if (!key) return;
+      if (!attemptsByUser[key]) attemptsByUser[key] = [];
+      attemptsByUser[key].push(a);
+    });
+
+    const enrichedUsers = usersSnap.docs.map(d => {
+      const u = d.data();
+      const key = String(u?.username || d.id || '').trim().toLowerCase();
+      const prog = progByUser[key] || progByUser[sanitizeDocId(key)] || null;
+      const uAttempts = attemptsByUser[key] || [];
+      const telemetry = this._synthesizeStudentTelemetry(u, prog, uAttempts, lessonsMap, materialsMap);
+      return {
+        ...u,
+        ...telemetry
+      };
+    });
+
+    return {
+      users: enrichedUsers,
+      allProgress: progSnap.docs.map(d => {
+        const p = d.data();
+        const key = String(p?.username || d.id || '').trim().toLowerCase();
+        const u = enrichedUsers.find(x => String(x.username || '').trim().toLowerCase() === key) || {};
+        const uAttempts = attemptsByUser[key] || [];
+        const telemetry = this._synthesizeStudentTelemetry(u, p, uAttempts, lessonsMap, materialsMap);
+        return { ...p, ...telemetry };
+      }),
+      allAttempts: attemptsSnap.docs.map(d => d.data())
+    };
+  },
+
   // ====== USERS & AUTH ======
   async getAllUsers() {
-    const snap = await getDocs(collection(db, 'users'));
-    const users = snap.docs.map(d => d.data());
+    const { users } = await this._fetchEnrichedUsers();
     return { success: true, users };
   },
 
   async getAllStudents() {
-    const snap = await getDocs(collection(db, 'users'));
-    const students = snap.docs
-      .map(d => d.data())
-      .filter(u => u.role === 'student' || String(u.role).startsWith('frozen:student'));
+    const { users } = await this._fetchEnrichedUsers();
+    const students = users.filter(u => u.role === 'student' || String(u.role).startsWith('frozen:student'));
     return { success: true, students };
   },
 
   async getStudentDetails(username) {
     const uKey = sanitizeDocId(String(username || '').trim().toLowerCase());
-    const [progRes, attRes, userSnap] = await Promise.all([
+    const [progRes, attRes, userSnap, lessonsSnap, matsSnap] = await Promise.all([
       this.getStudentProgress(username),
       this.getQuizAttempts(username, null),
-      getDoc(doc(db, 'users', uKey)).catch(() => null)
+      getDoc(doc(db, 'users', uKey)).catch(() => null),
+      getDocs(collection(db, 'lessons')).catch(() => ({ docs: [] })),
+      getDocs(collection(db, 'materials')).catch(() => ({ docs: [] }))
     ]);
+
+    const lessonsMap = {};
+    (lessonsSnap?.docs || []).forEach(d => {
+      const l = d.data();
+      if (l && l.lesson_id) lessonsMap[String(l.lesson_id)] = l.lesson_name || `درس ${l.lesson_number || ''}`;
+    });
+    const materialsMap = {};
+    (matsSnap?.docs || []).forEach(d => {
+      const m = d.data();
+      if (m && m.material_id) materialsMap[String(m.material_id)] = m.title || 'محتوى';
+    });
 
     const userData = (userSnap && userSnap.exists()) ? userSnap.data() : {};
     const rawProg = progRes.progress || {
@@ -512,20 +773,16 @@ export const FirestoreService = {
       activity_log: []
     };
 
+    const telemetry = this._synthesizeStudentTelemetry(userData, rawProg, attRes.attempts || [], lessonsMap, materialsMap);
     const mergedProgress = {
       ...rawProg,
-      login_count: Math.max(Number(userData.login_count) || 0, Number(rawProg.login_count) || 0),
-      total_study_minutes: Math.max(Number(userData.total_study_minutes) || 0, Number(rawProg.total_study_minutes) || 0),
-      last_seen_at: userData.last_seen_at || rawProg.last_seen_at || rawProg.updated_at || '',
-      is_online: userData.is_online !== undefined ? Boolean(userData.is_online) : Boolean(rawProg.is_online),
-      current_activity: userData.current_activity || rawProg.current_activity || '',
-      activity_log: Array.isArray(rawProg.activity_log) ? rawProg.activity_log : []
+      ...telemetry
     };
 
     return {
       success: true,
       username,
-      userProfile: userData,
+      userProfile: { ...userData, ...telemetry },
       progress: mergedProgress,
       attempts: attRes.attempts
     };
@@ -537,45 +794,72 @@ export const FirestoreService = {
     const docKey = sanitizeDocId(rawUser.toLowerCase());
     const nowIso = new Date().toISOString();
     const isOnline = data.is_online !== false;
-    const studyDelta = Math.max(0, Math.min(10, Number(data.study_minutes_delta) || 0));
+    const explicitLogout = data.is_online === false;
+    let studyDelta = Math.max(0, Math.min(10, Number(data.study_minutes_delta) || 0));
 
-    const userRef = doc(db, 'users', docKey);
+    let userRef = doc(db, 'users', docKey);
     const progRef = doc(db, 'student_progress', docKey);
 
-    const [userSnap, progSnap] = await Promise.all([
+    let [userSnap, progSnap] = await Promise.all([
       getDoc(userRef).catch(() => null),
       getDoc(progRef).catch(() => null)
     ]);
 
+    if (!userSnap || !userSnap.exists()) {
+      const qSnap = await getDocs(query(collection(db, 'users'), where('username', '==', rawUser))).catch(() => null);
+      if (qSnap && !qSnap.empty) {
+        userSnap = qSnap.docs[0];
+        userRef = userSnap.ref;
+      }
+    }
+
     const userData = (userSnap && userSnap.exists()) ? userSnap.data() : null;
     const progData = (progSnap && progSnap.exists()) ? progSnap.data() : null;
+
+    const prevSeenIso = progData?.last_seen_at || userData?.last_seen_at || progData?.updated_at || '';
+    const prevSeenMs = prevSeenIso ? new Date(prevSeenIso).getTime() : 0;
+    const isNewSession = isOnline && (
+      Boolean(data.is_session_start) ||
+      Boolean(data.is_session_init)
+    ) && (!prevSeenMs || (Date.now() - prevSeenMs) > 20 * 60 * 1000);
 
     const currentStudyMins = Math.max(
       Number(userData?.total_study_minutes) || 0,
       Number(progData?.total_study_minutes) || 0
     );
+    if (isNewSession && studyDelta === 0) {
+      studyDelta = 1;
+    }
     const nextStudyMins = currentStudyMins + studyDelta;
-    const currentLoginCount = Math.max(
+
+    let currentLoginCount = Math.max(
       Number(userData?.login_count) || 0,
       Number(progData?.login_count) || 0
     );
+    if (isNewSession || (isOnline && currentLoginCount === 0)) {
+      currentLoginCount += 1;
+    }
 
     if (userData) {
       const userPatch = {
         last_seen_at: nowIso,
         is_online: isOnline,
-        total_study_minutes: nextStudyMins
+        explicit_logout: explicitLogout,
+        total_study_minutes: nextStudyMins,
+        login_count: currentLoginCount
       };
       if (data.current_activity !== undefined) {
         userPatch.current_activity = String(data.current_activity || '');
       }
-      await updateDoc(userRef, userPatch).catch(() => {});
+      await setDoc(userRef, userPatch, { merge: true }).catch(() => {});
     }
 
     const progPatch = {
       username: userData?.username || progData?.username || rawUser,
       last_seen_at: nowIso,
+      updated_at: nowIso,
       is_online: isOnline,
+      explicit_logout: explicitLogout,
       total_study_minutes: nextStudyMins,
       login_count: currentLoginCount
     };
@@ -584,14 +868,24 @@ export const FirestoreService = {
       progPatch.current_activity = String(data.current_activity || '');
     }
 
-    if (data.event && typeof data.event === 'object' && data.event.title) {
-      const existingLog = Array.isArray(progData?.activity_log) ? progData.activity_log : [];
+    const existingLog = Array.isArray(progData?.activity_log) ? progData.activity_log : [];
+    let eventToLog = (data.event && typeof data.event === 'object' && data.event.title) ? data.event : null;
+    if (!eventToLog && isNewSession) {
+      eventToLog = {
+        type: 'login',
+        title: 'فتح المنصة وبدء جلسة دراسة',
+        detail: `الجلسة رقم #${currentLoginCount}`,
+        timestamp: nowIso
+      };
+    }
+
+    if (eventToLog && eventToLog.title) {
       const newEntry = {
         id: 'act_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-        type: String(data.event.type || 'view'),
-        title: String(data.event.title || ''),
-        detail: String(data.event.detail || ''),
-        timestamp: data.event.timestamp || nowIso
+        type: String(eventToLog.type || 'view'),
+        title: String(eventToLog.title || ''),
+        detail: String(eventToLog.detail || ''),
+        timestamp: eventToLog.timestamp || nowIso
       };
       const latest = existingLog[0];
       const isDuplicate = latest &&
@@ -609,6 +903,7 @@ export const FirestoreService = {
       success: true,
       last_seen_at: nowIso,
       is_online: isOnline,
+      login_count: currentLoginCount,
       total_study_minutes: nextStudyMins
     };
   },
@@ -896,17 +1191,12 @@ export const FirestoreService = {
   },
 
   async getAdminAnalytics() {
-    const [usersSnap, progSnap, attemptsSnap, annSnap, notifsSnap] = await Promise.all([
-      getDocs(collection(db, 'users')),
-      getDocs(collection(db, 'student_progress')),
-      getDocs(collection(db, 'quiz_attempts')),
+    const [enriched, annSnap, notifsSnap] = await Promise.all([
+      this._fetchEnrichedUsers(),
       getDoc(doc(db, 'announcements', 'global_announcement')).catch(() => null),
       getDocs(collection(db, 'notifications')).catch(() => null)
     ]);
 
-    const users = usersSnap.docs.map(d => d.data());
-    const allProgress = progSnap.docs.map(d => d.data());
-    const allAttempts = attemptsSnap.docs.map(d => d.data());
     const announcement = (annSnap && annSnap.exists()) ? annSnap.data() : null;
     const notifications = notifsSnap
       ? notifsSnap.docs
@@ -917,9 +1207,9 @@ export const FirestoreService = {
 
     return {
       success: true,
-      users,
-      allProgress,
-      allAttempts,
+      users: enriched.users,
+      allProgress: enriched.allProgress,
+      allAttempts: enriched.allAttempts,
       announcement,
       notifications
     };

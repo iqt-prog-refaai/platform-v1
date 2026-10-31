@@ -38,6 +38,8 @@ async function renderAdmin() {
     }
   }
 
+  _ensureAdminLiveTelemetryPolling();
+
   switch(state.adminSection) {
     case 'overview':  await renderAdminOverview(container);    break;
     case 'content':   await renderAdminContent(container);     break;
@@ -177,15 +179,20 @@ async function renderAdminOverview(container) {
   });
 
   // Presence & study-time helpers
-  const onlineStudentsCount = activeStudents.filter(u => isUserCurrentlyOnline(u)).length;
-  const totalPlatformStudyMins = activeStudents.reduce((sum, u) => {
+  const enrichedActiveStudents = activeStudents.map(u => {
     const uKey = String(u.username || '').trim().toLowerCase();
     const p = progByUser[uKey] || {};
-    return sum + Math.max(Number(u.total_study_minutes) || 0, Number(p.total_study_minutes) || 0);
-  }, 0);
+    const uAtts = attemptsByUser[uKey] || [];
+    return mergeUserAndProgressTelemetry(u, p, uAtts);
+  });
+
+  state.students = enrichedActiveStudents;
+
+  const onlineStudentsCount = enrichedActiveStudents.filter(u => isUserCurrentlyOnline(u)).length;
+  const totalPlatformStudyMins = enrichedActiveStudents.reduce((sum, u) => sum + (Number(u.total_study_minutes) || 0), 0);
 
   // Build student rankings
-  const leaderboard = activeStudents.map(st => {
+  const leaderboard = enrichedActiveStudents.map(st => {
     const uKey = String(st.username || '').trim().toLowerCase();
     const prog = progByUser[uKey] || {};
     const stAttempts = attemptsByUser[uKey] || [];
@@ -194,10 +201,10 @@ async function renderAdminOverview(container) {
       ? Math.round(stGraded.reduce((acc, a) => acc + (Number(a.score) / Number(a.max_score)) * 100, 0) / stGraded.length)
       : null;
 
-    const compLessons = Array.isArray(prog.completed_lessons) ? prog.completed_lessons.length : 0;
-    const compMaterials = Array.isArray(prog.completed_materials) ? prog.completed_materials.length : 0;
-    const studyMins = Math.max(Number(st.total_study_minutes) || 0, Number(prog.total_study_minutes) || 0);
-    const isOnline = isUserCurrentlyOnline({ ...prog, ...st });
+    const compLessons = Array.isArray(prog.completed_lessons) ? prog.completed_lessons.length : (Array.isArray(st.completed_lessons) ? st.completed_lessons.length : 0);
+    const compMaterials = Array.isArray(prog.completed_materials) ? prog.completed_materials.length : (Array.isArray(st.completed_materials) ? st.completed_materials.length : 0);
+    const studyMins = Number(st.total_study_minutes) || 0;
+    const isOnline = isUserCurrentlyOnline(st);
     // Composite activity score for ranking
     const activityScore = (compLessons * 15) + (compMaterials * 5) + (stAttempts.length * 10) + (stAvg || 0) + Math.min(60, Math.floor(studyMins / 5));
 
@@ -241,12 +248,12 @@ async function renderAdminOverview(container) {
       <div class="glass stat-card blue" style="padding: 20px;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
           <div class="stat-label">الطلاب النشطين</div>
-          <span style="font-size:0.75rem; font-weight:800; color:#059669; background:rgba(16,185,129,0.12); padding:2px 8px; border-radius:6px; font-variant-numeric:tabular-nums;">
+          <span id="overviewOnlineStudentsBadge" style="font-size:0.75rem; font-weight:800; color:#059669; background:rgba(16,185,129,0.12); padding:2px 8px; border-radius:6px; font-variant-numeric:tabular-nums;">
             ● متصل الآن: ${onlineStudentsCount}
           </span>
         </div>
-        <div class="stat-value" style="font-variant-numeric: tabular-nums;">${activeStudents.length}</div>
-        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums;">
+        <div id="overviewActiveStudentsCount" class="stat-value" style="font-variant-numeric: tabular-nums;">${enrichedActiveStudents.length}</div>
+        <div id="overviewTotalStudyTime" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums;">
           إجمالي وقت الدراسة: ${formatStudyTimeAr(totalPlatformStudyMins)}
         </div>
       </div>
@@ -656,12 +663,12 @@ async function exportStudentsReportCSV() {
         ? Math.max(...graded.map(a => Math.round((Number(a.score) / Number(a.max_score)) * 100))) + '%'
         : 'لا يوجد';
 
-      const combinedUser = { ...prog, ...st };
+      const combinedUser = mergeUserAndProgressTelemetry(st, prog, stAttempts);
       const isOnline = isUserCurrentlyOnline(combinedUser);
-      const lastSeenIso = st.last_seen_at || prog.last_seen_at || prog.updated_at || stAttempts[0]?.attempt_date || '';
+      const lastSeenIso = combinedUser.last_seen_at || '';
       const formattedLastSeen = lastSeenIso ? formatDate(lastSeenIso) : 'لم يسجل دخول بعد';
-      const studyMinutes = Math.max(Number(st.total_study_minutes) || 0, Number(prog.total_study_minutes) || 0);
-      const loginCount = Math.max(Number(st.login_count) || 0, Number(prog.login_count) || 0);
+      const studyMinutes = Number(combinedUser.total_study_minutes) || 0;
+      const loginCount = Number(combinedUser.login_count) || 0;
 
       rows.push([
         st.name || '',
@@ -1703,15 +1710,120 @@ async function createQuizForMaterial(materialId, title) {
 // ==========================================
 // USERS & PRESENCE HELPERS
 // ==========================================
+function mergeUserAndProgressTelemetry(u = {}, p = {}, attempts = []) {
+  const candidates = [
+    u.last_seen_at,
+    p.last_seen_at,
+    p.updated_at,
+    ...(Array.isArray(attempts) ? attempts.map(a => a?.attempt_date) : [])
+  ].filter(Boolean);
+
+  let latestSeen = '';
+  let latestMs = 0;
+  candidates.forEach(ts => {
+    const ms = new Date(ts).getTime();
+    if (!isNaN(ms) && ms > latestMs) {
+      latestMs = ms;
+      latestSeen = ts;
+    }
+  });
+
+  const studyMins = Math.max(Number(u.total_study_minutes) || 0, Number(p.total_study_minutes) || 0);
+  const loginCount = Math.max(Number(u.login_count) || 0, Number(p.login_count) || 0);
+  const currentAct = p.current_activity || u.current_activity || '';
+  const explicitLogout = p.explicit_logout !== undefined ? Boolean(p.explicit_logout) : Boolean(u.explicit_logout);
+
+  const merged = {
+    ...p,
+    ...u,
+    last_seen_at: latestSeen || u.last_seen_at || p.last_seen_at || '',
+    total_study_minutes: studyMins,
+    login_count: loginCount,
+    current_activity: currentAct,
+    explicit_logout: explicitLogout
+  };
+  merged.is_online = isUserCurrentlyOnline(merged);
+  return merged;
+}
+
 function isUserCurrentlyOnline(u) {
   if (!u) return false;
   const isFrozen = !!u.is_frozen || u.status === 'frozen' || String(u.role || '').toLowerCase().startsWith('frozen');
   if (isFrozen) return false;
-  if (u.is_online === false) return false;
-  const lastSeen = u.last_seen_at;
+  if (u.explicit_logout === true) return false;
+  const lastSeen = u.last_seen_at || u.updated_at;
   if (!lastSeen) return false;
   const diffMs = Date.now() - new Date(lastSeen).getTime();
-  return !isNaN(diffMs) && diffMs >= -60000 && diffMs < 180000; // within 3 minutes
+  return !isNaN(diffMs) && diffMs >= -120000 && diffMs < 210000; // within 3.5 minutes
+}
+
+let _adminTelemetryPollId = null;
+
+function _ensureAdminLiveTelemetryPolling() {
+  if (_adminTelemetryPollId) return;
+  _adminTelemetryPollId = setInterval(async () => {
+    if (!state.user || MOCK_MODE) return;
+    const currentHash = window.location.hash.replace('#', '');
+    if (currentHash && currentHash !== 'admin') return;
+    if (!['admin', 'manager', 'vip'].includes(state.user.role)) return;
+
+    const section = state.adminSection || 'overview';
+    if (!['overview', 'users', 'students'].includes(section)) return;
+
+    try {
+      const res = await API.get('getAllUsers', {}, { forceFresh: true });
+      if (!res || !res.success || !Array.isArray(res.users)) return;
+      const users = res.users;
+      state.cachedAdminUsers = users;
+
+      // Update active students cache
+      const activeStudents = users.filter(u => {
+        const r = String(u.role || '').toLowerCase();
+        const uname = String(u.username || '');
+        if (r === 'deleted' || uname.startsWith('__deleted_')) return false;
+        const isFrozen = !!u.is_frozen || u.status === 'frozen' || r.startsWith('frozen');
+        const effRole = isFrozen ? (u.originalRole || r.replace(/^frozen:?/i, '') || 'student') : r;
+        return effRole === 'student' && !isFrozen;
+      });
+      state.students = activeStudents;
+
+      // If on Overview section, update live counters in place
+      const ovBadge = $('overviewOnlineStudentsBadge');
+      const ovCount = $('overviewActiveStudentsCount');
+      const ovTime = $('overviewTotalStudyTime');
+      if (ovBadge || ovCount || ovTime) {
+        const onlineStCount = activeStudents.filter(u => isUserCurrentlyOnline(u)).length;
+        const totalMins = activeStudents.reduce((s, u) => s + (Number(u.total_study_minutes) || 0), 0);
+        if (ovBadge) ovBadge.textContent = `● متصل الآن: ${onlineStCount}`;
+        if (ovCount) ovCount.textContent = String(activeStudents.length);
+        if (ovTime) ovTime.textContent = `إجمالي وقت الدراسة: ${formatStudyTimeAr(totalMins)}`;
+      }
+
+      // If on Users/Students section, update summary cards, filter badges, and list without resetting search input
+      if ($('studentsList')) {
+        const totalCount = users.length;
+        const frozenCount = users.filter(u => u.is_frozen || u.status === 'frozen' || String(u.role).startsWith('frozen')).length;
+        const studentCount = users.filter(u => (u.role === 'student' || u.originalRole === 'student') && !u.is_frozen && u.status !== 'frozen').length;
+        const staffCount = users.filter(u => ['admin', 'manager', 'vip'].includes(u.role)).length;
+        const onlineCount = users.filter(u => isUserCurrentlyOnline(u)).length;
+
+        if ($('adminTotalUsersCount')) $('adminTotalUsersCount').textContent = String(totalCount);
+        if ($('adminOnlineUsersCount')) $('adminOnlineUsersCount').textContent = String(onlineCount);
+        if ($('adminActiveStudentsCount')) $('adminActiveStudentsCount').textContent = String(studentCount);
+        if ($('adminFrozenUsersCount')) $('adminFrozenUsersCount').textContent = String(frozenCount);
+
+        if ($('adminFilterBtn-all')) $('adminFilterBtn-all').textContent = `الكل (${totalCount})`;
+        if ($('adminFilterBtn-online')) $('adminFilterBtn-online').textContent = `● متصل الآن (${onlineCount})`;
+        if ($('adminFilterBtn-students')) $('adminFilterBtn-students').textContent = `الطلاب النشطين (${studentCount})`;
+        if ($('adminFilterBtn-frozen')) $('adminFilterBtn-frozen').textContent = `المجمدة (${frozenCount})`;
+        if ($('adminFilterBtn-staff')) $('adminFilterBtn-staff').textContent = `الإدارة (${staffCount})`;
+
+        adminFilterUsersLive();
+      }
+    } catch (e) {
+      // Silent background refresh
+    }
+  }, 15000);
 }
 
 function formatStudyTimeAr(totalMins) {
@@ -1796,22 +1908,22 @@ async function renderAdminUsers(container) {
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(185px, 1fr)); gap:16px; margin-bottom:24px;">
       <div class="glass text-center" style="padding: 18px;">
         <h3 style="margin-bottom: 6px; font-size: 0.9rem; color: var(--text-muted);">إجمالي المستخدمين</h3>
-        <div style="font-size: 2rem; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums;">${totalCount}</div>
+        <div id="adminTotalUsersCount" style="font-size: 2rem; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums;">${totalCount}</div>
         <div style="color: var(--text-muted); font-size: 0.82rem;">جميع الحسابات المسجلة</div>
       </div>
       <div class="glass text-center" style="padding: 18px; border: 1.5px solid rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.04);">
         <h3 style="margin-bottom: 6px; font-size: 0.9rem; color: #059669;">المتصلون الآن (أونلاين)</h3>
-        <div style="font-size: 2rem; font-weight: 800; color: #059669; font-variant-numeric: tabular-nums;">${onlineCount}</div>
-        <div style="color: var(--text-muted); font-size: 0.82rem;">نشطون خلال آخر 3 دقائق</div>
+        <div id="adminOnlineUsersCount" style="font-size: 2rem; font-weight: 800; color: #059669; font-variant-numeric: tabular-nums;">${onlineCount}</div>
+        <div style="color: var(--text-muted); font-size: 0.82rem;">نشطون الآن مباشرة</div>
       </div>
       <div class="glass text-center" style="padding: 18px;">
         <h3 style="margin-bottom: 6px; font-size: 0.9rem; color: var(--text-muted);">الطلاب النشطين</h3>
-        <div style="font-size: 2rem; font-weight: 800; color: #0284c7; font-variant-numeric: tabular-nums;">${studentCount}</div>
+        <div id="adminActiveStudentsCount" style="font-size: 2rem; font-weight: 800; color: #0284c7; font-variant-numeric: tabular-nums;">${studentCount}</div>
         <div style="color: var(--text-muted); font-size: 0.82rem;">حسابات الطلاب الفعالة</div>
       </div>
       <div class="glass text-center" style="padding: 18px; border: 1.5px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.04);">
         <h3 style="margin-bottom: 6px; font-size: 0.9rem; color: #d97706;">الحسابات المجمدة</h3>
-        <div style="font-size: 2rem; font-weight: 800; color: #f59e0b; font-variant-numeric: tabular-nums;">${frozenCount}</div>
+        <div id="adminFrozenUsersCount" style="font-size: 2rem; font-weight: 800; color: #f59e0b; font-variant-numeric: tabular-nums;">${frozenCount}</div>
         <div style="color: var(--text-muted); font-size: 0.82rem;">منتهية الصلاحية / معطلة</div>
       </div>
     </div>
@@ -1850,11 +1962,11 @@ async function renderAdminUsers(container) {
     <div class="glass" style="padding: 16px 20px; margin-bottom: 20px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px;">
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <span style="font-size:0.9rem; font-weight:700; color:var(--text-muted); margin-left:6px;">التصفية:</span>
-        <button class="btn ${state.adminUserFilterType === 'all' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('all')">الكل (${totalCount})</button>
-        <button class="btn ${state.adminUserFilterType === 'online' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem; border-color:rgba(16,185,129,0.45); ${state.adminUserFilterType === 'online' ? 'background:#059669; border-color:#059669; color:#fff;' : 'color:#059669;'}" onclick="adminSetUserFilter('online')">● متصل الآن (${onlineCount})</button>
-        <button class="btn ${state.adminUserFilterType === 'students' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('students')">الطلاب النشطين (${studentCount})</button>
-        <button class="btn ${state.adminUserFilterType === 'frozen' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem; border-color:rgba(245,158,11,0.5); ${state.adminUserFilterType === 'frozen' ? 'background:#f59e0b; border-color:#f59e0b;' : 'color:#d97706;'}" onclick="adminSetUserFilter('frozen')">المجمدة (${frozenCount})</button>
-        <button class="btn ${state.adminUserFilterType === 'staff' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('staff')">الإدارة (${staffCount})</button>
+        <button id="adminFilterBtn-all" class="btn ${state.adminUserFilterType === 'all' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('all')">الكل (${totalCount})</button>
+        <button id="adminFilterBtn-online" class="btn ${state.adminUserFilterType === 'online' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem; border-color:rgba(16,185,129,0.45); ${state.adminUserFilterType === 'online' ? 'background:#059669; border-color:#059669; color:#fff;' : 'color:#059669;'}" onclick="adminSetUserFilter('online')">● متصل الآن (${onlineCount})</button>
+        <button id="adminFilterBtn-students" class="btn ${state.adminUserFilterType === 'students' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('students')">الطلاب النشطين (${studentCount})</button>
+        <button id="adminFilterBtn-frozen" class="btn ${state.adminUserFilterType === 'frozen' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem; border-color:rgba(245,158,11,0.5); ${state.adminUserFilterType === 'frozen' ? 'background:#f59e0b; border-color:#f59e0b;' : 'color:#d97706;'}" onclick="adminSetUserFilter('frozen')">المجمدة (${frozenCount})</button>
+        <button id="adminFilterBtn-staff" class="btn ${state.adminUserFilterType === 'staff' ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px; font-size:0.85rem;" onclick="adminSetUserFilter('staff')">الإدارة (${staffCount})</button>
       </div>
       <div style="flex:1; min-width:220px; max-width:320px;">
         <input type="text" id="adminUserSearchInput" oninput="adminFilterUsersLive()" placeholder="بحث بالاسم أو @اسم المستخدم..." style="width:100%; padding:8px 12px; border:2px solid var(--border); border-radius:8px; font-size:0.88rem;">
@@ -2343,11 +2455,12 @@ async function viewStudentDetails(username) {
   const activityLog = Array.isArray(progObj.activity_log) ? progObj.activity_log : [];
   const attempts = Array.isArray(details?.attempts) ? details.attempts : [];
 
-  const totalStudyMinutes = Math.max(Number(progObj.total_study_minutes) || 0, Number(studentUser.total_study_minutes) || 0);
-  const loginCount = Math.max(Number(progObj.login_count) || 0, Number(studentUser.login_count) || 0);
-  const lastSeenIso = progObj.last_seen_at || studentUser.last_seen_at || progObj.updated_at || '';
-  const currentActivity = progObj.current_activity || studentUser.current_activity || '';
-  const isOnline = isUserCurrentlyOnline({ ...studentUser, ...progObj });
+  const combinedStudent = mergeUserAndProgressTelemetry(studentUser, progObj, attempts);
+  const totalStudyMinutes = Number(combinedStudent.total_study_minutes) || 0;
+  const loginCount = Number(combinedStudent.login_count) || 0;
+  const lastSeenIso = combinedStudent.last_seen_at || '';
+  const currentActivity = combinedStudent.current_activity || '';
+  const isOnline = isUserCurrentlyOnline(combinedStudent);
 
   // Calculate Average Quiz Score
   const gradedAttempts = attempts.filter(a => a.is_graded && Number(a.max_score) > 0);

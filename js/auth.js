@@ -66,7 +66,7 @@ async function handleLogin(e) {
       state.user = result.user;
       localStorage.setItem('iqt_user', JSON.stringify(result.user));
       setupNavigation();
-      startPresenceHeartbeat();
+      startPresenceHeartbeat(true);
       showToast(`مرحباً بعودتك، ${result.user.name || result.user.username}!`);
 
       const targetHash = ['student', 'guest'].includes(result.user.role) ? 'dashboard' : 'admin';
@@ -152,6 +152,7 @@ function setupNavigation() {
 // ==========================================
 let _presenceIntervalId = null;
 let _currentActivityLabel = 'متصل في الصفحة الرئيسية';
+let _lastMinuteCreditedAt = 0;
 
 function logStudentActivity(type, title, detail = '', customCurrentActivity = '') {
   if (customCurrentActivity) {
@@ -176,31 +177,51 @@ function logStudentActivity(type, title, detail = '', customCurrentActivity = ''
   }).catch(() => {});
 }
 
-function startPresenceHeartbeat() {
+function startPresenceHeartbeat(isSessionStart = false) {
   if (_presenceIntervalId) {
     clearInterval(_presenceIntervalId);
     _presenceIntervalId = null;
   }
   if (!state.user || !state.user.username || MOCK_MODE) return;
 
+  _lastMinuteCreditedAt = Date.now();
+
   // Immediate online ping when session starts or restores
   API.post('recordPresenceHeartbeat', {
     username: state.user.username,
     is_online: true,
-    study_minutes_delta: 0,
+    is_session_start: Boolean(isSessionStart),
+    study_minutes_delta: isSessionStart ? 1 : 0,
     current_activity: _currentActivityLabel
+  }).then(res => {
+    if (res && res.success) {
+      if (typeof res.total_study_minutes === 'number') {
+        if (state.progress) state.progress.total_study_minutes = res.total_study_minutes;
+        if (state.user) state.user.total_study_minutes = res.total_study_minutes;
+      }
+      if (typeof res.login_count === 'number' && state.user) {
+        state.user.login_count = res.login_count;
+      }
+    }
   }).catch(() => {});
 
-  // Every 60 seconds, record 1 minute of active study time if tab is visible
+  // Every 25 seconds, keep online presence fresh and credit 1 study minute every ~60s of active tab visibility
   _presenceIntervalId = setInterval(() => {
     if (!state.user || !state.user.username || MOCK_MODE) return;
     const isVisible = document.visibilityState === 'visible';
     if (!isVisible) return;
 
+    const now = Date.now();
+    let deltaMinutes = 0;
+    if (now - _lastMinuteCreditedAt >= 55000) {
+      deltaMinutes = 1;
+      _lastMinuteCreditedAt = now;
+    }
+
     API.post('recordPresenceHeartbeat', {
       username: state.user.username,
       is_online: true,
-      study_minutes_delta: 1,
+      study_minutes_delta: deltaMinutes,
       current_activity: _currentActivityLabel
     }).then(res => {
       if (res && res.success && typeof res.total_study_minutes === 'number') {
@@ -208,7 +229,7 @@ function startPresenceHeartbeat() {
         if (state.user) state.user.total_study_minutes = res.total_study_minutes;
       }
     }).catch(() => {});
-  }, 60000);
+  }, 25000);
 }
 
 function stopPresenceHeartbeat(markOffline = true) {
@@ -235,12 +256,6 @@ document.addEventListener('visibilitychange', () => {
       study_minutes_delta: 0,
       current_activity: _currentActivityLabel
     }).catch(() => {});
-  }
-});
-
-window.addEventListener('pagehide', () => {
-  if (state.user && state.user.username && !MOCK_MODE) {
-    stopPresenceHeartbeat(true);
   }
 });
 
@@ -291,7 +306,7 @@ async function checkAuth() {
       }
 
       setupNavigation();
-      startPresenceHeartbeat();
+      startPresenceHeartbeat(true);
 
       const defaultPage = ['student', 'guest'].includes(state.user.role) ? 'dashboard' : 'admin';
       const targetHash = window.location.hash.replace('#', '') || defaultPage;
