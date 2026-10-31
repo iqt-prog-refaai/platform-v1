@@ -193,6 +193,12 @@ function showModal(type, id = null) {
         <div style="margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(2, 132, 199, 0.06); border: 1px dashed rgba(2, 132, 199, 0.3);">
           <div style="font-size: 0.78rem; font-weight: 700; color: var(--primary); margin-bottom: 6px;">⚡ محتويات تفاعلية جاهزة بالمنصة (تعبئة تلقائية بضغطة واحدة):</div>
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.78rem; border-color: rgba(5,150,105,0.4); color: #059669;" onclick="applyBuiltInLessonPreset('lesson_3_3_web')">
+              🌐 الدرس 3-3: أساسيات الواجهة الأمامية (صفحة تفاعلية)
+            </button>
+            <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.78rem;" onclick="applyBuiltInLessonPreset('lesson_3_3_pdf')">
+              📄 كتاب الدرس 3-3 (ملف PDF المرفق)
+            </button>
             <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.78rem;" onclick="applyBuiltInLessonPreset('lesson_3_2_web')">
               🌐 الدرس 3-2: طرق اتصال تطبيقات الويب (صفحة تفاعلية)
             </button>
@@ -551,7 +557,31 @@ function applyBuiltInLessonPreset(presetKey) {
   const typeSelect = $('materialType');
   const linkInput = $('materialLinkInput');
 
-  if (presetKey === 'lesson_3_2_web') {
+  if (presetKey === 'lesson_3_3_web') {
+    if (typeSelect) {
+      typeSelect.value = 'article';
+      toggleMaterialFields();
+    }
+    if (titleInput && !titleInput.value.trim()) {
+      titleInput.value = 'الدرس 3-3: أساسيات تقنية الواجهة الأمامية (شرح ومختبر تفاعلي)';
+    }
+    if (linkInput) {
+      linkInput.value = 'lessons/lesson-3-3.html';
+    }
+    showToast('تم اختيار الصفحة التفاعلية للدرس 3-3');
+  } else if (presetKey === 'lesson_3_3_pdf') {
+    if (typeSelect) {
+      typeSelect.value = 'pdf';
+      toggleMaterialFields();
+    }
+    if (titleInput && !titleInput.value.trim()) {
+      titleInput.value = 'كتاب الدرس 3-3: أساسيات تقنية الواجهة الأمامية (PDF)';
+    }
+    if (linkInput) {
+      linkInput.value = 'public/assets/aistudio/_______________-______________0d35e6fc.pdf';
+    }
+    showToast('تم اختيار ملف PDF للدرس 3-3');
+  } else if (presetKey === 'lesson_3_2_web') {
     if (typeSelect) {
       typeSelect.value = 'article';
       toggleMaterialFields();

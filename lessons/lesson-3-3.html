@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>الدرس 3-3: أساسيات تقنية الواجهة الأمامية | درس تفاعلي</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@500;600;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #F8FAFC;
+      --bg-surface: #FFFFFF;
+      --bg-subtle: #F1F5F9;
+      --text-main: #0F172A;
+      --text-secondary: #334155;
+      --text-muted: #64748B;
+      --border-hairline: #E2E8F0;
+      --border-strong: #CBD5E1;
+
+      --accent-primary: #0284C7;
+      --accent-primary-hover: #0369A1;
+      --accent-primary-soft: #E0F2FE;
+
+      --semantic-nominal: #059669;
+      --semantic-nominal-soft: #ECFDF5;
+      --semantic-nominal-border: #A7F3D0;
+
+      --semantic-warning: #D97706;
+      --semantic-warning-soft: #FFFBEB;
+      --semantic-warning-border: #FDE68A;
+
+      --semantic-danger: #DC2626;
+      --semantic-danger-soft: #FEF2F2;
+      --semantic-danger-border: #FECACA;
+
+      --radius-lg: 14px;
+      --radius-md: 10px;
+      --radius-sm: 6px;
+      --shadow-soft: 0 2px 10px rgba(15, 23, 42, 0.04);
+      --transition-fast: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Tajawal', 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      line-height: 1.65;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .mono {
+      font-family: 'IBM Plex Mono', monospace;
+      font-variant-numeric: tabular-nums;
+      direction: ltr;
+      display: inline-block;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Top Bar Contract: 1-row, 3-zone */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-hairline);
+      padding: 0.75rem 1.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+    }
+
+    .brand-wordmark {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text-main);
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .top-nav {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .top-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .top-nav a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.92rem;
+      font-weight: 700;
+      white-space: nowrap;
+      flex-shrink: 0;
+      padding: 0.25rem 0;
+      border-bottom: 2px solid transparent;
+      transition: color var(--transition-fast), border-color var(--transition-fast);
+    }
+
+    .top-nav a:hover,
+    .top-nav a.active {
+      color: var(--accent-primary);
+      border-bottom-color: var(--accent-primary);
+    }
+
+    .top-cta {
+      background: var(--accent-primary);
+      color: #FFFFFF;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 0.5rem 1rem;
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      text-decoration: none;
+      transition: background-color var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .top-cta:hover {
+      background: var(--accent-primary-hover);
+    }
+
+    /* Container & Layout */
+    .container {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* Hero & Overview Section */
+    .hero-section {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-lg);
+      padding: 2.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .metadata-line {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+
+    .hero-title {
+      font-size: clamp(1.75rem, 3vw, 2.5rem);
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.25;
+      margin-bottom: 1rem;
+      text-wrap: balance;
+    }
+
+    .hero-lead {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      max-width: 75ch;
+      margin-bottom: 1.75rem;
+    }
+
+    .core-questions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border-hairline);
+      margin-bottom: 1.5rem;
+    }
+
+    .core-box {
+      background: var(--bg-subtle);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+    }
+
+    .core-box-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--accent-primary);
+      margin-bottom: 0.35rem;
+    }
+
+    .core-box-text {
+      font-size: 0.96rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .objectives-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 0.85rem;
+      list-style: none;
+      margin-bottom: 1.5rem;
+    }
+
+    .objective-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      font-size: 0.94rem;
+      color: var(--text-secondary);
+      padding: 0.75rem 1rem;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+    }
+
+    .objective-num {
+      font-weight: 800;
+      color: var(--accent-primary);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    /* Key Terms Grid */
+    .terms-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 0.75rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border-hairline);
+    }
+
+    .term-card {
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
+      padding: 0.85rem 1rem;
+      transition: border-color var(--transition-fast), background var(--transition-fast);
+    }
+
+    .term-card:hover {
+      border-color: var(--accent-primary);
+      background: #FFFFFF;
+    }
+
+    .term-title {
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .term-desc {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    /* Section Headers */
+    .section-block {
+      margin-bottom: 3rem;
+      scroll-margin-top: 4.5rem;
+    }
+
+    .section-header {
+      margin-bottom: 1.25rem;
+    }
+
+    .section-kicker {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .section-title {
+      font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 0.5rem;
+    }
+
+    .section-desc {
+      color: var(--text-secondary);
+      max-width: 72ch;
+      font-size: 0.98rem;
+    }
+
+    /* Interactive Workspace Panels */
+    .interactive-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      box-shadow: var(--shadow-soft);
+      margin-bottom: 1.5rem;
+    }
+
+    .workspace-split {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 920px) {
+      .workspace-split {
+        grid-template-columns: 1fr;
+      }
+      .top-bar {
+        padding: 0.75rem 1rem;
+        gap: 1rem;
+      }
+    }
+
+    /* Buttons & Controls */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1.1rem;
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      transition: all var(--transition-fast);
+    }
+
+    .btn:hover:not(:disabled) {
+      background: var(--bg-subtle);
+      border-color: var(--text-muted);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent-primary);
+      color: #FFFFFF;
+      border-color: var(--accent-primary);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-primary-hover);
+      border-color: var(--accent-primary-hover);
+    }
+
+    .segmented-group {
+      display: inline-flex;
+      background: var(--bg-subtle);
+      padding: 0.25rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      gap: 0.25rem;
+      flex-wrap: wrap;
+    }
+
+    .seg-btn {
+      border: none;
+      background: transparent;
+      padding: 0.45rem 0.95rem;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .seg-btn.active {
+      background: var(--bg-surface);
+      color: var(--accent-primary);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    }
+
+    /* State Banners */
+    .state-banner {
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-subtle);
+      font-size: 0.92rem;
+    }
+
+    .state-banner.nominal {
+      background: var(--semantic-nominal-soft);
+      border-color: var(--semantic-nominal-border);
+      color: #065F46;
+    }
+
+    .state-banner.warning {
+      background: var(--semantic-warning-soft);
+      border-color: var(--semantic-warning-border);
+      color: #92400E;
+    }
+
+    .state-banner.danger {
+      background: var(--semantic-danger-soft);
+      border-color: var(--semantic-danger-border);
+      color: #991B1B;
+    }
+
+    /* Comparison Tables */
+    .data-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      margin-bottom: 1.5rem;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: right;
+      font-size: 0.92rem;
+    }
+
+    .data-table th {
+      background: var(--bg-subtle);
+      color: var(--text-main);
+      font-weight: 800;
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--border-strong);
+    }
+
+    .data-table td {
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--border-hairline);
+      color: var(--text-secondary);
+      vertical-align: top;
+    }
+
+    .data-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Code Box */
+    .code-box {
+      background: #0F172A;
+      color: #F8FAFC;
+      padding: 1.15rem;
+      border-radius: var(--radius-md);
+      font-family: 'IBM Plex Mono', monospace;
+      direction: ltr;
+      text-align: left;
+      font-size: 0.85rem;
+      line-height: 1.7;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    /* Figure 3.3.1 Interactive Preview Stage */
+    .browser-window {
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: #FFFFFF;
+    }
+
+    .browser-toolbar {
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-hairline);
+      padding: 0.6rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .browser-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .browser-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #CBD5E1;
+    }
+
+    .browser-address {
+      flex: 1;
+      background: #FFFFFF;
+      border: 1px solid var(--border-hairline);
+      border-radius: 6px;
+      padding: 0.2rem 0.75rem;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      direction: ltr;
+      text-align: left;
+    }
+
+    .browser-viewport {
+      padding: 1.5rem;
+      min-height: 310px;
+      transition: all 220ms ease;
+    }
+
+    /* Stage 1: Raw HTML only look */
+    .browser-viewport.stage-html {
+      font-family: 'Times New Roman', serif;
+      background: #FFFFFF;
+      color: #000000;
+    }
+
+    .browser-viewport.stage-html h1 {
+      font-size: 1.65rem;
+      font-weight: bold;
+      margin-bottom: 0.4rem;
+    }
+
+    .browser-viewport.stage-html h2 {
+      font-size: 1.25rem;
+      font-weight: bold;
+      margin: 0.75rem 0 0.35rem;
+    }
+
+    .browser-viewport.stage-html ul {
+      padding-right: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .browser-viewport.stage-html a {
+      color: #0000EE;
+      text-decoration: underline;
+    }
+
+    /* Stage 2 & 3: Styled with CSS */
+    .browser-viewport.stage-css,
+    .browser-viewport.stage-js {
+      font-family: 'Tajawal', sans-serif;
+      background: linear-gradient(180deg, #F0F9FF 0%, #FFFFFF 100%);
+      color: #0F172A;
+    }
+
+    .styled-page-card {
+      background: #FFFFFF;
+      border: 1px solid #BAE6FD;
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.06);
+    }
+
+    /* Responsive Viewport Simulator */
+    .responsive-stage-wrap {
+      background: #0F172A;
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: auto;
+    }
+
+    .responsive-device-frame {
+      background: #FFFFFF;
+      color: var(--text-main);
+      border-radius: 12px;
+      border: 3px solid #334155;
+      padding: 1.1rem;
+      transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
+      max-width: 100%;
+    }
+
+    /* Semantic HTML Blueprint */
+    .semantic-blueprint {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      padding: 1rem;
+      background: var(--bg-subtle);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+    }
+
+    .semantic-zone {
+      background: var(--bg-surface);
+      border: 2px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all var(--transition-fast);
+    }
+
+    .semantic-zone:hover,
+    .semantic-zone.active {
+      border-color: var(--accent-primary);
+      background: var(--accent-primary-soft);
+    }
+
+    /* Cards Grid for Textbook Activities */
+    .cards-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .activity-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .answer-reveal {
+      display: none;
+      margin-top: 0.75rem;
+      padding: 1rem;
+      border-radius: var(--radius-md);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-hairline);
+      color: var(--text-main);
+      font-size: 0.92rem;
+    }
+
+    .answer-reveal.open {
+      display: block;
+    }
+
+    /* Interactive Quiz Styling */
+    .quiz-option {
+      width: 100%;
+      text-align: right;
+      padding: 0.8rem 1rem;
+      margin-bottom: 0.55rem;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      font-family: inherit;
+      font-size: 0.94rem;
+      font-weight: 600;
+      color: var(--text-main);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all var(--transition-fast);
+    }
+
+    .quiz-option:hover:not(:disabled) {
+      background: var(--bg-subtle);
+      border-color: var(--accent-primary);
+    }
+
+    .quiz-option.correct {
+      background: var(--semantic-nominal-soft);
+      border-color: var(--semantic-nominal);
+      color: #065F46;
+    }
+
+    .quiz-option.wrong {
+      background: var(--semantic-danger-soft);
+      border-color: var(--semantic-danger);
+      color: #991B1B;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
+      margin-bottom: 0.55rem;
+      flex-wrap: wrap;
+    }
+
+    /* Security Watermark & Protection Styles */
+    body.iqt-protected {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .iqt-watermark-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      pointer-events: none;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      grid-auto-rows: 170px;
+      align-items: center;
+      justify-items: center;
+      opacity: 0.045;
+    }
+
+    .iqt-watermark-item {
+      transform: rotate(-24deg);
+      font-family: 'IBM Plex Mono', 'Tajawal', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #0F172A;
+      white-space: nowrap;
+      letter-spacing: 0.03em;
+      direction: ltr;
+    }
+
+    @media print {
+      body * {
+        display: none !important;
+      }
+      body::after {
+        content: "هذا المحتوى التعليمي محمي ومملوك لمنصة IQT ولا يُسمح بطباعته أو مشاركته خارج المنصة.";
+        display: block !important;
+        padding: 4rem;
+        font-size: 1.4rem;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body class="iqt-protected">
+
+  <!-- Synchronous Pre-Render Auth Gate & Watermark Injector -->
+  <script>
+    (function() {
+      function resolveAuthenticatedUser() {
+        if (window.__IQT_AUTH_USER__ && window.__IQT_AUTH_USER__.username) {
+          return window.__IQT_AUTH_USER__;
+        }
+        try {
+          if (window.parent && window.parent !== window && window.parent.state && window.parent.state.user && window.parent.state.user.username) {
+            return window.parent.state.user;
+          }
+        } catch (e) {}
+        try {
+          var raw = localStorage.getItem('iqt_user');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.username) return parsed;
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      function renderAccessDeniedScreen(reasonTitle, reasonDesc) {
+        document.documentElement.style.background = '#0F172A';
+        document.body.innerHTML = [
+          '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0F172A;color:#F8FAFC;font-family:\'Tajawal\',sans-serif;direction:rtl;">',
+          '  <div style="max-width:480px;width:100%;background:#1E293B;border:1px solid #334155;border-radius:18px;padding:36px 28px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,0.4);">',
+          '    <div style="width:64px;height:64px;margin:0 auto 18px;border-radius:16px;background:rgba(239,68,68,0.14);border:1px solid rgba(239,68,68,0.35);display:flex;align-items:center;justify-content:center;font-size:1.9rem;">🔒</div>',
+          '    <h1 style="font-size:1.35rem;font-weight:800;margin-bottom:10px;color:#F8FAFC;">' + reasonTitle + '</h1>',
+          '    <p style="font-size:0.96rem;color:#94A3B8;line-height:1.7;margin-bottom:24px;">' + reasonDesc + '</p>',
+          '    <a href="../index.html#login" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px 22px;background:#0284C7;color:#FFFFFF;font-weight:700;font-size:0.98rem;border-radius:12px;text-decoration:none;">تسجيل الدخول إلى المنصة</a>',
+          '  </div>',
+          '</div>'
+        ].join('');
+      }
+
+      var user = resolveAuthenticatedUser();
+      var roleStr = user ? String(user.role || '').toLowerCase() : '';
+      var isFrozen = user && (user.is_frozen || roleStr === 'frozen' || roleStr.indexOf('frozen:') === 0 || roleStr === 'deleted');
+
+      if (!user || !user.username) {
+        renderAccessDeniedScreen(
+          'محتوى تعليمي محمي — للأعضاء المسجلين فقط',
+          'لا يمكن فتح هذا الدرس التفاعلي عبر رابط خارجي مباشر بدون تسجيل الدخول. يرجى تسجيل الدخول بحسابك في منصة IQT للوصول إلى الدرس والأنشطة التفاعلية.'
+        );
+        throw new Error('IQT_AUTH_REQUIRED');
+      }
+
+      if (isFrozen) {
+        try { localStorage.removeItem('iqt_user'); } catch (e) {}
+        renderAccessDeniedScreen(
+          'الحساب مجمّد حالياً',
+          'انتهت صلاحية هذا الحساب أو تم إيقافه مؤقتاً. يرجى التواصل مع إدارة المنصة لتجديد الاشتراك.'
+        );
+        throw new Error('IQT_ACCOUNT_FROZEN');
+      }
+
+      window.__IQT_VERIFIED_USER__ = user;
+    })();
+  </script>
+
+  <!-- Top Bar Contract: Zone 1 (Brand) - Zone 2 (5 Links) - Zone 3 (1 Primary CTA) -->
+  <header class="top-bar">
+    <a href="#top" class="brand-wordmark">الدرس 3-3: أساسيات تقنية الواجهة الأمامية</a>
+    <nav class="top-nav" aria-label="أقسام الدرس">
+      <a href="#sec-triad">أدوار HTML و CSS و JS</a>
+      <a href="#sec-semantic">HTML الدلالية</a>
+      <a href="#sec-responsive">التصميم المتجاوب</a>
+      <a href="#sec-frameworks">أطر العمل الحديثة</a>
+      <a href="#sec-activities">الأنشطة والاختبار</a>
+    </nav>
+    <a href="../public/assets/aistudio/_______________-______________0d35e6fc.pdf" target="_blank" rel="noopener noreferrer" class="top-cta">ملف الدرس PDF</a>
+  </header>
+
+  <main class="container" id="top">
+
+    <!-- HERO & LESSON MAP -->
+    <section class="hero-section">
+      <div class="metadata-line">
+        <span>الوحدة الثالثة: تطبيقات الويب</span>
+        <span aria-hidden="true">·</span>
+        <span>الدرس 3-3</span>
+        <span aria-hidden="true">·</span>
+        <span>صفحات الكتاب المدرسي 62 – 67</span>
+        <span aria-hidden="true">·</span>
+        <span>درس تفاعلي شامل</span>
+      </div>
+      <h1 class="hero-title">أساسيات تقنية الواجهة الأمامية (Frontend Technology Basics)</h1>
+      <p class="hero-lead">
+        في الدرسين السابقين، تعرفت على دور <strong>الواجهة الأمامية (Front-end)</strong> وكيف تتواصل مع الخادم عبر الشبكة. وفي هذا الدرس سنتعمق داخل الواجهة الأمامية نفسها لنكتشف كيف تتضافر <strong>HTML</strong> و <strong>CSS</strong> و <strong>JavaScript</strong> لبناء صفحة الويب، وكيف تجعل الممارسات الحديثة مثل <strong>HTML الدلالية</strong> و<strong>التصميم المتجاوب</strong> و<strong>أطر العمل (Frameworks)</strong> صفحات الويب ذات معنى وقابلة للتكيف وفعّالة في التطوير.
+      </p>
+
+      <div class="core-questions-grid">
+        <div class="core-box">
+          <div class="core-box-label">السؤال الرئيسي للدرس (خريطة الدرس · ص 62)</div>
+          <div class="core-box-text">كيف تعمل <span class="mono">HTML</span> و <span class="mono">CSS</span> و <span class="mono">JavaScript</span> معاً لبناء صفحة ويب، وما الذي يجعل الواجهة الأمامية الحديثة ذات معنى وقابلة للتكيف وفعّالة في البناء؟</div>
+        </div>
+        <div class="core-box">
+          <div class="core-box-label">الفكرة الأساسية للدرس (خريطة الدرس · ص 62)</div>
+          <div class="core-box-text">تُبنى صفحة الويب من <span class="mono">HTML</span> (البنية)، و <span class="mono">CSS</span> (المظهر)، و <span class="mono">JavaScript</span> (السلوك)؛ وتضيف الواجهة الأمامية الحديثة <span class="mono">HTML الدلالية</span> والتصميم المتجاوب وأطر العمل.</div>
+        </div>
+      </div>
+
+      <h2 style="font-size: 1rem; font-weight: 800; margin-bottom: 0.75rem;">أهداف التعلم:</h2>
+      <ul class="objectives-list">
+        <li class="objective-item">
+          <span class="objective-num">01.</span>
+          <span>شرح الأدوار المميزة لكل من <span class="mono">HTML</span> و <span class="mono">CSS</span> و <span class="mono">JavaScript</span> في بناء صفحة الويب.</span>
+        </li>
+        <li class="objective-item">
+          <span class="objective-num">02.</span>
+          <span>شرح كيف تسهم لغة <span class="mono">HTML الدلالية (Semantic HTML)</span>، و<strong>التصميم المتجاوب (Responsive Design)</strong>، و<strong>أطر العمل (Frameworks)</strong> في تحسين الواجهة الأمامية الحديثة.</span>
+        </li>
+      </ul>
+
+      <h2 style="font-size: 1rem; font-weight: 800; margin-bottom: 0.75rem;">المفاهيم والمصطلحات الأساسية في الدرس:</h2>
+      <div class="terms-grid">
+        <div class="term-card">
+          <div class="term-title"><span>بنية الصفحة</span><span class="mono" style="color:var(--accent-primary);">HTML</span></div>
+          <div class="term-desc">تحدد هيكل وبنية صفحة الويب وتصف عناصر المحتوى مثل العناوين والفقرات والقوائم والصور والروابط.</div>
+        </div>
+        <div class="term-card">
+          <div class="term-title"><span>المظهر والتنسيق</span><span class="mono" style="color:var(--accent-primary);">CSS</span></div>
+          <div class="term-desc">تحدد مظهر الصفحة المرئي: الألوان، التخطيط، الأحجام، الخطوط، والتباعد بين العناصر.</div>
+        </div>
+        <div class="term-card">
+          <div class="term-title"><span>السلوك والتفاعلية</span><span class="mono" style="color:var(--accent-primary);">JavaScript</span></div>
+          <div class="term-desc">تضيف السلوك الديناميكي والتفاعلية، وتفعّل الاستجابات عند ضغط الأزرار وتحديث أجزاء من الشاشة.</div>
+        </div>
+        <div class="term-card">
+          <div class="term-title"><span>HTML الدلالية</span><span class="mono" style="color:var(--accent-primary);">Semantic HTML</span></div>
+          <div class="term-desc">استخدام وسوم توضح معنى ووظيفة كل جزء في الصفحة مثل <span class="mono">&lt;header&gt;</span> و <span class="mono">&lt;nav&gt;</span> و <span class="mono">&lt;main&gt;</span> و <span class="mono">&lt;footer&gt;</span>.</div>
+        </div>
+        <div class="term-card">
+          <div class="term-title"><span>إمكانية الوصول</span><span class="mono" style="color:var(--accent-primary);">Accessibility</span></div>
+          <div class="term-desc">تصميم المحتوى والواجهة بحيث يمكن لأصحاب القدرات والاحتياجات المختلفة استخدامها، بمن فيهم ذوو الإعاقة ومستخدمو قارئ الشاشة.</div>
+        </div>
+        <div class="term-card">
+          <div class="term-title"><span>تحسين محركات البحث</span><span class="mono" style="color:var(--accent-primary);">SEO</span></div>
+          <div class="term-desc"><span class="mono">Search Engine Optimization</span>: ممارسات تجعل الصفحة أيسر في الفهرسة والفهم والظهور في نتائج البحث.</div>
+        </div>
+        <div class="term-card">
+          <div class="term-title"><span>التصميم المتجاوب</span><span class="mono" style="color:var(--accent-primary);">Responsive Design</span></div>
+          <div class="term-desc">مفهوم تصميمي يتكيف فيه تخطيط الصفحة تلقائياً مع أحجام الشاشات المختلفة (حاسوب، هاتف ذكي، جهاز لوحي).</div>
+        </div>
+        <div class="term-card">
+          <div class="term-title"><span>إطار العمل</span><span class="mono" style="color:var(--accent-primary);">Framework</span></div>
+          <div class="term-desc">بنية توفر مسبقاً وظائف ومكونات شائعة الاستخدام لجعل تطوير تطبيقات الويب أكثر كفاءة دون البناء من الصفر.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         أولاً: أدوار HTML و CSS و JavaScript (ص 62 - 63)
+    ========================================================== -->
+    <section class="section-block" id="sec-triad">
+      <div class="section-header">
+        <div class="section-kicker">أولاً · ص 62 – 63</div>
+        <h2 class="section-title">أدوار HTML و CSS و JavaScript في بناء صفحة الويب</h2>
+        <p class="section-desc">
+          تؤدي كلٌّ من <span class="mono">HTML</span> و <span class="mono">CSS</span> و <span class="mono">JavaScript</span> أدواراً مختلفة ومتكاملة في صفحات الويب.
+          <strong>ملاحظة هامة من الكتاب المدرسي:</strong> ليس من الضروري أن تستخدم الصفحة الثلاث كلها معاً؛ إذ يمكن أن تستخدم <span class="mono">HTML</span> وحده لعرض نص بسيط، أو أن تجمع بين <span class="mono">HTML</span> و <span class="mono">CSS</span> و <span class="mono">JavaScript</span> بحسب الوظائف التي تحتاج إليها.
+        </p>
+      </div>
+
+      <!-- Textbook Table: Roles & Building Analogy -->
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 18%;">التقنية</th>
+              <th style="width: 48%;">الدور الوظيفي في صفحة الويب</th>
+              <th style="width: 34%;">التشبيه الهندسي بالمبنى (ص 62)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong class="mono" style="font-size:1rem; color:#EA580C;">HTML</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">البنية (الهيكل)</span></td>
+              <td>يحدد <strong>بنية (هيكل)</strong> صفحة الويب، ويصف عناصر المحتوى الأساسية مثل العناوين، والفقرات، والقوائم، والصور، والروابط.</td>
+              <td>🏗️ <strong>هيكل مبنى</strong> (الأعمدة والجدران والغرف الأساسية التي تُشكّل المبنى).</td>
+            </tr>
+            <tr>
+              <td><strong class="mono" style="font-size:1rem; color:#0284C7;">CSS</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">المظهر (التنسيق)</span></td>
+              <td>يحدد <strong>مظهر</strong> صفحة الويب وتصميمها المرئي، مثل الألوان، والتخطيط، والحجم، والخطوط، والتباعد.</td>
+              <td>🎨 <strong>الديكور الداخلي والخارجي لمبنى</strong> (الطلاء، الألوان، الإضاءة، وترتيب الأثاث).</td>
+            </tr>
+            <tr>
+              <td><strong class="mono" style="font-size:1rem; color:#D97706;">JavaScript</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">السلوك (التفاعلية)</span></td>
+              <td>يضيف <strong>السلوك والتفاعلية</strong> إلى صفحة الويب، ويُفعّل الاستجابات عند الضغط على الأزرار، وتحديثات جزء فقط من الشاشة دون إعادة تحميل الصفحة كاملة.</td>
+              <td>⚡ <strong>أنظمة الكهرباء والسباكة في مبنى</strong> (المصاعد، الأبواب الآلية، ومفاتيح الإضاءة التي تستجيب لك).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Interactive Lab 1: Figure 3.3.1 Simulator -->
+      <div class="interactive-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.25rem;">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:var(--accent-primary);">مختبر تفاعلي 1 · محاكاة الشكل 3.3.1 (ص 63)</div>
+            <h3 style="font-size:1.15rem; font-weight:800;">جرّب بنفسك: كيف تتطور «صفحتي على الويب — الكتب التي أحبها» خطوة بخطوة؟</h3>
+          </div>
+          <div class="segmented-group" role="tablist" aria-label="طبقات بناء الصفحة">
+            <button type="button" class="seg-btn active" id="layerBtn1" onclick="setTriadStage(1)">① HTML فقط (الهيكل)</button>
+            <button type="button" class="seg-btn" id="layerBtn2" onclick="setTriadStage(2)">② HTML + CSS (+ التنسيق)</button>
+            <button type="button" class="seg-btn" id="layerBtn3" onclick="setTriadStage(3)">③ + JavaScript (+ السلوك)</button>
+          </div>
+        </div>
+
+        <div class="state-banner nominal" id="triadStageBanner" style="margin-bottom:1.25rem;">
+          <strong>المرحلة ① (HTML فقط — الهيكل):</strong> الصفحة تعرض المحتوى الخام فقط (عنوان رئيسي، فقرة ترحيبية، قائمة كتب، ورابط) بدون أي ألوان أو تخطيط مرئي أو تفاعلية. يشبه ذلك هيكل مبنى خرساني قبل التشطيب.
+        </div>
+
+        <div class="workspace-split">
+          <!-- Left: Live Rendered Webpage Preview -->
+          <div>
+            <div class="browser-window">
+              <div class="browser-toolbar">
+                <div class="browser-dots">
+                  <span class="browser-dot" style="background:#EF4444;"></span>
+                  <span class="browser-dot" style="background:#F59E0B;"></span>
+                  <span class="browser-dot" style="background:#10B981;"></span>
+                </div>
+                <div class="browser-address" id="browserUrlBar">https://my-books.example/index.html (HTML Only)</div>
+                <span id="stageBadgePill" style="font-size:0.76rem; font-weight:800; color:#EA580C;">طبقة 1 من 3</span>
+              </div>
+
+              <div class="browser-viewport stage-html" id="triadLiveViewport">
+                <!-- Dynamically rendered by setTriadStage() -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Live Code & Analogy Inspector -->
+          <div style="display:flex; flex-direction:column; gap:1rem;">
+            <div style="background:var(--bg-subtle); border:1px solid var(--border-hairline); border-radius:var(--radius-md); padding:1rem;">
+              <div style="font-size:0.82rem; font-weight:800; color:var(--accent-primary); margin-bottom:0.35rem;">التشبيه الهندسي للطبقة الحالية:</div>
+              <div id="triadAnalogyBox" style="font-size:0.93rem; font-weight:600; color:var(--text-main);">
+                🏗️ <strong>هيكل المبنى (HTML):</strong> يحدد وجود العنوان والقائمة والروابط، لكن بدون طلاء أو كهرباء.
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+                <span style="font-size:0.84rem; font-weight:800; color:var(--text-secondary);">الكود البرمجي الفعّال في هذه المرحلة:</span>
+                <span class="mono" id="triadCodeLangLabel" style="font-size:0.78rem; color:var(--accent-primary); font-weight:700;">index.html</span>
+              </div>
+              <pre class="code-box" id="triadCodeInspector"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stop & Think 1 (Page 62) -->
+      <div class="activity-card" style="border-right: 4px solid var(--accent-primary);">
+        <div>
+          <div style="font-size:0.8rem; font-weight:800; color:var(--accent-primary); margin-bottom:0.25rem;">توقف وفكر · ص 62</div>
+          <h4 style="font-size:1.02rem; font-weight:800; margin-bottom:0.4rem;">
+            في صفحة تستخدمها كثيراً (مثل منصة تعليمية أو متجر إلكتروني أو يوتيوب)، ما الأجزاء التي تمثل البنية (<span class="mono">HTML</span>)، وما التي تمثل الشكل (<span class="mono">CSS</span>)، وما الذي يتفاعل معك (<span class="mono">JavaScript</span>)؟
+          </h4>
+        </div>
+        <div>
+          <button type="button" class="btn" onclick="toggleReveal('stopThink1')">إظهار الإجابة النموذجية للمناقشة</button>
+          <div class="answer-reveal" id="stopThink1">
+            <ul style="padding-right:1.25rem; display:flex; flex-direction:column; gap:0.4rem;">
+              <li><strong>البنية (HTML):</strong> عناوين الدروس أو الفيديوهات، نصوص الوصف، الصور المصغرة، الروابط، وحقول البحث.</li>
+              <li><strong>الشكل والمظهر (CSS):</strong> ألوان الهوية البصرية، تخطيط البطاقات في شبكة منظمة، نوع الخط، وتنسيق الأزرار والظلال.</li>
+              <li><strong>التفاعل والسلوك (JavaScript):</strong> تصفية نتائج البحث لحظياً أثناء الكتابة، تحديث عداد الإعجاب أو الإشعارات فوراً بدون إعادة تحميل الصفحة، وتشغيل الاختبارات التفاعلية.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         ثانياً: HTML الدلالية (Semantic HTML) وإمكانية الوصول و SEO (ص 63)
+    ========================================================== -->
+    <section class="section-block" id="sec-semantic">
+      <div class="section-header">
+        <div class="section-kicker">ثانياً · ص 63</div>
+        <h2 class="section-title">HTML الدلالية (Semantic HTML)، إمكانية الوصول، ومحركات البحث</h2>
+        <p class="section-desc">
+          في صفحات الويب الحديثة، لا نكتفي بوضع العناصر داخل صناديق عامة غير معبّرة (<span class="mono">&lt;div&gt;</span>)، بل نستخدم <strong>عناصر HTML الدلالية</strong> التي توضح وظيفة كل جزء من أجزاء الصفحة ومعناه، مثل:
+          <span class="mono">&lt;header&gt;</span> في أعلى الصفحة، و <span class="mono">&lt;nav&gt;</span> للتنقل، و <span class="mono">&lt;main&gt;</span> للمحتوى الرئيس، و <span class="mono">&lt;footer&gt;</span> في أسفل الصفحة.
+        </p>
+      </div>
+
+      <!-- Two Core Benefits of Semantic HTML -->
+      <div class="cards-grid-2">
+        <div class="activity-card" style="border-top: 3px solid var(--semantic-nominal);">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:var(--semantic-nominal); margin-bottom:0.3rem;">الفائدة الأولى · Accessibility</div>
+            <h3 style="font-size:1.1rem; font-weight:800; margin-bottom:0.5rem;">1. تحسين إمكانية الوصول (Accessibility)</h3>
+            <p style="font-size:0.93rem; color:var(--text-secondary);">
+              <strong>إمكانية الوصول</strong> تعني تصميم المحتوى والواجهة بحيث يمكن لأصحاب القدرات والاحتياجات المختلفة استخدامها، بمن فيهم ذوو الإعاقة.
+              يساعد <span class="mono">HTML</span> الدلالي برامج <strong>قارئ الشاشة (Screen Reader)</strong> على فهم بنية الصفحة والتنقل المباشر بين أقسامها (كالقفز مباشرة إلى قائمة التنقل <span class="mono">&lt;nav&gt;</span> أو المحتوى الرئيس <span class="mono">&lt;main&gt;</span>)، مع الحاجة إلى ممارسات وصول أخرى أيضاً (مثل النصوص البديلة للصور وتباين الألوان).
+            </p>
+          </div>
+        </div>
+
+        <div class="activity-card" style="border-top: 3px solid var(--accent-primary);">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:var(--accent-primary); margin-bottom:0.3rem;">الفائدة الثانية · SEO (Search Engine Optimization)</div>
+            <h3 style="font-size:1.1rem; font-weight:800; margin-bottom:0.5rem;">2. مساعدة محركات البحث على فهم المحتوى</h3>
+            <p style="font-size:0.93rem; color:var(--text-secondary);">
+              <strong>تحسين محركات البحث (SEO)</strong> هو مجموعة الممارسات التي تجعل الصفحة أيسر في الفهرسة والظهور في نتائج البحث.
+              قد يساعد <span class="mono">HTML</span> الدلالي محركات البحث على فهم بنية المحتوى وأهمية كل قسم بصورة أفضل، <strong style="color:var(--semantic-warning);">لكنه لا يضمن ترتيباً أعلى في نتائج البحث بمفرده</strong> (تنبيه امتحاني مهم جداً في الكتاب ص 63).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Lab 2: Semantic HTML vs Div Soup & Screen Reader Simulator -->
+      <div class="interactive-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.25rem;">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:var(--accent-primary);">مختبر تفاعلي 2 · فاحص البنية الدلالية وقارئ الشاشة (ص 63)</div>
+            <h3 style="font-size:1.15rem; font-weight:800;">قارن كيف يرى «قارئ الشاشة» و«محرك البحث» الصفحة عند استخدام وسوم دلالية مقابل صناديق <span class="mono">&lt;div&gt;</span> عادية</h3>
+          </div>
+          <div class="segmented-group">
+            <button type="button" class="seg-btn active" id="semModeSemantic" onclick="setSemanticMode('semantic')">✓ وضع HTML الدلالية (Semantic)</button>
+            <button type="button" class="seg-btn" id="semModeDiv" onclick="setSemanticMode('div')">✕ وضع صناديق &lt;div&gt; غير الدلالية</button>
+          </div>
+        </div>
+
+        <div class="workspace-split">
+          <!-- Blueprint clickable zones -->
+          <div>
+            <div style="font-size:0.85rem; font-weight:700; color:var(--text-muted); margin-bottom:0.6rem;">
+              اضغط على أي جزء من مخطط الصفحة أدناه لسماع/رؤية كيف يفسره قارئ الشاشة ومحرك البحث:
+            </div>
+            <div class="semantic-blueprint">
+              <div class="semantic-zone active" id="semZone-header" onclick="inspectSemanticZone('header')">
+                <div>
+                  <strong id="semLabel-header">رأس الصفحة وعنوان الموقع</strong>
+                  <div style="font-size:0.8rem; color:var(--text-muted);">الشعار والعنوان الترحيبي</div>
+                </div>
+                <span class="mono" id="semTag-header" style="font-weight:700; color:var(--accent-primary);">&lt;header&gt;</span>
+              </div>
+
+              <div class="semantic-zone" id="semZone-nav" onclick="inspectSemanticZone('nav')">
+                <div>
+                  <strong id="semLabel-nav">شريط روابط التنقل</strong>
+                  <div style="font-size:0.8rem; color:var(--text-muted);">الرئيسية · الدروس · الاختبارات · تواصل معنا</div>
+                </div>
+                <span class="mono" id="semTag-nav" style="font-weight:700; color:var(--accent-primary);">&lt;nav&gt;</span>
+              </div>
+
+              <div class="semantic-zone" id="semZone-main" onclick="inspectSemanticZone('main')" style="padding:1.35rem 1rem;">
+                <div>
+                  <strong id="semLabel-main">المحتوى الرئيس للصفحة</strong>
+                  <div style="font-size:0.8rem; color:var(--text-muted);">المقال الأساسي أو قائمة الكتب والأنشطة</div>
+                </div>
+                <span class="mono" id="semTag-main" style="font-weight:700; color:var(--accent-primary);">&lt;main&gt;</span>
+              </div>
+
+              <div class="semantic-zone" id="semZone-footer" onclick="inspectSemanticZone('footer')">
+                <div>
+                  <strong id="semLabel-footer">تذييل الصفحة السفلي</strong>
+                  <div style="font-size:0.8rem; color:var(--text-muted);">حقوق النشر ومعلومات الاتصال</div>
+                </div>
+                <span class="mono" id="semTag-footer" style="font-weight:700; color:var(--accent-primary);">&lt;footer&gt;</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Output of Screen Reader & SEO Crawler -->
+          <div style="display:flex; flex-direction:column; gap:1rem;">
+            <div class="state-banner nominal" id="semScreenReaderBox">
+              <!-- Populated by JS -->
+            </div>
+            <div class="state-banner" id="semSeoBox" style="background:var(--bg-subtle);">
+              <!-- Populated by JS -->
+            </div>
+            <pre class="code-box" id="semCodePreview"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stop & Think 2 (Page 63) -->
+      <div class="activity-card" style="border-right: 4px solid var(--semantic-nominal);">
+        <div>
+          <div style="font-size:0.8rem; font-weight:800; color:var(--semantic-nominal); margin-bottom:0.25rem;">توقف وفكر · ص 63</div>
+          <h4 style="font-size:1.02rem; font-weight:800; margin-bottom:0.4rem;">
+            لماذا يفهم قارئ الشاشة الصفحة بشكل أفضل عندما نستخدم <span class="mono">&lt;header&gt;</span> و <span class="mono">&lt;nav&gt;</span> و <span class="mono">&lt;main&gt;</span> بدلاً من صناديق عادية (<span class="mono">&lt;div&gt;</span>)؟
+          </h4>
+        </div>
+        <div>
+          <button type="button" class="btn" onclick="toggleReveal('stopThink2')">إظهار الإجابة النموذجية</button>
+          <div class="answer-reveal" id="stopThink2">
+            لأن الصناديق العادية (<span class="mono">&lt;div&gt;</span>) هي حاويات عامة لا تحمل أي معنى وظيفي، فلا يعرف قارئ الشاشة ما إذا كان الصندوق يمثل قائمة تنقل أم ترويسة أم محتوى رئيسياً. أما الوسوم الدلالية (<span class="mono">&lt;header&gt;</span>، <span class="mono">&lt;nav&gt;</span>، <span class="mono">&lt;main&gt;</span>) فتعرّف دور كل منطقة بوضوح كمعالم (Landmarks)، مما يتيح للمستخدم الكفيف أو ضعيف البصر فهم هيكل الصفحة والقفز مباشرة إلى المحتوى الرئيس دون الاضطرار لقراءة كل الروابط في كل مرة.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         ثالثاً: التصميم المتجاوب (Responsive Design) و Mobile-First (ص 64)
+    ========================================================== -->
+    <section class="section-block" id="sec-responsive">
+      <div class="section-header">
+        <div class="section-kicker">ثالثاً · ص 64</div>
+        <h2 class="section-title">التصميم المتجاوب (Responsive Design) ونهج الأولوية للجوال</h2>
+        <p class="section-desc">
+          <strong>التصميم المتجاوب (Responsive Design)</strong> هو مفهوم تصميمي يُضبط فيه تخطيط الصفحة تلقائياً وفقاً لأحجام الشاشات المختلفة، مثل أجهزة الكمبيوتر، والهواتف الذكية، والأجهزة اللوحية؛ مما يساعد الصفحة على التكيف مع كل شاشة وتحسين سهولة استخدامها.
+        </p>
+      </div>
+
+      <div class="state-banner warning" style="margin-bottom:1.5rem;">
+        <strong>📱 نهج الأولوية للجوال (Mobile-First Approach · ص 64):</strong>
+        يستخدم كثير من الناس الويب عبر الهواتف الذكية، لذلك يراعي المطورون الشاشات الصغيرة منذ بداية التصميم قبل التوسع للشاشات الأكبر، ويُسمى ذلك أحياناً <strong>نهج الأولوية للجوال (Mobile-First)</strong>.
+      </div>
+
+      <!-- Interactive Lab 3: Responsive Viewport Switcher -->
+      <div class="interactive-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.25rem;">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:var(--accent-primary);">مختبر تفاعلي 3 · محاكي التصميم المتجاوب وأحجام الشاشات (ص 64)</div>
+            <h3 style="font-size:1.15rem; font-weight:800;">اختبر كيف يتكيف تخطيط الصفحة تلقائياً بين الهاتف الذكي والجهاز اللوحي وشاشة الحاسوب</h3>
+          </div>
+          <div class="segmented-group">
+            <button type="button" class="seg-btn active" id="vpBtn-mobile" onclick="setViewportDevice('mobile')">📱 هاتف ذكي (Mobile-First)</button>
+            <button type="button" class="seg-btn" id="vpBtn-tablet" onclick="setViewportDevice('tablet')">📟 جهاز لوحي (Tablet)</button>
+            <button type="button" class="seg-btn" id="vpBtn-desktop" onclick="setViewportDevice('desktop')">💻 كمبيوتر مكتبي (Desktop)</button>
+          </div>
+        </div>
+
+        <div class="state-banner nominal" id="vpExplanationBanner" style="margin-bottom:1.25rem;">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="responsive-stage-wrap">
+          <div style="color:#94A3B8; font-size:0.8rem; font-family:'IBM Plex Mono',monospace; margin-bottom:0.75rem;" id="vpDimensionLabel">
+            Viewport Width: 360px · Layout: 1 Column (Mobile-First)
+          </div>
+
+          <div class="responsive-device-frame" id="vpDeviceFrame" style="width: 360px;">
+            <!-- Simulated Responsive Header -->
+            <div id="vpHeaderBar" style="display:flex; justify-content:space-between; align-items:center; padding-bottom:0.75rem; margin-bottom:0.85rem; border-bottom:1px solid var(--border-hairline);">
+              <strong style="color:var(--accent-primary); font-size:0.95rem;">🌐 بوابة العلوم الرقمية</strong>
+              <span id="vpNavDisplay" style="font-size:0.8rem; background:var(--bg-subtle); padding:4px 8px; border-radius:6px; font-weight:700;">☰ قائمة الجوال</span>
+            </div>
+
+            <!-- Simulated Hero Banner -->
+            <div style="background:var(--accent-primary-soft); border:1px solid #BAE6FD; border-radius:8px; padding:0.85rem; margin-bottom:0.85rem;">
+              <div style="font-weight:800; font-size:0.92rem; color:#0369A1;" id="vpHeroHeading">مرحباً بك في المعرض العلمي</div>
+              <div style="font-size:0.8rem; color:var(--text-secondary);">يتكيف هذا التخطيط تلقائياً مع حجم شاشة جهازك بدون تمرير أفقي مزعج.</div>
+            </div>
+
+            <!-- Simulated Cards Grid -->
+            <div id="vpCardsGrid" style="display:grid; grid-template-columns: 1fr; gap:0.65rem;">
+              <div style="background:var(--bg-subtle); border:1px solid var(--border-hairline); border-radius:8px; padding:0.75rem;">
+                <strong style="font-size:0.86rem; display:block;">1. هندسة الويب</strong>
+                <span style="font-size:0.78rem; color:var(--text-muted);">بناء الهيكل والتنسيق والتفاعلية.</span>
+              </div>
+              <div style="background:var(--bg-subtle); border:1px solid var(--border-hairline); border-radius:8px; padding:0.75rem;">
+                <strong style="font-size:0.86rem; display:block;">2. الشبكات والأمان</strong>
+                <span style="font-size:0.78rem; color:var(--text-muted);">بروتوكول HTTPS وتبادل JSON.</span>
+              </div>
+              <div style="background:var(--bg-subtle); border:1px solid var(--border-hairline); border-radius:8px; padding:0.75rem;">
+                <strong style="font-size:0.86rem; display:block;">3. الذكاء الاصطناعي</strong>
+                <span style="font-size:0.78rem; color:var(--text-muted);">تحليل البيانات والتعلم الآلي.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         رابعاً: أطر العمل والمكتبات (Frameworks: React, Vue, Next.js) (ص 64)
+    ========================================================== -->
+    <section class="section-block" id="sec-frameworks">
+      <div class="section-header">
+        <div class="section-kicker">رابعاً · ص 64</div>
+        <h2 class="section-title">أطر العمل والمكتبات الحديثة (Frameworks & Libraries)</h2>
+        <p class="section-desc">
+          <strong>إطار العمل (Framework)</strong> هو بنية توفر مسبقاً وظائف ومكونات شائعة الاستخدام، وذلك لجعل عملية تطوير تطبيقات الويب أكثر كفاءة.
+          عند استخدام إطار عمل، <strong>لا يحتاج المطورون إلى كتابة كامل الكود البرمجي من الصفر</strong>، ويمكنهم التطوير بكفاءة أكبر عبر بناء الصفحات من مكونات قابلة لإعادة الاستخدام.
+        </p>
+      </div>
+
+      <!-- Textbook Table: React, Vue, Next.js (Page 64) -->
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 22%;">المكتبة / إطار العمل</th>
+              <th style="width: 26%;">التصنيف الهندسي</th>
+              <th style="width: 52%;">الوصف والخصائص (كما ورد في الكتاب المدرسي · ص 64)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong class="mono" style="font-size:1.02rem; color:#0284C7;">React</strong></td>
+              <td>مكتبة <span class="mono">JavaScript</span> لواجهات المستخدم</td>
+              <td>مكتبة <span class="mono">JavaScript</span> لبناء واجهات المستخدم من <strong>مكونات قابلة لإعادة الاستخدام (Reusable Components)</strong> وتحديثها تلقائياً عند تغير البيانات.</td>
+            </tr>
+            <tr>
+              <td><strong class="mono" style="font-size:1.02rem; color:#059669;">Vue</strong></td>
+              <td>إطار عمل متدرج لتطوير الويب</td>
+              <td>له <strong>بنية بسيطة</strong> ويتيح بناء تطبيقات الويب <strong>تدريجياً</strong> بدءاً من ميزات صغيرة وصولاً إلى تطبيقات متكاملة.</td>
+            </tr>
+            <tr>
+              <td><strong class="mono" style="font-size:1.02rem; color:#0F172A;">Next.js</strong></td>
+              <td>إطار عمل مبني على <span class="mono">React</span></td>
+              <td>إطار مبني على <span class="mono">React</span> لبناء تطبيقات ويب متكاملة، ويوفر <strong>التوجيه (Routing)</strong> وطرقاً مختلفة لعرض الصفحات والعمل على <strong>الخادم والعميل</strong>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Main Idea Takeaway Banner from Page 64 -->
+      <div class="state-banner nominal" style="padding:1.35rem 1.5rem; font-size:0.98rem;">
+        <div style="font-size:0.8rem; font-weight:800; text-transform:uppercase; margin-bottom:0.3rem; color:#047857;">خلاصة الفكرة الرئيسة · ص 64</div>
+        <strong>صفحة الويب الحديثة هي تركيبة متكاملة، وليست تقنية واحدة:</strong>
+        <span class="mono">HTML</span> يبني بنيتها، و <span class="mono">CSS</span> ينسّق مظهرها، و <span class="mono">JavaScript</span> يجعلها تفاعلية — بينما تجعل <strong>HTML الدلالية</strong> و<strong>التصميم المتجاوب</strong> و<strong>أطر العمل</strong> بناءها ذا معنى وقابلاً للتكيف وفعّالاً.
+      </div>
+    </section>
+
+    <!-- =========================================================
+         خامساً: المثال المحلول، تدرّب، فكّر كمهندس، وتمارين الكتاب (ص 65 - 67)
+    ========================================================== -->
+    <section class="section-block" id="sec-activities">
+      <div class="section-header">
+        <div class="section-kicker">خامساً · ص 65 – 67</div>
+        <h2 class="section-title">المثال المحلول، فكّر كمهندس، وتمارين الكتاب المدرسي التفاعلية</h2>
+        <p class="section-desc">
+          تدرّب عملياً على جميع أسئلة الكتاب المدرسي في صفحات 65 و 66 و 67، وتحقّق من إجاباتك فوراً مع التفسير العلمي الدقيق لكل نقطة.
+        </p>
+      </div>
+
+      <!-- Worked Example & Exam-Style Question [6 Marks] (Page 65) -->
+      <div class="cards-grid-2">
+        <div class="activity-card">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:var(--accent-primary); margin-bottom:0.3rem;">مثال محلول · ص 65</div>
+            <h3 style="font-size:1.08rem; font-weight:800; margin-bottom:0.65rem;">الجزء 1 (صح أم خطأ) والجزء 2 (مطابقة الأدوار)</h3>
+            <ul style="padding-right:1.2rem; font-size:0.9rem; color:var(--text-secondary); display:flex; flex-direction:column; gap:0.45rem;">
+              <li><strong>أ.</strong> قد لا تستخدم صفحة الويب جميع التقنيات الثلاث: HTML و CSS و JavaScript معاً. <strong style="color:var(--semantic-nominal);">(○ صحيح)</strong></li>
+              <li><strong>ب.</strong> يُستخدم CSS بشكل أساسي لإضافة السلوك والتفاعلية إلى صفحة الويب. <strong style="color:var(--semantic-danger);">(× خطأ — CSS للمظهر، بينما JavaScript للسلوك)</strong></li>
+              <li><strong>جـ.</strong> يساعد استخدام HTML الدلالية قارئات الشاشة ومحركات البحث على فهم بنية الصفحة بشكل أفضل. <strong style="color:var(--semantic-nominal);">(○ صحيح)</strong></li>
+              <li><strong>د.</strong> في التصميم المتجاوب، يتم ضبط التخطيط وفقاً لحجم الشاشة. <strong style="color:var(--semantic-nominal);">(○ صحيح)</strong></li>
+            </ul>
+          </div>
+          <div style="padding-top:0.75rem; border-top:1px solid var(--border-hairline); font-size:0.88rem; color:var(--text-secondary);">
+            <strong>مطابقة الأدوار (الجزء 2):</strong>
+            (1) تعريف العناوين والفقرات والصور والروابط ← <strong class="mono">أ. HTML</strong> ·
+            (2) ضبط الألوان والخطوط والتخطيط ← <strong class="mono">ب. CSS</strong> ·
+            (3) الاستجابة للنقر وتحديث جزء من الصفحة ← <strong class="mono">جـ. JavaScript</strong>.
+          </div>
+        </div>
+
+        <div class="activity-card">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:var(--semantic-warning); margin-bottom:0.3rem;">سؤال على نمط الامتحان [6 درجات] · ص 65</div>
+            <h3 style="font-size:1.08rem; font-weight:800; margin-bottom:0.65rem;">
+              اشرح كيف تساهم كل من <span class="mono">HTML</span> و <span class="mono">CSS</span> و <span class="mono">JavaScript</span> في صفحة مكتبة تعرض قائمة كتب، وتكون منسّقة، وتُصفّي النتائج أثناء كتابة المستخدم.
+            </h3>
+            <p style="font-size:0.88rem; color:var(--text-muted);">حاول صياغة إجابتك بتقسيم الدرجات الـ 6 (درجتان لكل تقنية: اسم التقنية + دورها في صفحة المكتبة)، ثم اضغط لعرض نموذج التصحيح:</p>
+          </div>
+          <div>
+            <button type="button" class="btn btn-primary" onclick="toggleReveal('examModelAnswer')">إظهار نموذج الإجابة الكامل (6 درجات)</button>
+            <div class="answer-reveal open" id="examModelAnswer">
+              <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                <div>✅ <strong>HTML [درجتان]:</strong> تُنشئ البنية والعناصر الأساسية في صفحة المكتبة، مثل عنوان الصفحة، وحقل إدخال البحث، وقائمة الكتب وعناوينها.</div>
+                <div>✅ <strong>CSS [درجتان]:</strong> تتحكم في المظهر والتصميم المرئي لصفحة المكتبة، مثل الألوان، والخطوط، والمسافات، وترتيب بطاقات الكتب في الصفحة.</div>
+                <div>✅ <strong>JavaScript [درجتان]:</strong> تضيف السلوك التفاعلي، حيث تكتشف ما يكتبه المستخدم في مربع البحث وتقوم بتصفية وتحديث قائمة الكتب المعروضة فوراً على الشاشة دون إعادة تحميل الصفحة.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Think Like an Engineer (Page 66) & Apply What You Learned -->
+      <div class="cards-grid-2">
+        <div class="activity-card" style="border-right: 4px solid #0284C7;">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:#0284C7; margin-bottom:0.3rem;">فكّر كمهندس (ابحث ثم قرر) · ص 66</div>
+            <h3 style="font-size:1.05rem; font-weight:800; margin-bottom:0.5rem;">تصميم صفحة ويب لنادي الطلاب</h3>
+            <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:0.5rem;">
+              تريد صفحة النادي أن تعرض: <strong>(1) قائمة بالفعاليات</strong>، و<strong>(2) ألوان النادي وتخطيطه</strong>، و<strong>(3) عدّاد تسجيل يتحدث مباشرة عند انضمام طالب</strong>.
+              أي تقنية ستستخدم لكل جزء؟ وهل تضعها في ملفات منفصلة أم ملف واحد؟
+            </p>
+          </div>
+          <div>
+            <button type="button" class="btn" onclick="toggleReveal('engineerClubAnswer')">عرض التوصية الهندسية</button>
+            <div class="answer-reveal" id="engineerClubAnswer">
+              <ul style="padding-right:1.2rem; display:flex; flex-direction:column; gap:0.4rem;">
+                <li><strong>قائمة الفعاليات والعناوين:</strong> نستخدم <span class="mono">HTML</span> (ويُفضل HTML الدلالية مثل <span class="mono">&lt;main&gt;</span> و <span class="mono">&lt;ul&gt;</span>).</li>
+                <li><strong>ألوان النادي وتخطيطه المتجاوب:</strong> نستخدم <span class="mono">CSS</span> لضبط الهوية اللونية وتجاوب الصفحة مع هواتف الطلاب.</li>
+                <li><strong>عدّاد التسجيل المباشر:</strong> نستخدم <span class="mono">JavaScript</span> للاستماع لحدث النقر على زر «انضمام» وتحديث رقم العداد لحظياً.</li>
+                <li><strong>تنظيم الملفات:</strong> يُوصى هندسياً بـ <strong>فصلها في ملفات مستقلة</strong> (<span class="mono">index.html</span>، <span class="mono">style.css</span>، <span class="mono">app.js</span>) لتسهيل الصيانة وتقسيم العمل وإعادة الاستخدام، بينما يُستخدم الدمج في ملف واحد فقط في النماذج الأولية الصغيرة جداً.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="activity-card" style="border-right: 4px solid #059669;">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:#059669; margin-bottom:0.3rem;">طبّق ما تعلمته · ص 66</div>
+            <h3 style="font-size:1.05rem; font-weight:800; margin-bottom:0.5rem;">تحليل موقع إخباري أو تعليمي</h3>
+            <p style="font-size:0.9rem; color:var(--text-secondary);">
+              عند زيارة موقع إخباري حديث من هاتفك وحاسوبك، كيف تلاحظ عمل التقنيات الثلاث والتصميم المتجاوب و HTML الدلالية معاً؟
+            </p>
+          </div>
+          <div>
+            <button type="button" class="btn" onclick="toggleReveal('applyNewsAnswer')">عرض التحليل التطبيقي</button>
+            <div class="answer-reveal" id="applyNewsAnswer">
+              <ul style="padding-right:1.2rem; display:flex; flex-direction:column; gap:0.4rem;">
+                <li><strong>HTML الدلالية:</strong> تقسيم الموقع إلى ترويسة أخبار عاجلة (<span class="mono">&lt;header&gt;</span>)، شريط أقسام (<span class="mono">&lt;nav&gt;</span>)، والمقالات الرئيسة (<span class="mono">&lt;main&gt;</span> / <span class="mono">&lt;article&gt;</span>) مما يساعد قارئات الشاشة ومحركات البحث.</li>
+                <li><strong>CSS والتصميم المتجاوب:</strong> على شاشة الكمبيوتر تظهر الأخبار في 3 أعمدة مع قائمة أفقية، بينما على الهاتف الذكي تتحول تلقائياً إلى عمود رأسي واحد مريح للقراءة مع قائمة مطوية.</li>
+                <li><strong>JavaScript:</strong> تحديث شريط الأخبار العاجلة أو نتائج المباريات لحظياً وتبديل الوضع الليلي/النهاري دون إعادة تحميل الصفحة.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Textbook Exercises (Page 65, 66, 67) -->
+      <div class="interactive-card">
+        <div style="margin-bottom:1.25rem;">
+          <div style="font-size:0.8rem; font-weight:800; color:var(--accent-primary);">تمارين الكتاب المدرسي التفاعلية · ص 65 و 67</div>
+          <h3 style="font-size:1.15rem; font-weight:800;">تدرّب واختبر فهمك: صنّف كل مهمة إلى التقنية المسؤولة عنها (<span class="mono">HTML</span> أو <span class="mono">CSS</span> أو <span class="mono">JavaScript</span>)</h3>
+          <p style="font-size:0.9rem; color:var(--text-secondary);">
+            في الجدول التفاعلي التالي (المطابق لتمرين الكتاب ص 67)، اختر التقنية الصحيحة لكل مهمة من المهام الست لترى النتيجة فوراً:
+          </p>
+        </div>
+
+        <div id="roleClassifierList">
+          <!-- Populated by JS -->
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border-hairline);">
+          <div id="classifierScoreBanner" style="font-weight:800; color:var(--text-secondary);">
+            أجب عن المهام الـ 6 أعلاه للتحقق من إجابتك.
+          </div>
+          <button type="button" class="btn" onclick="resetRoleClassifier()">إعادة ضبط التمرين</button>
+        </div>
+      </div>
+
+      <!-- Comprehensive 12-Question Self-Assessment Quiz -->
+      <div class="interactive-card" id="sec-quiz">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.25rem; padding-bottom:1rem; border-bottom:1px solid var(--border-hairline);">
+          <div>
+            <div style="font-size:0.8rem; font-weight:800; color:var(--accent-primary);">اختبار ذاتي شامل للدرس 3-3</div>
+            <h3 style="font-size:1.2rem; font-weight:800;">اختبر استيعابك لأساسيات تقنية الواجهة الأمامية (12 سؤالاً شاملاً)</h3>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <span style="font-size:0.88rem; font-weight:700; color:var(--text-secondary);">النتيجة:</span>
+            <span class="mono" id="quizScoreDisplay" style="font-size:1.05rem; font-weight:800; color:var(--accent-primary); background:var(--accent-primary-soft); padding:0.3rem 0.8rem; border-radius:8px;">0 / 12</span>
+            <button type="button" class="btn" onclick="resetInteractiveQuiz()" style="padding:0.4rem 0.85rem; font-size:0.82rem;">إعادة الاختبار</button>
+          </div>
+        </div>
+
+        <div id="quizQuestionContainer">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+            <span id="quizProgressText" style="font-size:0.85rem; font-weight:800; color:var(--accent-primary);">السؤال 1 من 12</span>
+            <span id="quizCategoryBadge" style="font-size:0.78rem; font-weight:700; color:var(--text-muted); background:var(--bg-subtle); padding:2px 8px; border-radius:6px;">أسئلة الكتاب المدرسي</span>
+          </div>
+
+          <h4 id="quizQuestionText" style="font-size:1.08rem; font-weight:800; margin-bottom:1rem; line-height:1.5;"></h4>
+
+          <div id="quizOptionsList" style="margin-bottom:1rem;"></div>
+
+          <div id="quizFeedbackBox" class="state-banner" style="display:none; margin-bottom:1rem;"></div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <button type="button" class="btn" onclick="prevQuizQuestion()" id="prevQBtn">السؤال السابق</button>
+            <button type="button" class="btn btn-primary" onclick="nextQuizQuestion()" id="nextQBtn">السؤال التالي ←</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script>
+    // =========================================================================
+    // 1. INTERACTIVE LAB 1: FIGURE 3.3.1 (HTML vs CSS vs JS)
+    // =========================================================================
+    const triadBooksData = [
+      { id: 1, title: 'الكتاب أ: مدخل إلى هندسة البرمجيات', category: 'هندسة' },
+      { id: 2, title: 'الكتاب ب: تصميم واجهات الويب الحديثة', category: 'تصميم' },
+      { id: 3, title: 'الكتاب جـ: الخوارزميات وهياكل البيانات', category: 'برمجة' }
+    ];
+    let currentTriadStage = 1;
+    let triadLikeCount = 3;
+    let triadFilterText = '';
+
+    function setTriadStage(stage) {
+      currentTriadStage = stage;
+      [1, 2, 3].forEach(n => {
+        const btn = document.getElementById('layerBtn' + n);
+        if (btn) btn.classList.toggle('active', n === stage);
+      });
+
+      const viewport = document.getElementById('triadLiveViewport');
+      const banner = document.getElementById('triadStageBanner');
+      const urlBar = document.getElementById('browserUrlBar');
+      const pill = document.getElementById('stageBadgePill');
+      const analogy = document.getElementById('triadAnalogyBox');
+      const codeBox = document.getElementById('triadCodeInspector');
+      const langLabel = document.getElementById('triadCodeLangLabel');
+
+      if (stage === 1) {
+        viewport.className = 'browser-viewport stage-html';
+        urlBar.textContent = 'https://my-books.example/index.html (① HTML Only)';
+        pill.textContent = '① HTML فقط';
+        pill.style.color = '#EA580C';
+        banner.className = 'state-banner';
+        banner.innerHTML = '<strong>المرحلة ① (HTML فقط — الهيكل):</strong> يحدد المحتوى والهيكل الأساسي فقط (العناوين، الفقرات، القوائم، الروابط) دون تنسيق لوني أو سلوك تفاعلي.';
+        analogy.innerHTML = '🏗️ <strong>التشبيه بالمبنى (HTML):</strong> هيكل المبنى الأساسي (الجدران والغرف والأبواب) قبل إضافة الديكور أو تشغيل الكهرباء.';
+        langLabel.textContent = 'index.html (البنية)';
+        codeBox.textContent = [
+          '<!-- يحدد المحتوى والهيكل فقط -->',
+          '<h1>صفحتي على الويب</h1>',
+          '<p>مرحباً بك في موقعي.</p>',
+          '<h2>الكتب التي أحبها</h2>',
+          '<ul>',
+          '  <li>الكتاب أ: مدخل إلى هندسة البرمجيات</li>',
+          '  <li>الكتاب ب: تصميم واجهات الويب الحديثة</li>',
+          '  <li>الكتاب جـ: الخوارزميات وهياكل البيانات</li>',
+          '</ul>',
+          '<a href="#more">اقرأ المزيد</a>'
+        ].join('\n');
+
+        viewport.innerHTML = `
+          <div>
+            <h1>صفحتي على الويب</h1>
+            <p>مرحباً بك في موقعي.</p>
+            <h2>الكتب التي أحبها</h2>
+            <ul>
+              <li>الكتاب أ: مدخل إلى هندسة البرمجيات</li>
+              <li>الكتاب ب: تصميم واجهات الويب الحديثة</li>
+              <li>الكتاب جـ: الخوارزميات وهياكل البيانات</li>
+            </ul>
+            <a href="#more" onclick="return false;">اقرأ المزيد</a>
+          </div>
+        `;
+      } else if (stage === 2) {
+        viewport.className = 'browser-viewport stage-css';
+        urlBar.textContent = 'https://my-books.example/index.html (② HTML + CSS)';
+        pill.textContent = '② HTML + CSS';
+        pill.style.color = '#0284C7';
+        banner.className = 'state-banner nominal';
+        banner.innerHTML = '<strong>المرحلة ② (HTML + CSS — الهيكل + التنسيق):</strong> أضافت CSS التصميم المرئي (الألوان، الخطوط، البطاقات، التخطيط، والتباعد). الصفحة جميلة المنظر لكنها ثابتة لا تستجيب للبحث أو العداد.';
+        analogy.innerHTML = '🎨 <strong>التشبيه بالمبنى (HTML + CSS):</strong> المبنى بعد إضافة الديكور الداخلي والخارجي والطلاء والإضاءة الجمالية.';
+        langLabel.textContent = 'style.css (المظهر والتنسيق)';
+        codeBox.textContent = [
+          '/* يضيف التصميم المرئي: الألوان، الخطوط، التخطيط، التباعد */',
+          '.page-card {',
+          '  background: #FFFFFF;',
+          '  border: 1px solid #BAE6FD;',
+          '  border-radius: 12px;',
+          '  padding: 20px;',
+          '  font-family: "Tajawal", sans-serif;',
+          '}',
+          'h1 { color: #0284C7; font-size: 1.4rem; }',
+          '.book-item {',
+          '  background: #F8FAFC;',
+          '  padding: 8px 12px;',
+          '  border-radius: 8px;',
+          '  margin-bottom: 6px;',
+          '}'
+        ].join('\n');
+
+        viewport.innerHTML = `
+          <div class="styled-page-card">
+            <h1 style="color:#0284C7; font-size:1.35rem; font-weight:800; margin-bottom:0.25rem;">صفحتي على الويب</h1>
+            <p style="color:#475569; font-size:0.92rem; margin-bottom:1rem;">مرحباً بك في موقعي المنسّق باستخدام CSS.</p>
+            <h2 style="font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:0.6rem;">📚 الكتب التي أحبها</h2>
+            <div style="display:flex; flex-direction:column; gap:0.45rem; margin-bottom:1rem;">
+              ${triadBooksData.map(b => `
+                <div style="background:#F8FAFC; border:1px solid #E2E8F0; padding:0.55rem 0.85rem; border-radius:8px; font-weight:600; font-size:0.9rem; display:flex; justify-content:space-between;">
+                  <span>${b.title}</span>
+                  <span style="font-size:0.76rem; color:#0284C7; background:#E0F2FE; padding:2px 8px; border-radius:6px;">${b.category}</span>
+                </div>
+              `).join('')}
+            </div>
+            <span style="display:inline-block; background:#0284C7; color:#FFF; padding:0.4rem 0.9rem; border-radius:8px; font-size:0.84rem; font-weight:700;">اقرأ المزيد ←</span>
+          </div>
+        `;
+      } else {
+        viewport.className = 'browser-viewport stage-js';
+        urlBar.textContent = 'https://my-books.example/index.html (③ HTML + CSS + JavaScript)';
+        pill.textContent = '③ + JavaScript';
+        pill.style.color = '#D97706';
+        banner.className = 'state-banner warning';
+        banner.innerHTML = '<strong>المرحلة ③ (HTML + CSS + JavaScript — التفاعلية الكاملة):</strong> أضافت JavaScript السلوك الحي! جرّب الكتابة في مربع البحث لتصفية الكتب فوراً، أو اضغط على زر <strong>«أعجبني ♥»</strong> لتحديث العداد بدون إعادة تحميل الصفحة.';
+        analogy.innerHTML = '⚡ <strong>التشبيه بالمبنى (+ JavaScript):</strong> أنظمة الكهرباء والسباكة والمصاعد الذكية التي تتفاعل فوراً عندما يضغط السكان على الأزرار.';
+        langLabel.textContent = 'app.js (السلوك والتفاعلية)';
+        codeBox.textContent = [
+          '// يضيف التفاعلية: البحث والتصفية وتحديث العداد فوراً',
+          'searchInput.addEventListener("input", (e) => {',
+          '  const query = e.target.value;',
+          '  filterBooksOnScreen(query); // تحديث جزء من الشاشة فقط',
+          '});',
+          '',
+          'likeBtn.addEventListener("click", () => {',
+          '  likeCount++;',
+          '  counterSpan.textContent = `العدد: ${likeCount}`;',
+          '});'
+        ].join('\n');
+
+        renderStage3InteractiveContent();
+      }
+
+      notifyParentPlatform('interactive', 'تبديل طبقات الواجهة الأمامية (الدرس 3-3)', `المرحلة المختارة: ${stage}`);
+    }
+
+    function renderStage3InteractiveContent() {
+      const viewport = document.getElementById('triadLiveViewport');
+      if (!viewport || currentTriadStage !== 3) return;
+
+      const filtered = triadBooksData.filter(b =>
+        !triadFilterText || b.title.includes(triadFilterText) || b.category.includes(triadFilterText)
+      );
+
+      viewport.innerHTML = `
+        <div class="styled-page-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem;">
+            <div>
+              <h1 style="color:#0284C7; font-size:1.3rem; font-weight:800;">صفحتي على الويب</h1>
+              <p style="color:#475569; font-size:0.86rem;">مرحباً بك في موقعي التفاعلي.</p>
+            </div>
+            <button type="button" onclick="incrementTriadLike()" style="background:#FEF2F2; color:#DC2626; border:1px solid #FECACA; border-radius:8px; padding:0.4rem 0.85rem; font-family:inherit; font-weight:800; font-size:0.85rem; cursor:pointer;">
+              أعجبني ♥ &nbsp;|&nbsp; العدد: <span class="tabular-nums">${triadLikeCount}</span>
+            </button>
+          </div>
+
+          <div style="margin-bottom:0.75rem;">
+            <input
+              type="text"
+              id="triadSearchInput"
+              value="${triadFilterText.replace(/"/g, '&quot;')}"
+              oninput="handleTriadSearch(this.value)"
+              placeholder="🔍 ابحث عن كتاب (مثال: الكتاب أ أو تصميم)..."
+              style="width:100%; padding:0.5rem 0.75rem; border:1px solid #CBD5E1; border-radius:8px; font-family:inherit; font-size:0.88rem;"
+            />
+          </div>
+
+          <h2 style="font-size:0.98rem; font-weight:800; color:#0F172A; margin-bottom:0.5rem;">
+            الكتب التي أحبها (${filtered.length} من ${triadBooksData.length})
+          </h2>
+
+          <div style="display:flex; flex-direction:column; gap:0.4rem;">
+            ${filtered.length ? filtered.map(b => `
+              <div style="background:#F8FAFC; border:1px solid #E2E8F0; padding:0.5rem 0.75rem; border-radius:8px; font-weight:600; font-size:0.88rem; display:flex; justify-content:space-between;">
+                <span>${b.title}</span>
+                <span style="font-size:0.74rem; color:#0284C7; background:#E0F2FE; padding:2px 8px; border-radius:6px;">${b.category}</span>
+              </div>
+            `).join('') : `
+              <div style="padding:0.75rem; text-align:center; color:#64748B; font-size:0.86rem; background:#F8FAFC; border-radius:8px;">
+                لا توجد كتب مطابقة لعبارة البحث «${triadFilterText}»
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+
+      const inputEl = document.getElementById('triadSearchInput');
+      if (inputEl && document.activeElement && document.activeElement.id === 'triadSearchInput') {
+        inputEl.focus();
+      }
+    }
+
+    function handleTriadSearch(val) {
+      triadFilterText = String(val || '').trim();
+      renderStage3InteractiveContent();
+      const inputEl = document.getElementById('triadSearchInput');
+      if (inputEl) {
+        inputEl.focus();
+        inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+      }
+    }
+
+    function incrementTriadLike() {
+      triadLikeCount++;
+      renderStage3InteractiveContent();
+      notifyParentPlatform('interactive', 'تجربة تفاعلية JavaScript (الدرس 3-3)', `تحديث عداد الإعجاب إلى ${triadLikeCount}`);
+    }
+
+    // =========================================================================
+    // 2. INTERACTIVE LAB 2: SEMANTIC HTML vs DIV SOUP INSPECTOR
+    // =========================================================================
+    let currentSemanticMode = 'semantic';
+    let currentSemanticZone = 'header';
+
+    const semanticZonesMeta = {
+      header: {
+        title: 'رأس الصفحة (Header)',
+        semTag: '<header>',
+        divTag: '<div class="top-box">',
+        srSemantic: '🔊 <strong>قارئ الشاشة يعلن:</strong> «منطقة الترويسة (Banner Landmark) — تحتوي على شعار الموقع والعنوان الرئيس. يمكنك التخطي مباشرة إلى المحتوى الرئيس بالضغط على مفتاح الاختصار».',
+        srDiv: '🔇 <strong>قارئ الشاشة يعلن:</strong> «مجموعة نصية عادية (Generic Container)» — لا يدرك البرنامج أن هذا هو رأس الصفحة ولا يتيح تخطيه بسهولة.',
+        seoSemantic: '🔍 <strong>محرك البحث (SEO):</strong> يتعرف بوضوح على أن العنوان داخل <span class="mono">&lt;header&gt;</span> يمثل الهوية التمهيدية للصفحة (يساعد على فهم البنية لكنه لا يضمن ترتيباً أعلى بمفرده).',
+        seoDiv: '🔍 <strong>محرك البحث (SEO):</strong> يرى صندوق <span class="mono">&lt;div&gt;</span> عاماً بلا دلالة هيكلية تميزه عن بقية الصناديق الفرعية.',
+        semCode: '<header>\n  <h1>منصة التعلم التفاعلي</h1>\n  <p>بوابتك لدراسة هندسة الويب</p>\n</header>',
+        divCode: '<div class="box-1">\n  <div class="big-text">منصة التعلم التفاعلي</div>\n  <div>بوابتك لدراسة هندسة الويب</div>\n</div>'
+      },
+      nav: {
+        title: 'شريط التنقل (Navigation)',
+        semTag: '<nav>',
+        divTag: '<div class="links-row">',
+        srSemantic: '🔊 <strong>قارئ الشاشة يعلن:</strong> «معلم التنقل الرئيس (Navigation Landmark) — يحتوي على 4 روابط تنقل». يستطيع المستخدم استعراض قوائم الموقع فوراً.',
+        srDiv: '🔇 <strong>قارئ الشاشة يعلن:</strong> «مجموعة روابط عادية» — لا يميز هل هي قائمة التنقل الرئيسة في الموقع أم مجرد روابط عابرة داخل مقال.',
+        seoSemantic: '🔍 <strong>محرك البحث (SEO):</strong> يدرك أن الروابط داخل <span class="mono">&lt;nav&gt;</span> هي خريطة التنقل الأساسية لأقسام الموقع.',
+        seoDiv: '🔍 <strong>محرك البحث (SEO):</strong> يعاملها كروابط عادية داخل حاوية غير محددة الوظيفة.',
+        semCode: '<nav aria-label="التنقل الرئيس">\n  <a href="#home">الرئيسية</a>\n  <a href="#lessons">الدروس</a>\n  <a href="#quizzes">الاختبارات</a>\n</nav>',
+        divCode: '<div class="row-2">\n  <a href="#home">الرئيسية</a>\n  <a href="#lessons">الدروس</a>\n  <a href="#quizzes">الاختبارات</a>\n</div>'
+      },
+      main: {
+        title: 'المحتوى الرئيس (Main Content)',
+        semTag: '<main>',
+        divTag: '<div class="middle-area">',
+        srSemantic: '🔊 <strong>قارئ الشاشة يعلن:</strong> «بداية المحتوى الرئيس للصفحة (Main Landmark)» — يتيح لمستخدمي إمكانية الوصول القفز فوراً إلى صلب الدرس دون تكرار سماع الترويسة والقوائم.',
+        srDiv: '🔇 <strong>قارئ الشاشة يعلن:</strong> «حاوية عامة» — يضطر المستخدم للمرور على كل عناصر الصفحة من الأعلى للوصول إلى بداية الدرس.',
+        seoSemantic: '🔍 <strong>محرك البحث (SEO):</strong> يركز على النص الموجود داخل <span class="mono">&lt;main&gt;</span> باعتباره الموضوع الجوهري للصفحة عند الفهرسة.',
+        seoDiv: '🔍 <strong>محرك البحث (SEO):</strong> يصعب عليه التمييز بدقة بين النص الأساسي للصفحة وبين الأشرطة الجانبية والإعلانات.',
+        semCode: '<main>\n  <article>\n    <h2>أساسيات تقنية الواجهة الأمامية</h2>\n    <p>تتكامل HTML و CSS و JavaScript لبناء الويب...</p>\n  </article>\n</main>',
+        divCode: '<div class="center-box">\n  <div class="inner-box">\n    <div class="title">أساسيات تقنية الواجهة الأمامية</div>\n    <div>تتكامل HTML و CSS و JavaScript لبناء الويب...</div>\n  </div>\n</div>'
+      },
+      footer: {
+        title: 'تذييل الصفحة (Footer)',
+        semTag: '<footer>',
+        divTag: '<div class="bottom-box">',
+        srSemantic: '🔊 <strong>قارئ الشاشة يعلن:</strong> «منطقة معلومات وتذييل الصفحة (Contentinfo Landmark) — حقوق النشر وروابط التواصل».',
+        srDiv: '🔇 <strong>قارئ الشاشة يعلن:</strong> «نص عادي في نهاية المستند» بدون تحديد أنه تذييل الصفحة.',
+        seoSemantic: '🔍 <strong>محرك البحث (SEO):</strong> يفهم أن بيانات <span class="mono">&lt;footer&gt;</span> هي بيانات تذييل تكميلية وليست المتن الرئيس للمقال.',
+        seoDiv: '🔍 <strong>محرك البحث (SEO):</strong> قد يخلط بين نصوص التذييل المتكررة وبين محتوى الصفحة الفعلي.',
+        semCode: '<footer>\n  <p>جميع الحقوق محفوظة © منصة IQT التعليمية</p>\n</footer>',
+        divCode: '<div class="box-bottom">\n  <div>جميع الحقوق محفوظة © منصة IQT التعليمية</div>\n</div>'
+      }
+    };
+
+    function setSemanticMode(mode) {
+      currentSemanticMode = mode;
+      document.getElementById('semModeSemantic').classList.toggle('active', mode === 'semantic');
+      document.getElementById('semModeDiv').classList.toggle('active', mode === 'div');
+
+      ['header', 'nav', 'main', 'footer'].forEach(z => {
+        const tagEl = document.getElementById('semTag-' + z);
+        if (tagEl) {
+          tagEl.textContent = mode === 'semantic' ? semanticZonesMeta[z].semTag : semanticZonesMeta[z].divTag;
+          tagEl.style.color = mode === 'semantic' ? 'var(--accent-primary)' : 'var(--semantic-danger)';
+        }
+      });
+
+      inspectSemanticZone(currentSemanticZone);
+    }
+
+    function inspectSemanticZone(zoneKey) {
+      currentSemanticZone = zoneKey;
+      ['header', 'nav', 'main', 'footer'].forEach(z => {
+        const el = document.getElementById('semZone-' + z);
+        if (el) el.classList.toggle('active', z === zoneKey);
+      });
+
+      const meta = semanticZonesMeta[zoneKey];
+      const srBox = document.getElementById('semScreenReaderBox');
+      const seoBox = document.getElementById('semSeoBox');
+      const codeBox = document.getElementById('semCodePreview');
+
+      if (currentSemanticMode === 'semantic') {
+        srBox.className = 'state-banner nominal';
+        srBox.innerHTML = meta.srSemantic;
+        seoBox.innerHTML = meta.seoSemantic;
+        codeBox.textContent = meta.semCode;
+      } else {
+        srBox.className = 'state-banner danger';
+        srBox.innerHTML = meta.srDiv;
+        seoBox.innerHTML = meta.seoDiv;
+        codeBox.textContent = meta.divCode;
+      }
+    }
+
+    // =========================================================================
+    // 3. INTERACTIVE LAB 3: RESPONSIVE VIEWPORT SIMULATOR
+    // =========================================================================
+    function setViewportDevice(device) {
+      ['mobile', 'tablet', 'desktop'].forEach(d => {
+        const btn = document.getElementById('vpBtn-' + d);
+        if (btn) btn.classList.toggle('active', d === device);
+      });
+
+      const frame = document.getElementById('vpDeviceFrame');
+      const dimLabel = document.getElementById('vpDimensionLabel');
+      const navDisplay = document.getElementById('vpNavDisplay');
+      const grid = document.getElementById('vpCardsGrid');
+      const banner = document.getElementById('vpExplanationBanner');
+
+      if (device === 'mobile') {
+        frame.style.width = '360px';
+        dimLabel.textContent = 'Viewport Width: 360px · Layout: 1 Column (نهج الأولوية للجوال Mobile-First)';
+        navDisplay.textContent = '☰ قائمة الجوال المطوية';
+        grid.style.gridTemplateColumns = '1fr';
+        banner.innerHTML = '<strong>📱 عرض الهاتف الذكي (Mobile-First · 360px):</strong> يراعي المطورون الشاشات الصغيرة منذ البداية؛ فتترتب البطاقات في <strong>عمود واحد رأسي</strong> وتتحول الروابط إلى قائمة مدمجة لتسهيل التصفح باللمس.';
+      } else if (device === 'tablet') {
+        frame.style.width = '640px';
+        dimLabel.textContent = 'Viewport Width: 768px · Layout: 2 Columns (جهاز لوحي Tablet)';
+        navDisplay.textContent = 'الرئيسية · الدروس · الاختبارات';
+        grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+        banner.innerHTML = '<strong>📟 عرض الجهاز اللوحي (Tablet · 768px):</strong> يتكيف التخطيط تلقائياً ليستغل المساحة المتوسطة عبر عرض البطاقات في <strong>عمودين متجاورين</strong> وإظهار روابط التنقل الأساسية.';
+      } else {
+        frame.style.width = '100%';
+        dimLabel.textContent = 'Viewport Width: 1200px · Layout: 3 Columns (شاشة كمبيوتر مكتبي Desktop)';
+        navDisplay.textContent = 'الرئيسية · الدروس · المختبرات · الاختبارات · تواصل معنا';
+        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        banner.innerHTML = '<strong>💻 عرض الكمبيوتر المكتبي (Desktop · 1200px):</strong> تتوزع البطاقات في <strong>3 أعمدة كاملة</strong> مع شريط تنقل أفقي موسّع، دون الحاجة لكتابة موقع منفصل لكل جهاز!';
+      }
+
+      notifyParentPlatform('interactive', 'محاكي التصميم المتجاوب (الدرس 3-3)', `حجم الشاشة المختار: ${device}`);
+    }
+
+    // =========================================================================
+    // 4. TEXTBOOK ROLE CLASSIFIER EXERCISE (PAGE 67)
+    // =========================================================================
+    const roleTasks = [
+      { id: 1, text: '1. إنشاء العناوين والفقرات والروابط في الصفحة', correct: 'HTML', choice: null },
+      { id: 2, text: '2. تحديد الألوان وحجم الخط والمسافات بين العناصر', correct: 'CSS', choice: null },
+      { id: 3, text: '3. تحديث عدد الإعجابات عند النقر على زر دون إعادة تحميل الصفحة', correct: 'JavaScript', choice: null },
+      { id: 4, text: '4. تنظيم الصفحة باستخدام <header> و <nav> و <main> و <footer>', correct: 'HTML', choice: null },
+      { id: 5, text: '5. جعل التخطيط يتكيف مع شاشة الهاتف وشاشة الحاسوب', correct: 'CSS', choice: null },
+      { id: 6, text: '6. تصفية قائمة الكتب مباشرة أثناء كتابة المستخدم في مربع البحث', correct: 'JavaScript', choice: null }
+    ];
+
+    function renderRoleClassifier() {
+      const container = document.getElementById('roleClassifierList');
+      if (!container) return;
+
+      container.innerHTML = roleTasks.map((task, idx) => {
+        let statusHtml = '';
+        if (task.choice) {
+          const isRight = task.choice === task.correct;
+          statusHtml = isRight
+            ? `<span style="color:var(--semantic-nominal); font-weight:800; font-size:0.85rem;">✓ إجابة صحيحة (${task.correct})</span>`
+            : `<span style="color:var(--semantic-danger); font-weight:800; font-size:0.85rem;">✕ غير صحيح — الصحيح هو ${task.correct}</span>`;
+        }
+
+        return `
+          <div class="step-item">
+            <div style="font-weight:700; font-size:0.93rem;">${task.text}</div>
+            <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+              ${['HTML', 'CSS', 'JavaScript'].map(tech => {
+                const isSelected = task.choice === tech;
+                let btnStyle = '';
+                if (isSelected) {
+                  btnStyle = tech === task.correct
+                    ? 'background:var(--semantic-nominal); color:#FFF; border-color:var(--semantic-nominal);'
+                    : 'background:var(--semantic-danger); color:#FFF; border-color:var(--semantic-danger);';
+                }
+                return `<button type="button" class="btn mono" style="padding:0.35rem 0.75rem; font-size:0.82rem; ${btnStyle}" onclick="selectTaskRole(${idx}, '${tech}')">${tech}</button>`;
+              }).join('')}
+              ${statusHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const answered = roleTasks.filter(t => t.choice !== null).length;
+      const correctCount = roleTasks.filter(t => t.choice === t.correct).length;
+      const banner = document.getElementById('classifierScoreBanner');
+      if (banner) {
+        if (answered === 0) {
+          banner.textContent = 'أجب عن المهام الـ 6 أعلاه للتحقق من إجابتك.';
+          banner.style.color = 'var(--text-secondary)';
+        } else {
+          banner.textContent = `النتيجة في تمرين التصنيف: ${correctCount} من ${roleTasks.length} صحيحة`;
+          banner.style.color = correctCount === roleTasks.length ? 'var(--semantic-nominal)' : 'var(--accent-primary)';
+        }
+      }
+    }
+
+    function selectTaskRole(index, tech) {
+      roleTasks[index].choice = tech;
+      renderRoleClassifier();
+    }
+
+    function resetRoleClassifier() {
+      roleTasks.forEach(t => { t.choice = null; });
+      renderRoleClassifier();
+    }
+
+    // =========================================================================
+    // 5. COMPREHENSIVE 12-QUESTION INTERACTIVE QUIZ
+    // =========================================================================
+    const quizQuestions = [
+      {
+        category: 'تدرّب 1 · ص 65',
+        question: 'ما التقنية التي تحدد بنية (هيكل) صفحة الويب وتصف عناصر مثل العناوين والفقرات والصور والروابط؟',
+        options: ['HTML', 'CSS', 'JavaScript', 'SQL'],
+        correct: 0,
+        explanation: 'لغة HTML هي المسؤولة عن بناء هيكل وبنية صفحة الويب (وهي بمثابة هيكل المبنى).'
+      },
+      {
+        category: 'تدرّب 1 · ص 65',
+        question: 'ما التقنية التي تحدد مظهر صفحة الويب مثل الألوان والتخطيط وحجم الخطوط؟',
+        options: ['HTML', 'CSS', 'JavaScript', 'HTTP'],
+        correct: 1,
+        explanation: 'لغة CSS هي المسؤولة عن المظهر والتنسيق المرئي لصفحة الويب (وهي بمثابة الديكور الداخلي والخارجي للمبنى).'
+      },
+      {
+        category: 'تدرّب 1 · ص 65',
+        question: 'ما التقنية التي تضيف السلوك والتفاعلية إلى صفحة الويب وتستجيب لنقر الأزرار وتحديث أجزاء من الشاشة؟',
+        options: ['CSS', 'HTML الدلالية', 'JavaScript', 'SEO'],
+        correct: 2,
+        explanation: 'لغة JavaScript هي المسؤولة عن إضافة السلوك والتفاعلية وتحديث أجزاء من الشاشة دون إعادة تحميل الصفحة.'
+      },
+      {
+        category: 'مثال محلول · ص 65',
+        question: 'حدد مدى صحة العبارة: «قد لا تستخدم صفحة الويب جميع التقنيات الثلاث (HTML و CSS و JavaScript) معاً».',
+        options: [
+          'عبارة صحيحة — يمكن لصفحة بسيطة أن تستخدم HTML وحده أو مع بعضها حسب الوظيفة المطلوبة',
+          'عبارة خاطئة — لا يعمل المتصفح إلا بوجود الملفات الثلاثة معاً'
+        ],
+        correct: 0,
+        explanation: 'كما ورد في الكتاب (ص 62 و 65): ليس من الضروري أن تستخدم الصفحة الثلاث كلها معاً؛ إذ يمكن أن تستخدم HTML وحده أو تجمع بينها بحسب الوظائف المطلوبة.'
+      },
+      {
+        category: 'تدرّب 2 · ص 66',
+        question: 'اختر خياراً واحداً لا يمثل فائدة مناسبة لاستخدام لغة HTML الدلالية (Semantic HTML):',
+        options: [
+          'أ. يصبح من الأسهل على قارئ الشاشة فهم بنية الصفحة',
+          'ب. يصبح من الأسهل على محركات البحث فهم محتوى صفحة الويب',
+          'جـ. تصبح سرعة عرض صفحة الويب أسرع بالضرورة',
+          'د. يصبح معنى كل جزء من الصفحة أوضح'
+        ],
+        correct: 2,
+        explanation: 'استخدام HTML الدلالية يوضح معنى أجزاء الصفحة ويساعد قارئات الشاشة ومحركات البحث على فهم البنية، لكنه لا يجعل سرعة عرض الصفحة أسرع بالضرورة.'
+      },
+      {
+        category: 'مفاهيم أساسية · ص 63',
+        question: 'ما العلاقة الصحيحة بين استخدام HTML الدلالية وتحسين محركات البحث (SEO) كما ورد في الكتاب؟',
+        options: [
+          'تضمن الحصول على المركز الأول في نتائج البحث دائماً وبمفردها',
+          'قد تساعد محركات البحث على فهم بنية المحتوى بصورة أفضل، لكنها لا تضمن ترتيباً أعلى',
+          'تمنع محركات البحث من فهرسة الصفحة لحمايتها',
+          'لا علاقة لها إطلاقاً بمحركات البحث'
+        ],
+        correct: 1,
+        explanation: 'ينص الكتاب المدرسي صراحةً في ص 63 على أن HTML الدلالية قد تساعد محركات البحث على فهم بنية المحتوى بصورة أفضل، لكنها لا تضمن ترتيباً أعلى.'
+      },
+      {
+        category: 'تمارين الكتاب · ص 67',
+        question: 'ما سبب الحاجة إلى التصميم المتجاوب (Responsive Design)؟',
+        options: [
+          'أ. لأن مواقع الويب تُعرض دائماً على شاشات بالحجم نفسه',
+          'ب. لأن المواقع الإلكترونية يتم الوصول إليها من أجهزة متنوعة مثل أجهزة الكمبيوتر والهواتف الذكية والأجهزة اللوحية',
+          'جـ. لأنه يلغي الحاجة إلى استخدام HTML في بناء الصفحات',
+          'د. لأنه يُستخدم فقط لتسريع عمل الخادم'
+        ],
+        correct: 1,
+        explanation: 'نحتاج إلى التصميم المتجاوب لأن المستخدمين يصلون إلى الويب عبر أجهزة متنوعة الأحجام (حواسيب، هواتف ذكية، أجهزة لوحية)، فيتكيف التخطيط تلقائياً مع كل شاشة.'
+      },
+      {
+        category: 'التصميم المتجاوب · ص 64',
+        question: 'ماذا نسمي النهج التصميمي الذي يراعي فيه المطورون الشاشات الصغيرة (الهواتف الذكية) منذ بداية التصميم؟',
+        options: [
+          'نهج الأولوية للخادم (Server-First)',
+          'نهج الأولوية للجوال (Mobile-First)',
+          'التصميم الثابت (Fixed Design)',
+          'تحسين محركات البحث (SEO)'
+        ],
+        correct: 1,
+        explanation: 'لأن كثيراً من الناس يستخدمون الويب عبر الهواتف، يراعي المطورون الشاشات الصغيرة منذ بداية التصميم ويُسمى ذلك نهج الأولوية للجوال (Mobile-First).'
+      },
+      {
+        category: 'تدرّب 2 · ص 66',
+        question: 'اختر الخيار الأنسب الذي يصف «إطار العمل» (Framework):',
+        options: [
+          'أ. أداة لضبط حجم شاشة الجهاز تلقائياً',
+          'ب. بنية توفر مسبقاً وظائف ومكونات شائعة لجعل تطوير تطبيقات الويب أكثر كفاءة',
+          'جـ. تقنية تُستخدم فقط لتغيير ألوان صفحة الويب',
+          'د. آلية لقراءة صفحات الويب نيابةً عن المستخدم'
+        ],
+        correct: 1,
+        explanation: 'إطار العمل (Framework) هو بنية توفر مسبقاً وظائف ومكونات شائعة الاستخدام لجعل تطوير تطبيقات الويب أكثر كفاءة دون كتابة كل الكود من الصفر.'
+      },
+      {
+        category: 'أطر العمل والمكتبات · ص 64',
+        question: 'أي مما يلي يمثل مكتبة JavaScript لبناء واجهات المستخدم من مكونات قابلة لإعادة الاستخدام وتحديثها عند تغير البيانات؟',
+        options: ['React', 'HTML5', 'CSS Grid', 'HTTPS'],
+        correct: 0,
+        explanation: 'React هي مكتبة JavaScript لبناء واجهات المستخدم من مكونات قابلة لإعادة الاستخدام (Reusable Components) وتحديثها عند تغير البيانات.'
+      },
+      {
+        category: 'أطر العمل والمكتبات · ص 64',
+        question: 'ما الإطار المبني على React لتطوير تطبيقات ويب متكاملة، والذي يوفر التوجيه (Routing) وطرقاً مختلفة لعرض الصفحات والعمل على الخادم والعميل؟',
+        options: ['Vue', 'Next.js', 'Bootstrap', 'JSON'],
+        correct: 1,
+        explanation: 'Next.js هو إطار عمل مبني على React يوفر التوجيه (Routing) وطرقاً متعددة لعرض الصفحات والعمل على كل من الخادم والعميل.'
+      },
+      {
+        category: 'أطر العمل والمكتبات · ص 64',
+        question: 'ما الإطار الذي يتميز ببنية بسيطة ويتيح بناء تطبيقات الويب تدريجياً بدءاً من ميزات صغيرة؟',
+        options: ['Vue', 'Next.js', 'SQL', 'TLS'],
+        correct: 0,
+        explanation: 'إطار العمل Vue يتميز ببنية بسيطة ويتيح للمطورين بناء تطبيقات الويب تدريجياً بدءاً من ميزات صغيرة.'
+      }
+    ];
+
+    let currentQIndex = 0;
+    let quizScore = 0;
+    let answeredFlags = new Array(quizQuestions.length).fill(false);
+
+    function renderQuizQuestion() {
+      const item = quizQuestions[currentQIndex];
+      document.getElementById('quizProgressText').textContent = `السؤال ${currentQIndex + 1} من ${quizQuestions.length}`;
+      document.getElementById('quizCategoryBadge').textContent = item.category;
+      document.getElementById('quizQuestionText').textContent = item.question;
+
+      const optionsBox = document.getElementById('quizOptionsList');
+      optionsBox.innerHTML = item.options.map((opt, idx) => `
+        <button type="button" class="quiz-option" id="qOpt-${idx}" onclick="checkQuizAnswer(${idx})">
+          <span>${opt}</span>
+          <span class="mono" style="font-size:0.8rem; color:var(--text-muted);">#${idx + 1}</span>
+        </button>
+      `).join('');
+
+      const feedback = document.getElementById('quizFeedbackBox');
+      feedback.style.display = 'none';
+      feedback.innerHTML = '';
+
+      document.getElementById('prevQBtn').disabled = currentQIndex === 0;
+    }
+
+    function checkQuizAnswer(selectedIndex) {
+      const item = quizQuestions[currentQIndex];
+      const optionsBox = document.getElementById('quizOptionsList');
+      const buttons = optionsBox.querySelectorAll('.quiz-option');
+
+      buttons.forEach(btn => { btn.disabled = true; });
+
+      const selectedBtn = document.getElementById('qOpt-' + selectedIndex);
+      const correctBtn = document.getElementById('qOpt-' + item.correct);
+      const feedback = document.getElementById('quizFeedbackBox');
+      feedback.style.display = 'block';
+
+      const isRight = selectedIndex === item.correct;
+      if (isRight) {
+        selectedBtn.classList.add('correct');
+        if (!answeredFlags[currentQIndex]) {
+          quizScore++;
+          answeredFlags[currentQIndex] = true;
+        }
+        feedback.className = 'state-banner nominal';
+        feedback.innerHTML = `<strong>✓ إجابة صحيحة!</strong> ${item.explanation}`;
+      } else {
+        selectedBtn.classList.add('wrong');
+        if (correctBtn) correctBtn.classList.add('correct');
+        answeredFlags[currentQIndex] = true;
+        feedback.className = 'state-banner danger';
+        feedback.innerHTML = `<strong>✕ إجابة غير صحيحة.</strong> ${item.explanation}`;
+      }
+
+      document.getElementById('quizScoreDisplay').textContent = `${quizScore} / ${quizQuestions.length}`;
+
+      notifyParentPlatform(
+        'interactive',
+        `الاختبار التفاعلي (الدرس 3-3): السؤال ${currentQIndex + 1}`,
+        isRight ? `إجابة صحيحة — النتيجة الحالية ${quizScore}/${quizQuestions.length}` : `إجابة خاطئة — النتيجة الحالية ${quizScore}/${quizQuestions.length}`
+      );
+    }
+
+    function nextQuizQuestion() {
+      currentQIndex = (currentQIndex + 1) % quizQuestions.length;
+      renderQuizQuestion();
+    }
+
+    function prevQuizQuestion() {
+      if (currentQIndex > 0) {
+        currentQIndex--;
+        renderQuizQuestion();
+      }
+    }
+
+    function resetInteractiveQuiz() {
+      currentQIndex = 0;
+      quizScore = 0;
+      answeredFlags = new Array(quizQuestions.length).fill(false);
+      document.getElementById('quizScoreDisplay').textContent = `0 / ${quizQuestions.length}`;
+      renderQuizQuestion();
+    }
+
+    function toggleReveal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('open');
+    }
+
+    function notifyParentPlatform(eventType, eventTitle, eventDetail) {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'IQT_LESSON_ACTIVITY',
+            eventType: eventType || 'interactive',
+            eventTitle: eventTitle || '',
+            eventDetail: eventDetail || '',
+            activityLabel: 'يتفاعل مع الدرس 3-3: أساسيات تقنية الواجهة الأمامية'
+          }, '*');
+        }
+      } catch (e) {}
+    }
+
+    // Mount Dynamic Student Watermark & Copy/DevTools Guard
+    (function initWatermarkAndCopyGuard() {
+      const u = window.__IQT_VERIFIED_USER__ || {};
+      const studentName = String(u.full_name || u.name || u.username || 'Student').trim();
+      const studentUsername = String(u.username || 'user').trim();
+      const stampText = `${studentName} • @${studentUsername} • IQT`;
+
+      const layer = document.createElement('div');
+      layer.className = 'iqt-watermark-layer';
+      layer.setAttribute('aria-hidden', 'true');
+
+      let cells = '';
+      for (let i = 0; i < 36; i++) {
+        cells += `<div class="iqt-watermark-item">${stampText}</div>`;
+      }
+      layer.innerHTML = cells;
+      document.body.appendChild(layer);
+
+      // Copy, Context Menu & DevTools Shortcut Guard
+      document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+      });
+
+      document.addEventListener('copy', function(e) {
+        e.preventDefault();
+      });
+
+      document.addEventListener('cut', function(e) {
+        e.preventDefault();
+      });
+
+      document.addEventListener('keydown', function(e) {
+        const key = String(e.key || '').toLowerCase();
+        const ctrlOrMeta = e.ctrlKey || e.metaKey;
+        if (
+          e.key === 'F12' ||
+          (ctrlOrMeta && (key === 's' || key === 'u' || key === 'p' || key === 'c')) ||
+          (ctrlOrMeta && e.shiftKey && (key === 'i' || key === 'j' || key === 'c'))
+        ) {
+          e.preventDefault();
+          return false;
+        }
+      });
+    })();
+
+    // Initialize all interactive labs on load
+    setTriadStage(1);
+    setSemanticMode('semantic');
+    setViewportDevice('mobile');
+    renderRoleClassifier();
+    renderQuizQuestion();
+  </script>
+</body>
+</html>

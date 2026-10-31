@@ -1231,25 +1231,56 @@ async function renderAdminContent(container) {
       </div>
     </div>
 
-    <!-- Built-in Interactive Web Lesson Ready to Publish -->
-    <div class="glass" style="padding: 18px 22px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.24);">
-      <div>
-        <div style="font-size: 0.78rem; font-weight: 800; color: #0284c7; margin-bottom: 2px;">صفحة درس ويب تفاعلية جاهزة</div>
-        <h4 style="margin: 0 0 4px 0; font-size: 1.05rem;">الدرس 3-2: طرق اتصال تطبيقات الويب (Web Application Communication)</h4>
-        <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">
-          يتضمن 4 مختبرات محاكاة تفاعلية (Client-Server، أمان TLS/HTTPS، طرق GET/POST ورموز 200/404/500، ومحلل API/JSON) بالإضافة لحلول أنشطة الكتاب المدرسي واختبار ذاتي.
-        </p>
+    <!-- Built-in Interactive Web Lessons Ready to Publish -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; margin-bottom: 28px;">
+      <!-- Lesson 3-3 Card -->
+      <div class="glass" style="padding: 18px 22px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; background: rgba(5, 150, 105, 0.05); border: 1px solid rgba(5, 150, 105, 0.28);">
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
+            <span style="font-size: 0.78rem; font-weight: 800; color: #059669;">✨ صفحة درس ويب تفاعلية جديدة</span>
+            <span style="font-size: 0.74rem; font-weight: 700; background: rgba(5,150,105,0.14); color: #059669; padding: 2px 8px; border-radius: 6px;">الدرس 3-3 · ص 62–67</span>
+          </div>
+          <h4 style="margin: 0 0 6px 0; font-size: 1.05rem;">الدرس 3-3: أساسيات تقنية الواجهة الأمامية (Frontend Basics)</h4>
+          <p style="margin: 0; font-size: 0.84rem; color: var(--text-muted); line-height: 1.6;">
+            يتضمن 3 مختبرات تفاعلية (محاكي الشكل 3.3.1 لأدوار HTML/CSS/JS، فاحص HTML الدلالية وقارئ الشاشة و SEO، ومحاكي التصميم المتجاوب Mobile-First) + أطر العمل (React, Vue, Next.js) وحلول تمارين الكتاب.
+          </p>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <a href="lessons/lesson-3-3.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            ${ICONS.externalLink} معاينة الصفحة
+          </a>
+          <a href="lessons/lesson-3-3.html" download="lesson-3-3.html" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.84rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            ${ICONS.download} تحميل HTML
+          </a>
+          <button type="button" class="btn btn-primary" style="padding: 8px 14px; font-size: 0.85rem; background: #059669; border-color: #059669; display: inline-flex; align-items: center; gap: 6px;" onclick="openPublishLesson33Modal()">
+            ${ICONS.plus} إدراج الدرس 3-3 داخل المنصة بضغطة واحدة
+          </button>
+        </div>
       </div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <a href="lessons/lesson-3-2.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 9px 16px; font-size: 0.88rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-          ${ICONS.externalLink} معاينة الصفحة التفاعلية
-        </a>
-        <a href="lessons/lesson-3-2.html" download="lesson-3-2.html" class="btn btn-secondary" style="padding: 9px 14px; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" title="تحميل ملف HTML المستقل لرفعه على GitHub إذا رغبت">
-          ${ICONS.download} تحميل ملف HTML
-        </a>
-        <button type="button" class="btn btn-primary" style="padding: 9px 16px; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px;" onclick="openPublishLesson32Modal()">
-          ${ICONS.plus} إدراج كدرس داخل المنصة بضغطة واحدة
-        </button>
+
+      <!-- Lesson 3-2 Card -->
+      <div class="glass" style="padding: 18px 22px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.24);">
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
+            <span style="font-size: 0.78rem; font-weight: 800; color: #0284c7;">صفحة درس ويب تفاعلية جاهزة</span>
+            <span style="font-size: 0.74rem; font-weight: 700; background: rgba(2,132,199,0.12); color: #0284c7; padding: 2px 8px; border-radius: 6px;">الدرس 3-2 · ص 57–61</span>
+          </div>
+          <h4 style="margin: 0 0 6px 0; font-size: 1.05rem;">الدرس 3-2: طرق اتصال تطبيقات الويب (Web Communication)</h4>
+          <p style="margin: 0; font-size: 0.84rem; color: var(--text-muted); line-height: 1.6;">
+            يتضمن 4 مختبرات محاكاة تفاعلية (Client-Server، أمان TLS/HTTPS، طرق GET/POST ورموز 200/404/500، ومحلل API/JSON) بالإضافة لحلول أنشطة الكتاب المدرسي واختبار ذاتي.
+          </p>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <a href="lessons/lesson-3-2.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            ${ICONS.externalLink} معاينة الصفحة
+          </a>
+          <a href="lessons/lesson-3-2.html" download="lesson-3-2.html" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.84rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            ${ICONS.download} تحميل HTML
+          </a>
+          <button type="button" class="btn btn-primary" style="padding: 8px 14px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;" onclick="openPublishLesson32Modal()">
+            ${ICONS.plus} إدراج الدرس 3-2 داخل المنصة بضغطة واحدة
+          </button>
+        </div>
       </div>
     </div>
 
@@ -3064,4 +3095,321 @@ async function executePublishLesson32() {
     hideLoading();
   }
 }
+
+function openPublishLesson33Modal() {
+  const existing = document.getElementById('publishLesson33Modal');
+  if (existing) existing.remove();
+
+  const notifyChecked = typeof getAdminNotifyPref === 'function' ? getAdminNotifyPref() : true;
+  const units = state.units || [];
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'publishLesson33Modal';
+  modal.innerHTML = `
+    <div class="glass modal-content" style="max-width: 540px;">
+      <div class="flex justify-between items-center" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+        <h3 style="margin: 0;">إدراج الدرس 3-3 التفاعلي في المنصة</h3>
+        <button type="button" class="btn btn-secondary" style="padding: 6px 10px;" onclick="document.getElementById('publishLesson33Modal')?.remove()">
+          ${ICONS.close}
+        </button>
+      </div>
+
+      <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6;">
+        سيقوم هذا الإجراء بإنشاء درس <strong>«أساسيات تقنية الواجهة الأمامية»</strong> وإرفاق صفحة الويب التفاعلية المحمية (<span style="direction:ltr;display:inline-block;">lessons/lesson-3-3.html</span>) مع ملف الـ PDF واختبار تفاعلي شامل.
+      </p>
+
+      <div class="input-group">
+        <label>الوحدة المستهدفة</label>
+        <select id="pub33UnitSelect">
+          <option value="__create_unit_3__">+ إنشاء/اختيار تلقائي: «الوحدة الثالثة: تطبيقات الويب»</option>
+          <option value="">-- بدون وحدة (درس مستقل) --</option>
+          ${units.map(u => `<option value="${u.unit_id}">الوحدة ${u.unit_number}: ${u.unit_name}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label>اسم الدرس</label>
+        <input type="text" id="pub33LessonName" value="أساسيات تقنية الواجهة الأمامية">
+      </div>
+
+      <div class="input-group">
+        <label>رقم الدرس</label>
+        <input type="number" id="pub33LessonNumber" value="3" min="1">
+      </div>
+
+      <div class="input-group" style="margin-top: 10px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="pub33IncludePdf" checked style="width:18px;height:18px;">
+          <span>إرفاق ملف الكتاب المدرسي (PDF) الأصلي داخل نفس الدرس</span>
+        </label>
+      </div>
+
+      <div class="input-group" style="margin-top: 8px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="pub33IncludeQuiz" checked style="width:18px;height:18px;">
+          <span>إنشاء اختبار تفاعلي شامل للدرس 3-3 (12 سؤالاً من الكتاب المدرسي)</span>
+        </label>
+      </div>
+
+      <div class="input-group" style="margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: rgba(5, 150, 105, 0.05); border: 1px solid rgba(5, 150, 105, 0.25);">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+          <input type="checkbox" id="pub33SendNotif" ${notifyChecked ? 'checked' : ''} onchange="if(typeof setAdminNotifyPref==='function') setAdminNotifyPref(this.checked)" style="width:18px;height:18px;">
+          <strong>إرسال إشعار للطلاب بإضافة هذا الدرس التفاعلي</strong>
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" style="background:#059669;border-color:#059669;" onclick="executePublishLesson33()">إنشاء الدرس وإرفاق الصفحة التفاعلية</button>
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('publishLesson33Modal')?.remove()">إلغاء</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function executePublishLesson33() {
+  const unitChoice = $('pub33UnitSelect')?.value || '';
+  const lessonName = $('pub33LessonName')?.value?.trim() || 'أساسيات تقنية الواجهة الأمامية';
+  const lessonNumber = parseInt($('pub33LessonNumber')?.value, 10) || 3;
+  const includePdf = $('pub33IncludePdf')?.checked !== false;
+  const includeQuiz = $('pub33IncludeQuiz')?.checked !== false;
+  const sendNotif = $('pub33SendNotif') ? $('pub33SendNotif').checked : true;
+  if (typeof setAdminNotifyPref === 'function') setAdminNotifyPref(sendNotif);
+
+  showLoading();
+  try {
+    let targetUnitId = unitChoice;
+
+    if (unitChoice === '__create_unit_3__') {
+      const existingUnit3 = (state.units || []).find(u => Number(u.unit_number) === 3 || String(u.unit_name).includes('تطبيقات الويب'));
+      if (existingUnit3) {
+        targetUnitId = String(existingUnit3.unit_id);
+      } else {
+        const uRes = await API.post('addUnit', {
+          unit_number: 3,
+          unit_name: 'تطبيقات الويب',
+          is_hidden: false
+        });
+        if (uRes && uRes.success) {
+          targetUnitId = String(uRes.unit_id);
+        } else {
+          targetUnitId = '';
+        }
+      }
+    }
+
+    const lRes = await API.post('addLesson', {
+      unit_id: targetUnitId,
+      lesson_number: lessonNumber,
+      lesson_name: lessonName,
+      is_hidden: false
+    });
+
+    if (!lRes || !lRes.success) {
+      showToast('تعذر إنشاء الدرس: ' + (lRes?.message || ''), 'error');
+      return;
+    }
+
+    const createdLessonId = String(lRes.lesson_id);
+
+    // 1. Add Interactive Web Page Material
+    await API.post('addMaterial', {
+      lesson_id: createdLessonId,
+      title: 'الدرس 3-3: أساسيات تقنية الواجهة الأمامية (صفحة شرح ومختبر تفاعلي)',
+      type: 'article',
+      content: 'lessons/lesson-3-3.html',
+      is_hidden: false
+    });
+
+    // 2. Optionally Add Attached PDF Summary
+    if (includePdf) {
+      await API.post('addMaterial', {
+        lesson_id: createdLessonId,
+        title: 'كتاب الدرس 3-3: أساسيات تقنية الواجهة الأمامية (ملف PDF)',
+        type: 'pdf',
+        content: 'public/assets/aistudio/_______________-______________0d35e6fc.pdf',
+        is_hidden: false
+      });
+    }
+
+    // 3. Optionally Create Graded 12-Question Quiz for Lesson 3-3
+    if (includeQuiz) {
+      const quizTitle = 'اختبار الدرس 3-3: أساسيات تقنية الواجهة الأمامية';
+      const qMatRes = await API.post('addMaterial', {
+        lesson_id: createdLessonId,
+        title: quizTitle,
+        type: 'quiz',
+        content: JSON.stringify({ time_limit: 15, is_review_mode: false }),
+        is_hidden: false
+      });
+
+      if (qMatRes && qMatRes.success) {
+        let quizId = qMatRes.quiz_id ? String(qMatRes.quiz_id) : '';
+        if (!quizId) {
+          const createdQ = await API.post('addQuiz', {
+            material_id: String(qMatRes.material_id),
+            title: quizTitle,
+            description: 'اختبار شامل يغطي أدوار HTML و CSS و JavaScript و HTML الدلالية والتصميم المتجاوب وأطر العمل'
+          });
+          if (createdQ && createdQ.quiz_id) quizId = String(createdQ.quiz_id);
+        }
+
+        if (quizId) {
+          const lesson33Questions = [
+            {
+              type: 'mcq',
+              question_text: 'ما التقنية التي تحدد بنية (هيكل) صفحة الويب وتصف عناصر مثل العناوين والفقرات والصور والروابط؟',
+              options: ['HTML', 'CSS', 'JavaScript', 'SQL'],
+              correct_answer: 0,
+              points: 1,
+              explanation: 'لغة HTML تحدد هيكل وبنية صفحة الويب (وهي بمثابة هيكل المبنى).'
+            },
+            {
+              type: 'mcq',
+              question_text: 'ما التقنية المسؤولة عن تحديد مظهر صفحة الويب مثل الألوان والتخطيط وحجم الخطوط؟',
+              options: ['HTML', 'CSS', 'JavaScript', 'HTTP'],
+              correct_answer: 1,
+              points: 1,
+              explanation: 'لغة CSS تحدد مظهر الصفحة وتنسيقها المرئي (وهي بمثابة الديكور الداخلي والخارجي للمبنى).'
+            },
+            {
+              type: 'mcq',
+              question_text: 'ما التقنية التي تضيف السلوك والتفاعلية إلى صفحة الويب وتستجيب لنقر الأزرار وتحديث جزء من الشاشة؟',
+              options: ['CSS', 'HTML الدلالية', 'JavaScript', 'SEO'],
+              correct_answer: 2,
+              points: 1,
+              explanation: 'لغة JavaScript تضيف السلوك والتفاعلية وتحدث أجزاء من الشاشة دون إعادة تحميل الصفحة.'
+            },
+            {
+              type: 'true_false',
+              question_text: 'قد لا تستخدم صفحة الويب جميع التقنيات الثلاث (HTML و CSS و JavaScript) معاً، إذ يمكن أن تستخدم HTML وحده.',
+              options: ['صحيح', 'خطأ'],
+              correct_answer: 0,
+              points: 1,
+              explanation: 'عبارة صحيحة كما ورد في الكتاب ص 62 و 65.'
+            },
+            {
+              type: 'true_false',
+              question_text: 'يُستخدم CSS بشكل أساسي لإضافة السلوك والتفاعلية وتحديث العدادات عند النقر على الأزرار.',
+              options: ['صحيح', 'خطأ'],
+              correct_answer: 1,
+              points: 1,
+              explanation: 'عبارة خاطئة؛ CSS مسؤولة عن المظهر والتنسيق، بينما JavaScript مسؤولة عن السلوك والتفاعلية.'
+            },
+            {
+              type: 'mcq',
+              question_text: 'اختر الخيار الذي لا يمثل فائدة مناسبة لاستخدام لغة HTML الدلالية (Semantic HTML):',
+              options: [
+                'يصبح من الأسهل على قارئ الشاشة فهم بنية الصفحة',
+                'يصبح من الأسهل على محركات البحث فهم محتوى صفحة الويب',
+                'تصبح سرعة عرض صفحة الويب أسرع بالضرورة',
+                'يصبح معنى كل جزء من الصفحة أوضح'
+              ],
+              correct_answer: 2,
+              points: 1,
+              explanation: 'استخدام HTML الدلالية يساعد قارئات الشاشة ومحركات البحث ويوضح المعنى، لكنه لا يجعل سرعة عرض الصفحة أسرع بالضرورة (ص 66).'
+            },
+            {
+              type: 'mcq',
+              question_text: 'ما أثر استخدام HTML الدلالية على تحسين محركات البحث (SEO)؟',
+              options: [
+                'يضمن الحصول على المركز الأول في نتائج البحث دائماً',
+                'قد يساعد محركات البحث على فهم بنية المحتوى بصورة أفضل، لكنه لا يضمن ترتيباً أعلى',
+                'يمنع محركات البحث من فهرسة الصفحة',
+                'ليس له أي علاقة بمحركات البحث'
+              ],
+              correct_answer: 1,
+              points: 1,
+              explanation: 'كما ورد في ص 63: قد يساعد HTML الدلالي محركات البحث على فهم بنية المحتوى بصورة أفضل، لكنه لا يضمن ترتيباً أعلى.'
+            },
+            {
+              type: 'mcq',
+              question_text: 'ما سبب الحاجة إلى التصميم المتجاوب (Responsive Design)؟',
+              options: [
+                'لأن مواقع الويب تُعرض دائماً على شاشات بالحجم نفسه',
+                'لأن المواقع الإلكترونية يتم الوصول إليها من أجهزة متنوعة مثل أجهزة الكمبيوتر والهواتف الذكية والأجهزة اللوحية',
+                'لأنه يلغي الحاجة إلى استخدام HTML في بناء الصفحات',
+                'لأنه يُستخدم فقط لتسريع عمل الخادم'
+              ],
+              correct_answer: 1,
+              points: 1,
+              explanation: 'يضبط التصميم المتجاوب التخطيط تلقائياً وفقاً لأحجام الشاشات المختلفة (حاسوب، هاتف ذكي، جهاز لوحي).'
+            },
+            {
+              type: 'mcq',
+              question_text: 'ماذا يُسمى النهج الذي يراعي فيه المطورون الشاشات الصغيرة منذ بداية التصميم نظراً لكثرة استخدام الهواتف الذكية؟',
+              options: [
+                'نهج الأولوية للجوال (Mobile-First)',
+                'نهج الأولوية للخادم (Server-First)',
+                'التصميم الثابت (Fixed Layout)',
+                'فهرسة البحث (SEO)'
+              ],
+              correct_answer: 0,
+              points: 1,
+              explanation: 'يُسمى نهج الأولوية للجوال (Mobile-First) كما ورد في ص 64.'
+            },
+            {
+              type: 'mcq',
+              question_text: 'أي خيار يصف «إطار العمل» (Framework) بصورة صحيحة؟',
+              options: [
+                'أداة لضبط حجم شاشة الجهاز تلقائياً',
+                'بنية توفر مسبقاً وظائف ومكونات شائعة لجعل تطوير تطبيقات الويب أكثر كفاءة',
+                'تقنية تُستخدم فقط لتغيير ألوان صفحة الويب',
+                'آلية لقراءة صفحات الويب نيابةً عن المستخدم'
+              ],
+              correct_answer: 1,
+              points: 1,
+              explanation: 'إطار العمل يوفر مسبقاً وظائف ومكونات شائعة الاستخدام لجعل تطوير تطبيقات الويب أكثر كفاءة دون كتابة كل الكود من الصفر.'
+            },
+            {
+              type: 'mcq',
+              question_text: 'ما الإطار المبني على React لبناء تطبيقات ويب، والذي يوفر التوجيه (Routing) وطرقاً مختلفة لعرض الصفحات والعمل على الخادم والعميل؟',
+              options: ['Vue', 'Next.js', 'CSS', 'HTML'],
+              correct_answer: 1,
+              points: 1,
+              explanation: 'Next.js هو إطار مبني على React يوفر التوجيه وطرقاً مختلفة لعرض الصفحات والعمل على الخادم والعميل (ص 64).'
+            },
+            {
+              type: 'essay',
+              question_text: 'اشرح كيف تساهم كل من HTML و CSS و JavaScript في صفحة مكتبة تعرض قائمة كتب، وتكون منسّقة، وتُصفّي النتائج أثناء كتابة المستخدم.',
+              options: [],
+              correct_answer: '',
+              points: 6,
+              explanation: 'HTML [درجتان]: تنشئ البنية والعناصر كالعناوين وحقل البحث وقائمة الكتب. CSS [درجتان]: تنسق المظهر والألوان والخطوط والتخطيط. JavaScript [درجتان]: تضيف التفاعلية بتصفية الكتب وتحديث القائمة المعروضة أثناء كتابة المستخدم.'
+            }
+          ];
+
+          await API.post('importQuiz', {
+            quiz_id: quizId,
+            questions: lesson33Questions
+          });
+        }
+      }
+    }
+
+    // 4. Send Notification if checked
+    if (sendNotif) {
+      await API.post('addNotification', {
+        title: 'درس تفاعلي جديد متاح الآن',
+        message: `الدرس ${lessonNumber}: ${lessonName} (يتضمن 3 مختبرات تفاعلية وأنشطة واختبار الدرس)`,
+        type: 'lesson',
+        target_type: 'lesson',
+        target_id: createdLessonId,
+        unit_id: targetUnitId,
+        lesson_id: createdLessonId
+      }).catch(console.warn);
+    }
+
+    document.getElementById('publishLesson33Modal')?.remove();
+    showToast('تم إنشاء الدرس 3-3 وإرفاق الصفحة التفاعلية والملفات بنجاح!');
+    await refreshAndRenderAdmin();
+  } catch (e) {
+    console.error('Error publishing Lesson 3-3:', e);
+    showToast('حدث خطأ أثناء نشر الدرس 3-3 التفاعلي', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
 
