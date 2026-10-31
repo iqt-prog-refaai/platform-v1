@@ -511,112 +511,51 @@ function toggleInteractiveFullscreen(materialId) {
   }
 }
 
-/**
- * Fetches interactive lesson HTML and mounts it via protected srcdoc with
- * student watermark and copy guard so no direct shareable URL is exposed.
- */
-async function mountProtectedInteractiveLesson(materialId, targetUrl, matTitle) {
-  const frame = document.getElementById(`interactive-frame-${materialId}`);
-  if (!frame) return;
-
-  const isLocalHtml = !/^https?:\/\//i.test(targetUrl) || targetUrl.includes(window.location.host);
-  if (!isLocalHtml) {
-    frame.src = targetUrl;
-    return;
-  }
-
-  try {
-    const res = await fetch(targetUrl, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    let htmlText = await res.text();
-
-    // Compute base URL for relative assets inside the lesson directory
-    const absoluteTarget = new URL(targetUrl, window.location.href);
-    const baseHref = new URL('.', absoluteTarget).href;
-
-    const studentName = String(state.user?.full_name || state.user?.name || state.user?.username || 'طالب مسجل').replace(/[<>"']/g, '');
-    const studentUsername = String(state.user?.username || 'student').replace(/[<>"']/g, '');
-    const userPayloadJson = JSON.stringify({
-      username: state.user?.username || '',
-      name: state.user?.name || '',
-      full_name: state.user?.full_name || state.user?.name || '',
-      role: state.user?.role || 'student',
-      is_frozen: Boolean(state.user?.is_frozen)
-    });
-
-    const injectedContext = `
-      <base href="${baseHref}">
-      <script>
-        window.__IQT_AUTH_USER__ = ${userPayloadJson};
-        window.__IQT_EMBEDDED_PROTECTED__ = true;
-        window.__IQT_LESSON_TITLE__ = ${JSON.stringify(matTitle || 'درس تفاعلي')};
-      <\/script>
-    `;
-
-    if (/<head[^>]*>/i.test(htmlText)) {
-      htmlText = htmlText.replace(/<head[^>]*>/i, match => `${match}\n${injectedContext}`);
-    } else {
-      htmlText = injectedContext + htmlText;
-    }
-
-    frame.srcdoc = htmlText;
-
-    if (typeof logStudentActivity === 'function') {
-      logStudentActivity('interactive', `فتح الدرس التفاعلي: ${matTitle}`, `جلسة محمية (${studentName} • @${studentUsername})`, `يدرس: ${matTitle}`);
-    }
-  } catch (err) {
-    console.warn('Protected srcdoc load fallback to direct src:', err);
-    frame.src = targetUrl;
-  }
-}
-
 function renderArticleMaterial(mat, isCompleted) {
   const targetUrl = formatExternalUrl(mat.content);
-  const studentDisplay = state.user ? `${state.user.full_name || state.user.name || state.user.username} (@${state.user.username})` : '';
-  const safeTitle = String(mat.title || 'درس تفاعلي').replace(/'/g, "\\'");
 
-  // Schedule protected srcdoc mounting right after DOM insertion
-  setTimeout(() => {
-    mountProtectedInteractiveLesson(mat.material_id, targetUrl, mat.title);
-  }, 40);
+  if (typeof logStudentActivity === 'function') {
+    setTimeout(() => {
+      logStudentActivity('interactive', `فتح الدرس التفاعلي: ${mat.title}`, '', `يدرس: ${mat.title}`);
+    }, 50);
+  }
 
   return `
     <div class="material-header">
       <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
         <span class="material-type-badge" style="background: var(--primary-light); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.82rem; font-weight: 700;">${ICONS.document} درس ويب تفاعلي</span>
-        <span style="background: rgba(5, 150, 105, 0.1); color: #059669; border: 1px solid rgba(5, 150, 105, 0.25); padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 700;">
-          🔒 محتوى محمي للأعضاء المسجلين فقط
-        </span>
       </div>
       <h2 style="margin-top:8px;">${mat.title}</h2>
       ${isCompleted ? `<span style="color: var(--success); display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-weight:700;">${ICONS.check} مكتمل</span>` : ''}
     </div>
 
     <div class="glass" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 20px; border-radius: 14px; margin-bottom: 16px; border: 1px solid rgba(2, 132, 199, 0.2); background: linear-gradient(135deg, rgba(2,132,199,0.05), rgba(255,255,255,0.85));">
-      <div style="display: flex; flex-direction: column; gap: 2px;">
-        <div style="display: flex; align-items: center; gap: 10px; font-size: 0.95rem; font-weight: 700;">
-          <span style="color: var(--primary);">${ICONS.document}</span>
-          <span>صفحة شرح تفاعلية مدمجة ومحمية داخل المنصة</span>
-        </div>
-        ${studentDisplay ? `<div style="font-size: 0.78rem; color: var(--text-muted); padding-right: 26px;">مرخصة لجلسة الطالب: <strong style="color: var(--text-primary);">${studentDisplay}</strong></div>` : ''}
+      <div style="display: flex; align-items: center; gap: 10px; font-size: 0.95rem; font-weight: 700;">
+        <span style="color: var(--primary);">${ICONS.document}</span>
+        <span>صفحة شرح تفاعلية مدمجة</span>
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <button type="button" class="btn btn-primary" onclick="toggleInteractiveFullscreen('${mat.material_id}')" style="padding: 8px 16px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px;">
+        <button type="button" class="btn btn-secondary" onclick="toggleInteractiveFullscreen('${mat.material_id}')" style="padding: 8px 16px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px;">
           ⛶ تكبير ملء الشاشة داخل المنصة
         </button>
+        <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px;">
+          ${ICONS.externalLink} فتح الصفحة في نافذة مستقلة
+        </a>
         <button class="btn btn-success" onclick="markComplete('${mat.material_id}')" style="padding: 8px 16px; font-size: 0.9rem;">
           ${ICONS.check} تحديد كمكتمل
         </button>
       </div>
     </div>
 
-    <div id="interactive-wrap-${mat.material_id}" data-fullscreen="false" oncontextmenu="return false;" style="position:relative; height: 82vh; min-height: 700px; overflow:hidden; border-radius:16px; margin-bottom:20px; border: 1px solid var(--border); box-shadow: var(--shadow); display:flex; flex-direction:column; user-select:none;">
+    <div id="interactive-wrap-${mat.material_id}" data-fullscreen="false" style="position:relative; height: 82vh; min-height: 700px; overflow:hidden; border-radius:16px; margin-bottom:20px; border: 1px solid var(--border); box-shadow: var(--shadow); display:flex; flex-direction:column;">
       <div id="interactive-fs-bar-${mat.material_id}" style="display:none; align-items:center; justify-content:space-between; padding:10px 20px; background:#0F172A; color:#fff; font-weight:700; font-size:0.92rem; z-index:2; flex-shrink:0;">
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           <span>🌐 ${mat.title}</span>
-          <span style="font-size:0.76rem; padding:2px 8px; border-radius:6px; background:rgba(56,189,248,0.18); color:#38BDF8;">🔒 عرض محمي — ${studentDisplay}</span>
         </div>
         <div style="display:flex; gap:10px; align-items:center;">
+          <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="padding:6px 14px; font-size:0.84rem; text-decoration:none;">
+            ${ICONS.externalLink} فتح في نافذة مستقلة
+          </a>
           <button type="button" class="btn btn-success" onclick="markComplete('${mat.material_id}')" style="padding:6px 14px; font-size:0.84rem;">
             ${ICONS.check} تحديد كمكتمل
           </button>
@@ -627,14 +566,18 @@ function renderArticleMaterial(mat, isCompleted) {
       </div>
       <iframe
         id="interactive-frame-${mat.material_id}"
+        src="${targetUrl}"
         style="width:100%; flex:1; height:100%; border:none; background:white;"
         allowfullscreen>
       </iframe>
     </div>
     <div style="display:flex; gap:10px; justify-content:center; flex-wrap: wrap;">
-      <button type="button" class="btn btn-primary" onclick="toggleInteractiveFullscreen('${mat.material_id}')">
+      <button type="button" class="btn btn-secondary" onclick="toggleInteractiveFullscreen('${mat.material_id}')">
         ⛶ تكبير الصفحة التفاعلية ملء الشاشة
       </button>
+      <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+        ${ICONS.externalLink} فتح في نافذة كاملة
+      </a>
       <button class="btn btn-success" onclick="markComplete('${mat.material_id}')">
         ${ICONS.check} تحديد كمكتمل
       </button>

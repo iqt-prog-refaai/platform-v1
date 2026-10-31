@@ -658,9 +658,20 @@
       border-radius: var(--radius-md);
       margin-bottom: 0.55rem;
     }
+
   </style>
 </head>
 <body>
+
+  <!-- Protection temporarily suspended: resolve user if available without blocking access -->
+  <script>
+    (function() {
+      try {
+        var raw = localStorage.getItem('iqt_user');
+        if (raw) window.__IQT_VERIFIED_USER__ = JSON.parse(raw);
+      } catch (e) {}
+    })();
+  </script>
 
   <!-- Top Bar Contract: Zone 1 (Brand) - Zone 2 (5 Links) - Zone 3 (1 Primary CTA) -->
   <header class="top-bar">
@@ -672,7 +683,7 @@
       <a href="#sec-api-json">واجهة API و JSON</a>
       <a href="#sec-activities">الأنشطة والاختبار</a>
     </nav>
-    <a href="/public/assets/aistudio/____19e9a610.pdf" target="_blank" rel="noopener noreferrer" class="top-cta">ملف الدرس PDF</a>
+    <a href="../public/assets/aistudio/____19e9a610.pdf" target="_blank" rel="noopener noreferrer" class="top-cta">ملف الدرس PDF</a>
   </header>
 
   <main class="container" id="top">
@@ -1808,7 +1819,8 @@
       const feedback = document.getElementById('quizFeedbackBanner');
       feedback.style.display = 'block';
 
-      if (selectedIndex === item.correct) {
+      const isRight = selectedIndex === item.correct;
+      if (isRight) {
         selectedBtn.classList.add('correct');
         if (!answeredFlags[currentQIndex]) {
           quizScore++;
@@ -1824,6 +1836,12 @@
         feedback.innerHTML = `<strong>إجابة غير صحيحة.</strong> ${item.explanation}`;
       }
       document.getElementById('quizScoreDisplay').textContent = `${quizScore} / ${quizQuestions.length}`;
+
+      notifyParentPlatform(
+        'interactive',
+        `التدريب التفاعلي (الدرس 3-2): السؤال ${currentQIndex + 1}`,
+        isRight ? `إجابة صحيحة — النتيجة الحالية ${quizScore}/${quizQuestions.length}` : `إجابة خاطئة — النتيجة الحالية ${quizScore}/${quizQuestions.length}`
+      );
     }
 
     function nextQuizQuestion() {
@@ -1838,6 +1856,33 @@
       document.getElementById('quizScoreDisplay').textContent = `0 / ${quizQuestions.length}`;
       renderQuizQuestion();
     }
+
+    function notifyParentPlatform(eventType, eventTitle, eventDetail) {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'IQT_LESSON_ACTIVITY',
+            eventType: eventType || 'interactive',
+            eventTitle: eventTitle || '',
+            eventDetail: eventDetail || '',
+            activityLabel: 'يتفاعل مع الدرس 3-2: طرق اتصال تطبيقات الويب'
+          }, '*');
+        }
+      } catch (e) {}
+    }
+
+    // Notify parent when student runs simulations (protection/copy-guard temporarily suspended)
+    (function initSimTelemetry() {
+      const origSendSim = window.sendSimulatedRequest;
+      if (typeof origSendSim === 'function') {
+        window.sendSimulatedRequest = function() {
+          const method = document.getElementById('simMethod')?.value || 'GET';
+          const scenario = document.getElementById('simScenario')?.value || '200';
+          notifyParentPlatform('interactive', 'تشغيل محاكي HTTP (الدرس 3-2)', `طريقة الطلب: ${method} — الحالة: ${scenario}`);
+          return origSendSim.apply(this, arguments);
+        };
+      }
+    })();
 
     // Initialize interactive quiz on load
     renderQuizQuestion();
