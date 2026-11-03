@@ -1238,59 +1238,6 @@ async function renderAdminContent(container) {
       </div>
     </div>
 
-    <!-- Built-in Interactive Web Lessons Ready to Publish -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; margin-bottom: 28px;">
-      <!-- Lesson 3-3 Card -->
-      <div class="glass" style="padding: 18px 22px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; background: rgba(5, 150, 105, 0.05); border: 1px solid rgba(5, 150, 105, 0.28);">
-        <div>
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
-            <span style="font-size: 0.78rem; font-weight: 800; color: #059669;">✨ صفحة درس ويب تفاعلية جديدة</span>
-            <span style="font-size: 0.74rem; font-weight: 700; background: rgba(5,150,105,0.14); color: #059669; padding: 2px 8px; border-radius: 6px;">الدرس 3-3 · ص 62–67</span>
-          </div>
-          <h4 style="margin: 0 0 6px 0; font-size: 1.05rem;">الدرس 3-3: أساسيات تقنية الواجهة الأمامية (Frontend Basics)</h4>
-          <p style="margin: 0; font-size: 0.84rem; color: var(--text-muted); line-height: 1.6;">
-            يتضمن 3 مختبرات تفاعلية (محاكي الشكل 3.3.1 لأدوار HTML/CSS/JS، فاحص HTML الدلالية وقارئ الشاشة و SEO، ومحاكي التصميم المتجاوب Mobile-First) + أطر العمل (React, Vue, Next.js) وحلول تمارين الكتاب.
-          </p>
-        </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <a href="lessons/lesson-3-3.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-            ${ICONS.externalLink} معاينة الصفحة
-          </a>
-          <a href="lessons/lesson-3-3.html" download="lesson-3-3.html" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.84rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-            ${ICONS.download} تحميل HTML
-          </a>
-          <button type="button" class="btn btn-primary" style="padding: 8px 14px; font-size: 0.85rem; background: #059669; border-color: #059669; display: inline-flex; align-items: center; gap: 6px;" onclick="openPublishLesson33Modal()">
-            ${ICONS.plus} إدراج الدرس 3-3 داخل المنصة بضغطة واحدة
-          </button>
-        </div>
-      </div>
-
-      <!-- Lesson 3-2 Card -->
-      <div class="glass" style="padding: 18px 22px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.24);">
-        <div>
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
-            <span style="font-size: 0.78rem; font-weight: 800; color: #0284c7;">صفحة درس ويب تفاعلية جاهزة</span>
-            <span style="font-size: 0.74rem; font-weight: 700; background: rgba(2,132,199,0.12); color: #0284c7; padding: 2px 8px; border-radius: 6px;">الدرس 3-2 · ص 57–61</span>
-          </div>
-          <h4 style="margin: 0 0 6px 0; font-size: 1.05rem;">الدرس 3-2: طرق اتصال تطبيقات الويب (Web Communication)</h4>
-          <p style="margin: 0; font-size: 0.84rem; color: var(--text-muted); line-height: 1.6;">
-            يتضمن 4 مختبرات محاكاة تفاعلية (Client-Server، أمان TLS/HTTPS، طرق GET/POST ورموز 200/404/500، ومحلل API/JSON) بالإضافة لحلول أنشطة الكتاب المدرسي واختبار ذاتي.
-          </p>
-        </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <a href="lessons/lesson-3-2.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-            ${ICONS.externalLink} معاينة الصفحة
-          </a>
-          <a href="lessons/lesson-3-2.html" download="lesson-3-2.html" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.84rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-            ${ICONS.download} تحميل HTML
-          </a>
-          <button type="button" class="btn btn-primary" style="padding: 8px 14px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;" onclick="openPublishLesson32Modal()">
-            ${ICONS.plus} إدراج الدرس 3-2 داخل المنصة بضغطة واحدة
-          </button>
-        </div>
-      </div>
-    </div>
-
     <div style="margin-bottom: 32px;">
       <h3 style="margin-bottom: 16px; color: var(--text-muted);">الوحدات والدروس</h3>
       ${state.units.map(unit => {

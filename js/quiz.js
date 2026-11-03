@@ -455,13 +455,30 @@ function renderQuizQuestion() {
   }
 
   let explanationHtml = '';
-  if (quiz.isReviewMode && quiz.answerConfirmed && q.explanation) {
-    explanationHtml = `
-      <div style="margin-top:20px; padding:16px; border-radius:8px; background:rgba(99,102,241,0.05); border-right:4px solid var(--primary); text-align:right;">
-        <strong style="color:var(--primary); font-size:0.95rem;">${ICONS.info} التعليل:</strong>
-        <p style="margin-top:8px; font-size:0.9rem; line-height:1.5;">${q.explanation}</p>
-      </div>
-    `;
+  if (quiz.isReviewMode && quiz.answerConfirmed) {
+    const essayModelAns = (q.type === 'essay' && typeof q.correct_answer === 'string' && q.correct_answer.trim() && q.correct_answer.trim() !== 'null')
+      ? q.correct_answer.trim()
+      : '';
+    const expText = (q.explanation && String(q.explanation).trim()) ? String(q.explanation).trim() : '';
+
+    if (essayModelAns || expText) {
+      explanationHtml = `
+        <div style="margin-top:20px; padding:16px; border-radius:10px; background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.25); border-right:4px solid var(--success); text-align:right;">
+          ${essayModelAns ? `
+            <div style="margin-bottom:${expText && expText !== essayModelAns ? '10px' : '0'};">
+              <strong style="color:#059669; font-size:0.95rem;">✅ الإجابة النموذجية:</strong>
+              <p style="margin-top:6px; font-size:0.92rem; line-height:1.65; white-space:pre-line;">${essayModelAns}</p>
+            </div>
+          ` : ''}
+          ${expText && expText !== essayModelAns ? `
+            <div>
+              <strong style="color:var(--primary); font-size:0.95rem;">💡 ${q.type === 'essay' && !essayModelAns ? 'الإجابة النموذجية والتعليل:' : 'التعليل:'}</strong>
+              <p style="margin-top:6px; font-size:0.92rem; line-height:1.65; white-space:pre-line;">${expText}</p>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
   }
 
   // Timer badge
@@ -749,8 +766,7 @@ function nextQuestion(forceAdvance = false) {
         answer = parseInt(selected.dataset.index, 10);
         isCorrect = answer === q.correct_answer;
       } else if (q.type === 'essay') {
-        answer = $('essayAnswer').value.trim();
-        if (!answer) { showToast('يرجى كتابة إجابة أولاً', 'error'); return; }
+        answer = ($('essayAnswer')?.value || '').trim();
         isCorrect = null;
       } else if (q.type === 'matching') {
         const pairs = q.options || [];
@@ -802,12 +818,7 @@ function nextQuestion(forceAdvance = false) {
     renderQuizQuestion();
   } else {
     if (quiz.isReviewMode) {
-      showToast('🎉 اكتملت المراجعة بنجاح!', 'success');
-      if (state.user.role === 'admin') {
-        navigateTo('admin');
-      } else {
-        navigateTo('dashboard');
-      }
+      submitQuiz();
     } else {
       confirmSubmitQuiz();
     }
@@ -926,110 +937,270 @@ async function submitQuiz() {
     };
   });
 
-  // Recalculate total score accurately
-  quiz.score = quiz.questions.reduce((acc, q, i) => {
-    const a = quiz.answers[i];
-    if (a && a.isCorrect) {
-      return acc + (q.points || 1);
-    }
-    return acc;
-  }, 0);
+  // Calculate separate scores for Non-Essay (Objective) vs Essay questions
+  let objectiveScore = 0;
+  let objectiveMaxScore = 0;
+  let objectiveCount = 0;
+  let essayMaxScore = 0;
+  let essayCount = 0;
+  let answeredEssayCount = 0;
 
-  const hasEssay  = quiz.questions.some(q => q.type === 'essay') || quiz.answers.some(a => a?.type === 'essay');
-  const color     = _scoreColor(quiz.score, quiz.maxScore);
-  const pct       = quiz.maxScore ? Math.round(quiz.score / quiz.maxScore * 100) : 0;
+  quiz.questions.forEach((q, i) => {
+    const pts = Number(q.points) || 1;
+    const a = quiz.answers[i];
+    if (q.type === 'essay') {
+      essayCount++;
+      essayMaxScore += pts;
+      if (a && a.answer !== null && a.answer !== undefined && String(a.answer).trim() !== '') {
+        answeredEssayCount++;
+      }
+    } else {
+      objectiveCount++;
+      objectiveMaxScore += pts;
+      if (a && a.isCorrect) {
+        objectiveScore += pts;
+      }
+    }
+  });
+
+  quiz.score = objectiveScore;
+  const hasEssay = essayCount > 0;
+  const hasObjective = objectiveCount > 0;
+  const objColor = _scoreColor(objectiveScore, objectiveMaxScore);
+  const objPct = objectiveMaxScore > 0 ? Math.round((objectiveScore / objectiveMaxScore) * 100) : 0;
 
   // ─── Build answer review ──────────────────────────────────────────────────
   let reviewHtml = '';
   quiz.questions.forEach((q, i) => {
     const ans = quiz.answers[i];
-    const isPending  = q.type === 'essay';
-    const isCorrect  = ans?.isCorrect;
-    const rgb        = isPending ? '245,158,11' : isCorrect ? '16,185,129' : '239,68,68';
-    const sColor     = isPending ? 'var(--warning)' : isCorrect ? 'var(--success)' : 'var(--danger)';
-    const statusIcon = isPending ? ICONS.clock : isCorrect ? ICONS.checkCircle : ICONS.alert;
-    const statusText = isPending ? 'قيد المراجعة' : isCorrect ? 'صحيحة ✓' : 'خاطئة ✗';
+    const isEssay = q.type === 'essay';
+    const isCorrect = ans?.isCorrect;
+    const hasEssayAns = isEssay && ans && ans.answer !== null && ans.answer !== undefined && String(ans.answer).trim() !== '';
 
-    // Build display text for the student's answer and the correct answer
-    let myAnswer = '—';
-    let correctAnswer = '';
+    const rgb = isEssay ? '245,158,11' : isCorrect ? '16,185,129' : '239,68,68';
+    const sColor = isEssay ? '#d97706' : isCorrect ? 'var(--success)' : 'var(--danger)';
+    const statusIcon = isEssay ? ICONS.fileText || ICONS.clock : isCorrect ? ICONS.checkCircle : ICONS.alert;
+    const statusText = isEssay
+      ? (hasEssayAns ? 'مقالي — بانتظار التقييم' : 'مقالي — لم يُحل (مراجعة الإجابة)')
+      : (isCorrect ? 'إجابة صحيحة ✓' : 'إجابة خاطئة ✗');
+
+    let questionReviewBodyHtml = '';
+
     if (q.type === 'mcq' || q.type === 'true_false') {
-      myAnswer      = Array.isArray(q.options) ? (q.options[ans?.answer] ?? `الخيار ${ans?.answer}`) : String(ans?.answer ?? '—');
-      correctAnswer = Array.isArray(q.options) ? (q.options[q.correct_answer] ?? `الخيار ${q.correct_answer}`) : String(q.correct_answer);
-    } else if (q.type === 'essay') {
-      myAnswer = ans?.answer || '(لم يتم تقديم إجابة)';
+      const optsList = q.type === 'true_false'
+        ? (Array.isArray(q.options) && q.options.length ? q.options : ['صح', 'خطأ'])
+        : (Array.isArray(q.options) ? q.options : []);
+
+      const hasStudentChoice = ans && ans.answer !== '' && ans.answer !== null && ans.answer !== undefined && !isNaN(Number(ans.answer));
+      const studentIdx = hasStudentChoice ? Number(ans.answer) : -1;
+      const correctIdx = (q.correct_answer !== '' && q.correct_answer !== null && q.correct_answer !== undefined && !isNaN(Number(q.correct_answer)))
+        ? Number(q.correct_answer)
+        : -1;
+
+      questionReviewBodyHtml = `
+        ${!hasStudentChoice ? `
+          <div style="margin-bottom:8px; padding:6px 12px; border-radius:8px; background:rgba(239,68,68,0.08); color:var(--danger); font-size:0.82rem; font-weight:700; display:inline-block;">
+            ⚠️ لم يتم اختيار إجابة لهذا السؤال
+          </div>
+        ` : ''}
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+          ${optsList.map((optText, optIdx) => {
+            const isCorrectOpt = optIdx === correctIdx;
+            const isStudentOpt = hasStudentChoice && optIdx === studentIdx;
+
+            let optBg = 'rgba(0,0,0,0.02)';
+            let optBorder = '1.5px solid var(--border)';
+            let optTextColor = 'var(--text-primary)';
+            let badgeHtml = '';
+
+            if (isCorrectOpt && isStudentOpt) {
+              optBg = 'rgba(16, 185, 129, 0.12)';
+              optBorder = '2px solid #10b981';
+              optTextColor = '#065f46';
+              badgeHtml = `<span style="background:#10b981; color:#fff; padding:2px 10px; border-radius:999px; font-size:0.75rem; font-weight:800; white-space:nowrap;">✓ إجابتك الصحيحة</span>`;
+            } else if (isCorrectOpt) {
+              optBg = 'rgba(16, 185, 129, 0.1)';
+              optBorder = '2px solid #10b981';
+              optTextColor = '#065f46';
+              badgeHtml = `<span style="background:rgba(16,185,129,0.2); color:#047857; border:1px solid rgba(16,185,129,0.4); padding:2px 10px; border-radius:999px; font-size:0.75rem; font-weight:800; white-space:nowrap;">✓ الإجابة الصحيحة</span>`;
+            } else if (isStudentOpt) {
+              optBg = 'rgba(239, 68, 68, 0.1)';
+              optBorder = '2px solid #ef4444';
+              optTextColor = '#991b1b';
+              badgeHtml = `<span style="background:#ef4444; color:#fff; padding:2px 10px; border-radius:999px; font-size:0.75rem; font-weight:800; white-space:nowrap;">✗ اختيارك الخاطئ</span>`;
+            }
+
+            return `
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 14px; border-radius:10px; background:${optBg}; border:${optBorder}; color:${optTextColor}; font-weight:${(isCorrectOpt || isStudentOpt) ? '700' : '500'};">
+                <div style="display:flex; align-items:center; gap:10px; line-height:1.5;">
+                  <span style="width:24px; height:24px; border-radius:50%; background:${isCorrectOpt ? '#10b981' : isStudentOpt ? '#ef4444' : 'rgba(0,0,0,0.07)'}; color:${(isCorrectOpt || isStudentOpt) ? '#fff' : 'var(--text-muted)'}; display:inline-flex; align-items:center; justify-content:center; font-size:0.78rem; font-weight:800; flex-shrink:0;">
+                    ${optIdx + 1}
+                  </span>
+                  <span>${optText}</span>
+                </div>
+                ${badgeHtml}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else if (isEssay) {
+      const studentEssayText = hasEssayAns ? ans.answer : '(لم يكتب الطالب إجابة — متروك لضيق وقت الحصة)';
+      const rawModelAns = (q.correct_answer !== null && q.correct_answer !== undefined && String(q.correct_answer).trim() !== '' && String(q.correct_answer).trim() !== 'null')
+        ? String(q.correct_answer).trim()
+        : '';
+      const rawExp = (q.explanation !== null && q.explanation !== undefined && String(q.explanation).trim() !== '')
+        ? String(q.explanation).trim()
+        : '';
+
+      questionReviewHtmlEssay: {
+        questionReviewBodyHtml = `
+          <div style="padding:10px 14px; border-radius:10px; background:rgba(0,0,0,0.025); border:1px solid var(--border); margin-bottom:8px;">
+            <span style="color:var(--text-muted); font-size:0.82rem; font-weight:700; display:block; margin-bottom:4px;">إجابتك:</span>
+            <div style="font-size:0.9rem; color:${hasEssayAns ? 'var(--text-primary)' : 'var(--text-muted)'}; font-style:${hasEssayAns ? 'normal' : 'italic'}; white-space:pre-line;">${studentEssayText}</div>
+          </div>
+          ${(rawModelAns || rawExp) ? `
+            <div style="padding:12px 16px; border-radius:10px; background:rgba(16, 185, 129, 0.08); border:1.5px solid rgba(16, 185, 129, 0.35); border-right:4px solid #10b981; line-height:1.7;">
+              ${rawModelAns ? `
+                <div style="margin-bottom:${(rawExp && rawExp !== rawModelAns) ? '8px' : '0'};">
+                  <strong style="color:#047857; font-size:0.9rem; display:block; margin-bottom:4px;">✅ الإجابة النموذجية للسؤال المقالي:</strong>
+                  <div style="color:var(--text-primary); font-size:0.92rem; white-space:pre-line;">${rawModelAns}</div>
+                </div>
+              ` : ''}
+              ${(rawExp && rawExp !== rawModelAns) ? `
+                <div>
+                  <strong style="color:#047857; font-size:0.9rem; display:block; margin-bottom:4px;">${rawModelAns ? '💡 التعليل والشرح:' : '✅ الإجابة النموذجية والتعليل:'}</strong>
+                  <div style="color:var(--text-primary); font-size:0.92rem; white-space:pre-line;">${rawExp}</div>
+                </div>
+              ` : ''}
+            </div>
+          ` : `
+            <div style="padding:10px 14px; border-radius:10px; background:rgba(245, 158, 11, 0.08); border:1px solid rgba(245, 158, 11, 0.25); color:#b45309; font-size:0.84rem;">
+              💡 هذا سؤال مقالي يتمتّع بإجابة مفتوحة تراجع مع المعلم.
+            </div>
+          `}
+        `;
+      }
     } else if (q.type === 'matching') {
-      myAnswer = 'تم تقديم المطابقة';
+      const pairs = Array.isArray(q.options) ? q.options : [];
+      questionReviewBodyHtml = `
+        <div style="display:flex; flex-direction:column; gap:6px; margin-top:4px;">
+          ${pairs.map((pair, pIdx) => {
+            const leftText = typeof pair === 'object' ? pair.left : pair;
+            const correctRightText = typeof pair === 'object' ? pair.right : pair;
+            const userMatchIdx = Array.isArray(ans?.answer) ? ans.answer.find(m => m.left === pIdx)?.right : undefined;
+            const userRightText = (userMatchIdx !== undefined && pairs[userMatchIdx])
+              ? (typeof pairs[userMatchIdx] === 'object' ? pairs[userMatchIdx].right : pairs[userMatchIdx])
+              : 'لم يتم الاختيار';
+            const matchOk = userMatchIdx === pIdx;
+            return `
+              <div style="padding:8px 12px; border-radius:8px; background:${matchOk ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)'}; border:1px solid ${matchOk ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}; font-size:0.86rem;">
+                <strong>${leftText}</strong> ←
+                <span style="color:${matchOk ? '#059669' : '#dc2626'}; font-weight:700;">إجابتك: ${userRightText}</span>
+                ${!matchOk ? ` | <span style="color:#059669; font-weight:700;">الصحيح: ${correctRightText}</span>` : ' ✓'}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
     }
 
     reviewHtml += `
-      <div style="border:2px solid rgba(${rgb},0.4); background:rgba(${rgb},0.04);
+      <div style="border:2px solid rgba(${rgb},0.38); background:rgba(${rgb},0.03);
                   border-radius:14px; padding:18px; margin-bottom:14px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;
-                    gap:10px; margin-bottom:10px;">
-          <div style="font-weight:600; font-size:0.94rem; flex:1; line-height:1.5;">
-            ${i + 1}. ${q.question_text}
+                    gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+          <div style="font-weight:700; font-size:0.98rem; flex:1; line-height:1.55;">
+            <span style="color:var(--primary);">${i + 1}.</span> ${q.question_text}
+            <span style="font-size:0.78rem; color:var(--text-muted); font-weight:600; margin-right:6px;">(${q.points || 1} ${Number(q.points || 1) === 1 ? 'درجة' : 'درجات'})</span>
           </div>
           <div style="color:${sColor}; white-space:nowrap; font-size:0.8rem; font-weight:700;
-                      display:flex; align-items:center; gap:4px; padding-top:3px; flex-shrink:0;">
+                      display:flex; align-items:center; gap:4px; padding:4px 10px; border-radius:8px; background:rgba(${rgb},0.1); flex-shrink:0;">
             ${statusIcon} ${statusText}
           </div>
         </div>
 
-        <div style="font-size:0.87rem; display:flex; flex-direction:column; gap:5px;">
-          ${q.type !== 'essay' && q.type !== 'matching' ? `
-            <div>
-              <span style="color:var(--text-muted);">إجابتك: </span>
-              <strong style="color:${sColor};">${myAnswer}</strong>
-            </div>` : ''}
+        <div style="font-size:0.88rem; display:flex; flex-direction:column; gap:8px;">
+          ${questionReviewBodyHtml}
 
-          ${!isCorrect && !isPending && q.type !== 'matching' ? `
-            <div>
-              <span style="color:var(--text-muted);">الإجابة الصحيحة: </span>
-              <strong style="color:var(--success);">${correctAnswer}</strong>
-            </div>` : ''}
-
-          ${q.type === 'essay' ? `
-            <div>
-              <span style="color:var(--text-muted);">إجابتك: </span>
-              <span style="font-style:italic;">${myAnswer}</span>
-            </div>
-            <div style="color:var(--warning); font-size:0.82rem; display:flex; align-items:center; gap:4px; margin-top:2px;">
-              ${ICONS.clock} مقالي — بانتظار التقييم اليدوي
-            </div>` : ''}
-
-          ${q.explanation && !isPending ? `
-            <div style="margin-top:8px; padding:10px 14px;
+          ${q.explanation && !isEssay ? `
+            <div style="margin-top:6px; padding:10px 14px;
                         background:rgba(99,102,241,0.07);
-                        border-left:3px solid var(--primary);
-                        border-radius:0 8px 8px 0;
-                        font-size:0.84rem; line-height:1.65; color:var(--text-muted);">
+                        border-right:3px solid var(--primary);
+                        border-radius:8px;
+                        font-size:0.86rem; line-height:1.65; color:var(--text-primary);">
               💡 <strong style="color:var(--primary);">التعليل:</strong> ${q.explanation}
             </div>` : ''}
         </div>
       </div>`;
   });
 
+  // ─── Build separate score cards for Objective vs Essay ─────────────────────
+  let scoreBreakdownHtml = '';
+  if (hasObjective && hasEssay) {
+    scoreBreakdownHtml = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin:18px 0 8px; text-align:center;">
+        <!-- Objective Questions Score Card -->
+        <div style="padding:18px 16px; border-radius:14px; background:rgba(16, 185, 129, 0.06); border:2px solid rgba(16, 185, 129, 0.28);">
+          <div style="font-size:0.88rem; font-weight:800; color:#047857; margin-bottom:6px;">
+            ✅ درجة الأسئلة الموضوعية (الاختياري وصح/خطأ)
+          </div>
+          <div style="font-size:2.4rem; font-weight:900; color:${objColor}; line-height:1.1; font-variant-numeric:tabular-nums;">
+            ${objectiveScore}<span style="font-size:1.25rem; font-weight:600; color:var(--text-muted);"> / ${objectiveMaxScore}</span>
+          </div>
+          <div style="font-size:0.95rem; font-weight:800; color:${objColor}; margin-top:4px;">
+            النسبة: ${objPct}%
+          </div>
+          <div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+            تم تصحيحها تلقائياً (${objectiveCount} ${objectiveCount === 1 ? 'سؤال' : 'أسئلة'})
+          </div>
+        </div>
+
+        <!-- Essay Questions Score Card -->
+        <div style="padding:18px 16px; border-radius:14px; background:rgba(245, 158, 11, 0.06); border:2px solid rgba(245, 158, 11, 0.28);">
+          <div style="font-size:0.88rem; font-weight:800; color:#b45309; margin-bottom:6px;">
+            📝 درجة الأسئلة المقالية (منفصلة)
+          </div>
+          <div style="font-size:1.85rem; font-weight:900; color:#d97706; line-height:1.2; margin:6px 0; font-variant-numeric:tabular-nums;">
+            ${answeredEssayCount > 0 ? 'بانتظار التقييم' : 'لم تُحل بالاختبار'}
+            <span style="font-size:1.1rem; font-weight:600; color:var(--text-muted); display:block; margin-top:2px;">من ${essayMaxScore} درجة</span>
+          </div>
+          <div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+            ${answeredEssayCount > 0
+              ? `أجبت على ${answeredEssayCount} من ${essayCount} أسئلة مقالية`
+              : `عددها ${essayCount} أسئلة — إجاباتها النموذجية موضحة بالأسفل 👇`}
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (hasObjective) {
+    scoreBreakdownHtml = `
+      <div style="font-size:2.8rem; font-weight:900; color:${objColor}; margin:12px 0; line-height:1.1; font-variant-numeric:tabular-nums;">
+        ${objectiveScore}<span style="font-size:1.3rem; font-weight:500; color:var(--text-muted);"> / ${objectiveMaxScore}</span>
+      </div>
+      <div style="font-size:1rem; font-weight:700; color:${objColor};">${objPct}%</div>
+    `;
+  } else {
+    scoreBreakdownHtml = `
+      <div style="padding:16px; border-radius:12px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); margin-top:12px;">
+        <div style="font-size:1.3rem; font-weight:800; color:#d97706;">أسئلة مقالية (${essayMaxScore} درجات)</div>
+        <p style="color:var(--text-muted); font-size:0.9rem; margin-top:4px;">يمكنك مراجعة الإجابات النموذجية لجميع الأسئلة بالأسفل.</p>
+      </div>
+    `;
+  }
+
   // ─── Results screen ───────────────────────────────────────────────────────
   $('quizContent').innerHTML = `
     <div class="glass question-card">
-      <div style="text-align:center; padding:20px 0 28px; border-bottom:2px solid var(--border); margin-bottom:24px;">
-        <div style="font-size:3rem; margin-bottom:12px;">
-          ${hasEssay ? '📝' : pct >= 70 ? '🎉' : pct >= 50 ? '📊' : '💪'}
+      <div style="text-align:center; padding:20px 0 24px; border-bottom:2px solid var(--border); margin-bottom:24px;">
+        <div style="font-size:3rem; margin-bottom:10px;">
+          ${objPct >= 70 ? '🎉' : objPct >= 50 ? '📊' : '📝'}
         </div>
-        <h2 style="margin-bottom:8px;">${quiz.isReviewMode ? 'اكتملت المراجعة!' : 'تم تسليم الاختبار!'}</h2>
-        ${quiz.isReviewMode
-          ? '<p style="color:var(--text-muted);">لقد أكملت مراجعة جميع أسئلة هذا الاختبار.</p>'
-          : hasEssay
-            ? '<p style="color:var(--text-muted);">الأسئلة المقالية في انتظار التقييم اليدوي.<br>سيتم تحديث درجاتك بعد التقييم.</p>'
-            : `<div style="font-size:2.8rem; font-weight:900; color:${color}; margin:12px 0; line-height:1.1;">
-                 ${quiz.score}<span style="font-size:1.3rem; font-weight:500; color:var(--text-muted);">/${quiz.maxScore}</span>
-               </div>
-               <div style="font-size:1rem; font-weight:700; color:${color};">${pct}%</div>`
-        }
+        <h2 style="margin-bottom:6px;">${quiz.isReviewMode ? 'اكتملت المراجعة!' : 'تم تسليم الاختبار!'}</h2>
+        ${scoreBreakdownHtml}
       </div>
 
-      <h3 style="margin-bottom:16px; font-size:1.05rem;">📋 مراجعة الإجابات</h3>
+      <h3 style="margin-bottom:16px; font-size:1.05rem;">📋 مراجعة الأسئلة والاختيارات والإجابات النموذجية</h3>
       ${reviewHtml}
 
       <button class="btn btn-primary w-full" style="margin-top:8px;" onclick="navigateTo('dashboard')">
@@ -1046,8 +1217,12 @@ async function submitQuiz() {
           quiz_id:  quiz.quizId,
           material_id: quiz.materialId,
           answers:  quiz.answers,
-          score:    quiz.score,
-          max_score: quiz.maxScore
+          score:    objectiveScore,
+          max_score: objectiveMaxScore > 0 && answeredEssayCount === 0 ? objectiveMaxScore : quiz.maxScore,
+          objective_score: objectiveScore,
+          objective_max_score: objectiveMaxScore,
+          essay_max_score: essayMaxScore,
+          answered_essay_count: answeredEssayCount
         });
 
         // Auto-mark the quiz material as completed in student's progress record
@@ -1061,7 +1236,9 @@ async function submitQuiz() {
           logStudentActivity(
             'quiz_submit',
             `تسليم ${quizTitle}`,
-            hasEssay ? `الدرجة المبدئية: ${quiz.score}/${quiz.maxScore} (بانتظار تصحيح المقالي)` : `النتيجة: ${quiz.score}/${quiz.maxScore} (${pct}%)`,
+            hasObjective
+              ? `درجة الموضوعي: ${objectiveScore}/${objectiveMaxScore} (${objPct}%)${hasEssay ? ` | المقالي: من ${essayMaxScore}` : ''}`
+              : `تم تسليم الاختبار`,
             'متصل في الصفحة الرئيسية'
           );
         }
@@ -1073,6 +1250,6 @@ async function submitQuiz() {
     }
   }
 
-  if (!hasEssay) createConfetti();
+  if (objPct >= 50 || !hasEssay) createConfetti();
   showToast(quiz.isReviewMode ? 'اكتملت المراجعة!' : 'تم تسليم الاختبار بنجاح!', 'success');
 }

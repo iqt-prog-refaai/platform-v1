@@ -189,26 +189,9 @@ function showModal(type, id = null) {
       </div>
       <div class="input-group" id="contentField" style="display: ${isEdit && data.type === 'quiz' ? 'none' : 'block'}">
         <label id="materialContentLabel">${isEdit && data.type === 'pdf' ? 'رابط ملف PDF (Google Drive أو محلي)' : (isEdit && data.type === 'video' ? 'رابط الفيديو' : 'رابط المحتوى / الصفحة التفاعلية')}</label>
-        <input type="text" id="materialLinkInput" dir="ltr" style="direction: ltr; text-align: left;" value="${isEdit ? (data.content || '') : ''}" placeholder="${isEdit && data.type === 'pdf' ? 'https://drive.google.com/file/d/...' : 'lessons/lesson-3-2.html أو https://...'}">
-        <div style="margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(2, 132, 199, 0.06); border: 1px dashed rgba(2, 132, 199, 0.3);">
-          <div style="font-size: 0.78rem; font-weight: 700; color: var(--primary); margin-bottom: 6px;">⚡ محتويات تفاعلية جاهزة بالمنصة (تعبئة تلقائية بضغطة واحدة):</div>
-          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-            <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.78rem; border-color: rgba(5,150,105,0.4); color: #059669;" onclick="applyBuiltInLessonPreset('lesson_3_3_web')">
-              🌐 الدرس 3-3: أساسيات الواجهة الأمامية (صفحة تفاعلية)
-            </button>
-            <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.78rem;" onclick="applyBuiltInLessonPreset('lesson_3_3_pdf')">
-              📄 كتاب الدرس 3-3 (ملف PDF المرفق)
-            </button>
-            <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.78rem;" onclick="applyBuiltInLessonPreset('lesson_3_2_web')">
-              🌐 الدرس 3-2: طرق اتصال تطبيقات الويب (صفحة تفاعلية)
-            </button>
-            <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.78rem;" onclick="applyBuiltInLessonPreset('lesson_3_2_pdf')">
-              📄 ملخص الدرس 3-2 (ملف PDF المرفق)
-            </button>
-          </div>
-        </div>
+        <input type="text" id="materialLinkInput" dir="ltr" style="direction: ltr; text-align: left;" value="${isEdit ? (data.content || '') : ''}" placeholder="${isEdit && data.type === 'pdf' ? 'https://drive.google.com/file/d/...' : 'lessons/lesson-3-1.html أو https://...'}">
         <p id="materialContentHint" style="margin-top: 6px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;">
-          ${isEdit && data.type === 'pdf' ? '📌 يمكنك لصق رابط المشاركة من Google Drive أو مسار PDF محلي.' : '🔗 يمكنك وضع مسار صفحة تفاعلية محلية (مثل <code>lessons/lesson-3-2.html</code>) أو رابط شرائح Google Slides أو Canva.'}
+          ${isEdit && data.type === 'pdf' ? '📌 يمكنك لصق رابط المشاركة من Google Drive أو مسار PDF محلي.' : '🔗 يمكنك وضع مسار صفحة تفاعلية محلية (مثل <code>lessons/lesson-3-1.html</code>) أو رابط شرائح Google Slides أو Canva.'}
         </p>
       </div>
       <div class="input-group" style="margin-top: 14px;">

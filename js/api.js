@@ -608,10 +608,14 @@ const DirectFirestore = {
     const id = _generateId();
     const nowIso = new Date().toISOString();
     const answers = Array.isArray(data.answers) ? data.answers : [];
-    const isGraded = !answers.some(a => a && a.type === 'essay');
+    const hasAnsweredEssay = answers.some(a => a && a.type === 'essay' && a.answer !== null && a.answer !== undefined && String(a.answer).trim() !== '');
+    const isGraded = !hasAnsweredEssay;
     const cleanUser = String(data.username || '').trim();
     const score = Number(data.score) || 0;
     const maxScore = Number(data.max_score) || 0;
+    const objScore = data.objective_score !== undefined ? Number(data.objective_score) : score;
+    const objMaxScore = data.objective_max_score !== undefined ? Number(data.objective_max_score) : maxScore;
+    const essayMaxScore = data.essay_max_score !== undefined ? Number(data.essay_max_score) : 0;
 
     await fb.setDoc(fb.doc(fb.db, 'quiz_attempts', id), {
       attempt_id: id,
@@ -621,6 +625,9 @@ const DirectFirestore = {
       answers: answers,
       score: score,
       max_score: maxScore,
+      objective_score: objScore,
+      objective_max_score: objMaxScore,
+      essay_max_score: essayMaxScore,
       is_graded: isGraded,
       graded_by: '',
       feedback: '',
@@ -632,11 +639,11 @@ const DirectFirestore = {
         username: cleanUser,
         is_online: true,
         study_minutes_delta: 3,
-        current_activity: `أنهى اختبار (${score}/${maxScore})`,
+        current_activity: `أنهى اختبار (${objScore}/${objMaxScore})`,
         event: {
           type: 'quiz_submit',
           title: 'تسليم اختبار تفاعلي',
-          detail: isGraded ? `النتيجة: ${score}/${maxScore}` : 'بانتظار تصحيح الأسئلة المقالية',
+          detail: `درجة الموضوعي: ${objScore}/${objMaxScore}` + (essayMaxScore > 0 ? ` | المقالي: من ${essayMaxScore}` : ''),
           timestamp: nowIso
         }
       }).catch(() => {});

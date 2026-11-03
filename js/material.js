@@ -383,13 +383,32 @@ async function renderQuizMaterial(mat, isCompleted) {
     }
   }
 
+  let lastAttemptBadge = '';
+  if (lastAttempt) {
+    const objScore = lastAttempt.objective_score !== undefined ? lastAttempt.objective_score : lastAttempt.score;
+    const objMax = lastAttempt.objective_max_score !== undefined ? lastAttempt.objective_max_score : lastAttempt.max_score;
+    const essayMax = Number(lastAttempt.essay_max_score) || 0;
+    if (essayMax > 0) {
+      lastAttemptBadge = `
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+          <span style="color:#059669; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); padding:3px 10px; border-radius:8px; font-weight:700; font-size:0.86rem;">
+            درجة الأسئلة الموضوعية: ${objScore}/${objMax}
+          </span>
+          <span style="color:#d97706; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); padding:3px 10px; border-radius:8px; font-weight:700; font-size:0.86rem;">
+            الأسئلة المقالية: من ${essayMax} درجة
+          </span>
+        </div>
+      `;
+    } else {
+      lastAttemptBadge = `<span style="color: var(--primary); font-weight:700; display:block; margin-top:8px;">آخر درجة: ${lastAttempt.score}/${lastAttempt.max_score}</span>`;
+    }
+  }
+
   const headerHtml = `
     <div class="material-header">
       <span class="material-type-badge badge-quiz">${ICONS.quiz} اختبار</span>
       <h2>${mat.title}</h2>
-      ${lastAttempt
-        ? `<span style="color: var(--primary); font-weight:700; display:block; margin-top:8px;">آخر درجة: ${lastAttempt.score}/${lastAttempt.max_score}</span>`
-        : ''}
+      ${lastAttemptBadge}
     </div>
   `;
 
